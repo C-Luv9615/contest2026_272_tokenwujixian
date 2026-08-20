@@ -1,0 +1,77 @@
+#
+# chips/bk7258/wifi/Kconfig
+#
+# BK7258 Wi-Fi skeleton configuration. The MAC/PHY/RF runtime is an external
+# vendor input; these symbols select the team-owned NuttX integration only.
+# Vendor library path/hash and Beken patch metadata are tracked in
+# beken_patch_manifest.md, not here.
+
+menu "BK7258 Wi-Fi"
+
+config BK7258_WIFI
+	bool "BK7258 Wi-Fi (NuttX lower-half skeleton)"
+	default n
+	depends on BK7258_COMPONENT_CP
+	depends on NET
+	depends on NETDEVICES
+	select NETDEV_WIRELESS_HANDLER
+	help
+		Team-owned BK7258 Wi-Fi integration: netdev_lowerhalf +
+		wireless_ops_s data/control plane over the Beken MAC/PHY/RF runtime.
+		This is a skeleton milestone; it does not link the vendor library
+		until a NuttX-buildable vendor library and ABI are available.
+
+if BK7258_WIFI
+
+config BK7258_WIFI_STA
+	bool "Wi-Fi station (STA) support"
+	default y
+	help
+		Enable station mode skeleton. SoftAP/P2P/monitor are out of scope
+		for the first milestone.
+
+config BK7258_WIFI_OSAL
+	bool "BK7258 Wi-Fi OSAL (NuttX mapping)"
+	default y
+	help
+		Thin wrappers mapping thread/queue/timer/lock/irq/memory onto NuttX
+		primitives. Must not create a second scheduler and must not provide
+		semantic-empty stubs.
+
+config BK7258_WIFI_VENDOR_PACKET
+	bool "BK7258 vendor packet shim"
+	default y
+	help
+		Minimal packet container satisfying the Beken MAC data-path contract
+		(next/payload/len/tot_len + private reserve). Distinct from netpkt;
+		the lower half converts at the boundary.
+
+config BK7258_WIFI_DEBUG
+	bool "BK7258 Wi-Fi skeleton debug logging"
+	default n
+	depends on DEBUG_FEATURES
+	help
+		Enable skeleton-stage diagnostics. Must not print passphrase/PMK.
+
+comment "Vendor packet private reserve (beken_genie BK7258 profile)"
+
+config BK7258_WIFI_MSDU_RESV_HEAD_LENGTH
+	int "MSDU reserve head length"
+	default 108
+	depends on BK7258_WIFI_VENDOR_PACKET
+	help
+		MAC headroom before the Ethernet payload. Locked beken_genie profile
+		value; treat as a versioned vendor input, not a silicon constant.
+
+config BK7258_WIFI_MSDU_RESV_DESC_LENGTH
+	int "MSDU reserve descriptor length"
+	default 600
+	depends on BK7258_WIFI_VENDOR_PACKET
+	help
+		Descriptor private area holding sk_buff + tx descriptor + SG entries.
+		The lower half and packet shim must verify that these reserves are
+		not exceeded at runtime.
+
+endif # BK7258_WIFI
+
+endmenu

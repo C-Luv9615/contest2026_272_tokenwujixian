@@ -25,3 +25,5 @@ ifeq ($(CONFIG_BK7258_PSRAM),y)
 CHIP_CSRCS += bk7258_psram.c
 endif
 endif
+
+include wifi/Make.defs

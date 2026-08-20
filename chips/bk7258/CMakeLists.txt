@@ -32,3 +32,5 @@ endif()
 
 target_sources(arch PRIVATE ${SRCS})
 target_include_directories(arch PRIVATE ${NUTTX_CHIP_ABS_DIR}/include)
+
+add_subdirectory(wifi)

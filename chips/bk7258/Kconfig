@@ -172,4 +172,8 @@ config BK7258_GDMA_TEST
 
 endmenu
 
+# Path is relative to this Kconfig file's directory (kconfiglib semantics);
+# re-verify against the parent-workspace Kconfig root at full build time.
+source "wifi/Kconfig"
+
 endif
