@@ -44,3 +44,5 @@ target_include_directories(arch PRIVATE ${NUTTX_CHIP_ABS_DIR}/include)
 if(CONFIG_AUDIO_BK7258)
   add_subdirectory(audio)
 endif()
+
+add_subdirectory(wifi)

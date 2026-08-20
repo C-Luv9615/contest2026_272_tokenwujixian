@@ -23,5 +23,9 @@ if(CONFIG_ARCH_BUTTONS AND CONFIG_BK7258_COMPONENT_AP)
   target_sources(board PRIVATE bk7258_buttons.c)
 endif()
 
+if(CONFIG_BK7258_WIFI)
+  target_sources(board PRIVATE bk7258_wifi_board.c)
+endif()
+
 target_include_directories(board PRIVATE ${NUTTX_BOARD_ABS_DIR}/include
                                       ${NUTTX_CHIP_ABS_DIR}/include)
