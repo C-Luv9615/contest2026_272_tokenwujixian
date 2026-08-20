@@ -93,6 +93,22 @@
 #define BK7258_SYS_CPU1_INT_EN_HI (BK7258_SYS_BASE + UINT32_C(0x08c))
 #define BK7258_SYS_CPU2_INT_EN   (BK7258_SYS_BASE + UINT32_C(0x090))
 #define BK7258_SYS_CPU2_INT_EN_HI (BK7258_SYS_BASE + UINT32_C(0x094))
+
+/* Wi-Fi interrupt enable bits, low 32 (BK7258_SYS_CPU0_INT_EN). ICU 29..31. */
+#define BK7258_SYS_WIFI_MODEM_INT_EN          (UINT32_C(1) << 29)
+#define BK7258_SYS_WIFI_MODEM_RC_INT_EN       (UINT32_C(1) << 30)
+#define BK7258_SYS_WIFI_MAC_TXRX_TIMER_INT_EN (UINT32_C(1) << 31)
+
+/* Wi-Fi interrupt enable bits, high 32 (BK7258_SYS_CPU0_INT_EN_HI). ICU 32..38.
+ * MAC_HSU (ICU 37) has no unambiguous enable bit in sys_reg.h (its _POS collides
+ * with MAC_TXRX_MISC bit0 while bit5 is GPIO_NS), so it is intentionally not
+ * defined here until the vendor HSU routing is confirmed. */
+#define BK7258_SYS_WIFI_MAC_TXRX_MISC_INT_EN  (UINT32_C(1) << 0)
+#define BK7258_SYS_WIFI_MAC_RX_TRIGGER_INT_EN (UINT32_C(1) << 1)
+#define BK7258_SYS_WIFI_MAC_TX_TRIGGER_INT_EN (UINT32_C(1) << 2)
+#define BK7258_SYS_WIFI_MAC_PROT_TRIGGER_INT_EN (UINT32_C(1) << 3)
+#define BK7258_SYS_WIFI_MAC_GEN_INT_EN        (UINT32_C(1) << 4)
+#define BK7258_SYS_WIFI_MAC_WAKEUP_INT_EN     (UINT32_C(1) << 6)
 #define BK7258_SYS_CPU1_CTRL     (BK7258_SYS_BASE + UINT32_C(0x014))
 #define BK7258_SYS_CPU2_CTRL     (BK7258_SYS_BASE + UINT32_C(0x018))
 #define BK7258_SYS_CPU_STATUS    (BK7258_SYS_BASE + UINT32_C(0x00c))
