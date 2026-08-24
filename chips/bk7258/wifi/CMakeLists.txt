@@ -6,9 +6,12 @@ if(CONFIG_BK7258_WIFI)
       bk7258_wifi_lower.c
       bk7258_wifi_osal.c
       bk7258_wifi_packet.c
-      bk7258_wifi_hw.c)
+      bk7258_wifi_hw.c
+      glue/hw_driver_shim.c)
 
   target_sources(arch PRIVATE ${SRCS})
-  target_include_directories(arch PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+  target_include_directories(arch PRIVATE
+                             ${CMAKE_CURRENT_SOURCE_DIR}
+                             ${CMAKE_CURRENT_SOURCE_DIR}/glue/include)
 
 endif()
