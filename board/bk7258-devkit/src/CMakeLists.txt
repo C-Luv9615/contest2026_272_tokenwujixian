@@ -1,7 +1,8 @@
 target_sources(board PRIVATE
                bk7258_boardinit.c
                bk7258_bringup.c
-               bk7258_ap_control.c)
+               bk7258_ap_control.c
+               bk7258_partition.c)
 
 if(CONFIG_BOARDCTL_RESET)
   target_sources(board PRIVATE bk7258_reset.c)
