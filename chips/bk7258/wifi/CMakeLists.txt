@@ -12,6 +12,7 @@ if(CONFIG_BK7258_WIFI)
   target_sources(arch PRIVATE ${SRCS})
   target_include_directories(arch PRIVATE
                              ${CMAKE_CURRENT_SOURCE_DIR}
-                             ${CMAKE_CURRENT_SOURCE_DIR}/glue/include)
+                             ${CMAKE_CURRENT_SOURCE_DIR}/glue/include
+                             ${CMAKE_CURRENT_SOURCE_DIR}/third_party/beken_armino/include)
 
 endif()
