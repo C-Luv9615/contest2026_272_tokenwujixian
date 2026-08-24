@@ -29,9 +29,4 @@ int bk7258_partition_get_info(unsigned int partition, uint32_t *start,
 int bk7258_partition_read(unsigned int partition, void *buffer,
                           uint32_t offset, size_t length);
 
-int bk7258_partition_get_info(unsigned int partition, uint32_t *start,
-                              uint32_t *length);
-int bk7258_partition_read(unsigned int partition, void *buffer,
-                          uint32_t offset, size_t length);
-
 #endif /* __BOARD_BK7258_DEVKIT_BK7258_PARTITION_H */
