@@ -4,7 +4,7 @@
 
 include armv8-m/Make.defs
 
-CHIP_CSRCS += bk7258_irq.c bk7258_allocateheap.c bk7258_timer.c
+CHIP_CSRCS += bk7258_irq.c bk7258_allocateheap.c bk7258_timer.c bk7258_flash.c
 CHIP_CSRCS += bk7258_ap_boot.c
 
 ifeq ($(CONFIG_BK7258_MAILBOX),y)

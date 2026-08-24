@@ -20,6 +20,27 @@
 
 extern const void *const _vectors[];
 
+struct bk7258_vendor_irq_s
+{
+  void (*handler)(void);
+  void *arg;
+};
+
+static struct bk7258_vendor_irq_s g_vendor_irq[64];
+
+static int bk7258_vendor_irq_handler(int irq, void *context, void *arg)
+{
+  struct bk7258_vendor_irq_s *entry = arg;
+
+  (void)irq;
+  (void)context;
+  if (entry != NULL && entry->handler != NULL)
+    {
+      entry->handler();
+    }
+  return OK;
+}
+
 static int bk7258_icu_irq(unsigned int source)
 {
   return source < 64 ? NVIC_IRQ_FIRST + (int)source : -EINVAL;
@@ -100,6 +121,66 @@ int bk7258_icu_disable(unsigned int source)
   syslog(LOG_INFO, "[BK7258] ICU disable source=%u irq=%d ret=%d int_en=0x%08lx\n",
          source, irq, ret, (unsigned long)getreg32(BK7258_SYS_CPU0_INT_EN));
   return ret;
+}
+
+int bk7258_icu_vendor_register(unsigned int source, void (*handler)(void),
+                               void *arg)
+{
+  int ret;
+  irqstate_t flags;
+
+  if (source >= 64 || handler == NULL)
+    {
+      return -EINVAL;
+    }
+
+  flags = enter_critical_section();
+  if (g_vendor_irq[source].handler != NULL)
+    {
+      leave_critical_section(flags);
+      return -EBUSY;
+    }
+
+  g_vendor_irq[source].handler = handler;
+  g_vendor_irq[source].arg = arg;
+  ret = bk7258_icu_attach(source, bk7258_vendor_irq_handler,
+                           &g_vendor_irq[source]);
+  if (ret < 0)
+    {
+      g_vendor_irq[source].handler = NULL;
+      g_vendor_irq[source].arg = NULL;
+    }
+  leave_critical_section(flags);
+  return ret;
+}
+
+int bk7258_icu_vendor_unregister(unsigned int source)
+{
+  irqstate_t flags;
+  int ret;
+
+  if (source >= 64)
+    {
+      return -EINVAL;
+    }
+
+  ret = bk7258_icu_disable(source);
+  irq_detach(BK7258_IRQ_FIRST + source);
+  flags = enter_critical_section();
+  g_vendor_irq[source].handler = NULL;
+  g_vendor_irq[source].arg = NULL;
+  leave_critical_section(flags);
+  return ret;
+}
+
+int bk7258_icu_set_priority(unsigned int source, int priority)
+{
+  if (source >= 64)
+    {
+      return -EINVAL;
+    }
+
+  return up_prioritize_irq(BK7258_IRQ_FIRST + source, priority);
 }
 
 static int bk7258_irqinfo(int irq, uintptr_t *regaddr, uint32_t *bit,

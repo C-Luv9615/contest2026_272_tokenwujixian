@@ -4,6 +4,7 @@ set(SRCS
     bk7258_irq.c
     bk7258_allocateheap.c
     bk7258_timer.c
+    bk7258_flash.c
     bk7258_ap_boot.c)
 
 if(CONFIG_BK7258_MAILBOX)
