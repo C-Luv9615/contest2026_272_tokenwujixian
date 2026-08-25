@@ -8,6 +8,7 @@ if(CONFIG_BK7258_WIFI)
       bk7258_wifi_packet.c
       bk7258_wifi_hw.c
       glue/hw_driver_shim.c)
+  list(APPEND SRCS glue/netif_shim.c)
 
   target_sources(arch PRIVATE ${SRCS})
   target_include_directories(arch PRIVATE
