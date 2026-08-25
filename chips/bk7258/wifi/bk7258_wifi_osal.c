@@ -21,10 +21,12 @@
 #include <nuttx/wdog.h>
 #include <nuttx/wqueue.h>
 #include <nuttx/clock.h>
+#include <nuttx/signal.h>
 
 #include <pthread.h>
 #include <errno.h>
 #include <stdint.h>
+#include <time.h>
 #include <string.h>
 
 #include "bk7258_wifi_internal.h"
