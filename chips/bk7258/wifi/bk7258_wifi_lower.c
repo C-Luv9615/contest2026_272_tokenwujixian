@@ -33,6 +33,8 @@
 #include "bk_private/bk_wifi.h"
 #include "common/bk_err.h"
 
+#include "generated/lmac_wifi_adapter.h"
+
 #include "bk7258_wifi_internal.h"
 #include "bk7258_scan_diag.h"
 
@@ -767,6 +769,65 @@ void bk7258_wifi_lower_rx_submit(struct bk7258_wifi_s *priv,
  * Public entry
  ****************************************************************************/
 
+/* One-line-per-subsystem parity snapshot printed once at init completion.
+ * Reads only: no SSID/BSSID/frame data.  The slot list covers every group
+ * where the authoritative initializer binds and this port may stay NULL
+ * (EVM/ATE, netif/IP glue, power-save stubs, CSI, vendor-IE, airkiss,
+ * low-analog, dcache) so a bring-up trace shows the remaining divergence
+ * surface without another audit round. */
+#if CONFIG_BK7258_WIFI_VENDOR_RUNTIME
+static void bk7258_wifi_parity_banner(void)
+{
+  static const struct
+  {
+    const char *name;
+    size_t off;
+  } slots[] =
+  {
+    { "_do_evm",                     offsetof(wifi_os_funcs_t, _do_evm) },
+    { "_bk_feature_csi_out_cb",      offsetof(wifi_os_funcs_t, _bk_feature_csi_out_cb) },
+    { "_send_udp_bc_pkt",            offsetof(wifi_os_funcs_t, _send_udp_bc_pkt) },
+    { "_save_net_info",              offsetof(wifi_os_funcs_t, _save_net_info) },
+    { "_sta_ip_down",                offsetof(wifi_os_funcs_t, _sta_ip_down) },
+    { "_mac_sleeped",                offsetof(wifi_os_funcs_t, _mac_sleeped) },
+    { "_mcu_ps_machw_init",          offsetof(wifi_os_funcs_t, _mcu_ps_machw_init) },
+    { "_sys_hal_enter_low_analog",   offsetof(wifi_os_funcs_t, _sys_hal_enter_low_analog) },
+    { "_flush_all_dcache",           offsetof(wifi_os_funcs_t, _flush_all_dcache) },
+    { "_vendor_ie_cb",               offsetof(wifi_os_funcs_t, _bk_wifi_get_vendor_ie_cb_internal) },
+  };
+  char nulls[144];
+  size_t used = 0;
+
+  nulls[0] = '\0';
+  for (size_t i = 0; i < nitems(slots); i++)
+    {
+      if (*(void *const *)((const char *)&g_wifi_os_funcs + slots[i].off) == NULL)
+        {
+          int written = snprintf(nulls + used, sizeof(nulls) - used,
+                                 "%s ", slots[i].name);
+          if (written < 0 || (size_t)written >= sizeof(nulls) - used)
+            {
+              break;
+            }
+          used += (size_t)written;
+        }
+    }
+
+  syslog(LOG_INFO,
+         "[BK7258-WIFI] parity: null-vs-authoritative: %s\n",
+         nulls[0] != '\0' ? nulls : "(none)");
+  syslog(LOG_INFO,
+         "[BK7258-WIFI] parity: pwakeup=0x%08lx clken=0x%08lx "
+         "macid=0x%08lx fsm=0x%08lx crm10=0x%08lx crm14=0x%08lx\n",
+         (unsigned long)getreg32(BK7258_SYS_POWER_WAKEUP),
+         (unsigned long)getreg32(BK7258_SYS_DEV_CLK_EN),
+         (unsigned long)getreg32(0x49100000),
+         (unsigned long)getreg32(0x49100504),
+         (unsigned long)getreg32(0x49850010),
+         (unsigned long)getreg32(0x49850014));
+}
+#endif
+
 bool bk7258_wifi_is_ready(void)
 {
   return g_bk7258_wifi.registered;
@@ -845,5 +906,8 @@ int bk7258_wifi_initialize(void)
     {
       syslog(LOG_ERR, "[BK7258-WIFI] lower register failed=%d\n", ret);
     }
+#if CONFIG_BK7258_WIFI_VENDOR_RUNTIME
+  bk7258_wifi_parity_banner();
+#endif
   return ret;
 }

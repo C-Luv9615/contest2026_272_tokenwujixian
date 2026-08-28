@@ -13,9 +13,12 @@
 
 #include <nuttx/config.h>
 
-/* SoC family switches: BK7258 is none of the BK7236xx/BK7239xx/BK7256xx/
- * BK7286xx families these conditionals gate. */
-#define CONFIG_SOC_BK7236XX         0
+/* SoC family switches.  BK7258 belongs to the BK7236XX family: the
+ * authoritative BK7258 project configs set CONFIG_SOC_BK7236XX=y (loader
+ * ChipId 0x7236; see the armino bk7258 project configs).  Keeping it 0
+ * compiled every vendored 7236XX-conditional branch out, diverging from
+ * the profile the pinned libwifi.a was shipped for. */
+#define CONFIG_SOC_BK7236XX         1
 #define CONFIG_SOC_BK7239XX         0
 #define CONFIG_SOC_BK7256XX         0
 #define CONFIG_SOC_BK7286XX         0

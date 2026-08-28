@@ -268,8 +268,9 @@ void sys_drv_set_ana_cb_cal_manu_val(uint32_t value)
 
 void sys_drv_set_ana_ioldo_lp(uint32_t value)
 {
-  (void)value;
-  ANALOG_UNPORTED("sys_drv_set_ana_ioldo_lp");
+  /* Authoritative BK7258 sys_hal_set_ioldo_lp: the IO-LDO low-power flag
+   * maps onto the ANA_REG8 ioldo_lp bit. */
+  sys_ll_set_ana_reg8_ioldo_lp(!!value);
 }
 
 void sys_drv_set_ana_reg11_apfms(uint32_t value)
