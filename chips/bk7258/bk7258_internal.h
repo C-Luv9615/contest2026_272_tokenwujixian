@@ -18,6 +18,15 @@ void bk7258_gpio_uart0_tx(void);
 void bk7258_gpio_uart0_rx(void);
 void bk7258_clock_uart0(void);
 
+/* Temporary CP-only boot diagnostics. Physical CPU0 owns UART0; the AP image
+ * deliberately has no physical console, so its shared IRQ/timer code must not
+ * acquire a dependency on bk7258_lowputc(). */
+#ifdef CONFIG_BK7258_COMPONENT_CP
+#  define BK7258_BOOT_MARK(ch) bk7258_lowputc(ch)
+#else
+#  define BK7258_BOOT_MARK(ch) do { } while (0)
+#endif
+
 /* Generic GPIO primitives used by board peripheral drivers. */
 
 void bk7258_gpio_config_output(unsigned int pin);

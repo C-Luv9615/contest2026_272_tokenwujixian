@@ -9,6 +9,7 @@
 #include <syslog.h>
 
 #include <nuttx/board.h>
+#include <nuttx/arch.h>
 #include <nuttx/kthread.h>
 #include <nuttx/panic_notifier.h>
 #include <nuttx/serial/uart_rpmsg.h>
@@ -37,7 +38,9 @@ void rpmsg_serialinit(void)
   int ret;
 
 #ifdef CONFIG_BK7258_COMPONENT_CP
+  up_putc('r');
   ret = uart_rpmsg_init("ap", "AP", 4096, false);
+  up_putc('o');
 #else
 #  ifdef CONFIG_RPMSG_UART_CONSOLE
   ret = uart_rpmsg_init("cp", "AP", 4096, true);
@@ -66,6 +69,11 @@ void board_late_initialize(void)
   /* UART console registration is chip-owned. Board peripherals are added
    * only after their pinmux and hardware contracts are verified. */
 
+  /* Diagnostic-only boot ladder. /dev/console has been registered by the
+   * time board_late_initialize runs; up_putc remains independent of syslog.
+   */
+  up_putc('K');
+
 #ifdef CONFIG_BK7258_COMPONENT_CP
 #ifdef CONFIG_BK7258_TIMER0
   {
@@ -79,6 +87,8 @@ void board_late_initialize(void)
       {
         syslog(LOG_INFO, "[BK7258] Timer0 lower-half registered\n");
       }
+
+    up_putc('L');
   }
 #endif
 #ifdef CONFIG_RPTUN
@@ -91,6 +101,8 @@ void board_late_initialize(void)
     {
       syslog(LOG_INFO, "[AMP] CP RPTUN master initialized (Mailbox IRQ)\n");
     }
+
+  up_putc('M');
 #else
   (void)bk7258_ap_start_monitor();
 #endif
@@ -101,6 +113,9 @@ void board_late_initialize(void)
 
 int board_app_initialize(uintptr_t arg)
 {
+  /* CONFIG_NSH_ARCHINIT calls this from the NSH startup path. */
+  up_putc('N');
+
 #if defined(CONFIG_LCD_JD9853) || defined(CONFIG_LCD_GC9D01)
   int ret;
 

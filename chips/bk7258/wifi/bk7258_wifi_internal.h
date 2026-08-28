@@ -13,7 +13,9 @@
 #define __CHIPS_BK7258_WIFI_BK7258_WIFI_INTERNAL_H
 
 #include <nuttx/config.h>
+#include <nuttx/mutex.h>
 #include <nuttx/net/netdev_lowerhalf.h>
+#include <nuttx/mm/iob.h>
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -35,6 +37,23 @@
 /* Ethernet II frame we must carry for DHCP/ARP/MTU 1500. */
 #define BK7258_WIFI_MTU         1500u
 #define BK7258_WIFI_FRAME_MAX   (BK7258_WIFI_MTU + 14u)
+
+/* Scan results have SDK-owned storage only until the scan-done callback
+ * returns.  Keep a bounded, NuttX-owned snapshot for WEXT result queries.
+ * This is deliberately a scan-only cache: it contains no credentials or
+ * association state. */
+
+#define BK7258_WIFI_SCAN_MAX_APS    32u
+#define BK7258_WIFI_SCAN_SSID_LEN   32u
+
+struct bk7258_wifi_scan_ap_s
+{
+  char     ssid[BK7258_WIFI_SCAN_SSID_LEN + 1u];
+  uint8_t  bssid[6];
+  int      rssi;
+  uint8_t  channel;
+  uint32_t security;
+};
 
 /****************************************************************************
  * Vendor packet
@@ -86,6 +105,10 @@ int  bk7258_wifi_osal_queue_send(uintptr_t handle, const void *msg,
                                  unsigned int timeout_ms);
 int  bk7258_wifi_osal_queue_recv(uintptr_t handle, void *msg,
                                  unsigned int timeout_ms);
+bool bk7258_wifi_osal_queue_empty(uintptr_t handle);
+bool bk7258_wifi_osal_queue_full(uintptr_t handle);
+int  bk7258_wifi_osal_queue_send_front(uintptr_t handle, const void *msg,
+                                       unsigned int timeout_ms);
 int  bk7258_wifi_osal_queue_delete(uintptr_t handle);
 
 int  bk7258_wifi_osal_mutex_create(uintptr_t *handle);
@@ -139,6 +162,21 @@ struct bk7258_wifi_s
   uint8_t vif_idx;
   bool carrier;
   bool registered;
+  struct iob_s *rx_head;
+  struct iob_s *rx_tail;
+
+  /* Accessed by the vendor scan-done callback and NuttX WEXT ioctl callers.
+   * The callback never retains SDK-owned scan_result.aps memory. */
+
+  mutex_t scan_lock;
+  bool scan_lock_ready;
+  bool scan_callback_registered;
+  bool scan_in_progress;
+  bool scan_complete;
+  int scan_status;
+  uint32_t scan_id;
+  uint8_t scan_count;
+  struct bk7258_wifi_scan_ap_s scan_aps[BK7258_WIFI_SCAN_MAX_APS];
 };
 
 int bk7258_wifi_lower_init(struct bk7258_wifi_s *priv);
@@ -176,5 +214,10 @@ int  bk7258_wifi_board_get_mac(uint8_t mac[6]);
  ****************************************************************************/
 
 int bk7258_wifi_initialize(void);
+
+/* True once bk7258_wifi_initialize() has completed (lower half registered).
+ * Lets command entry points auto-initialize instead of silently running a
+ * scan against an unpowered MAC/PHY domain. */
+bool bk7258_wifi_is_ready(void);
 
 #endif /* __CHIPS_BK7258_WIFI_BK7258_WIFI_INTERNAL_H */

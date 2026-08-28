@@ -15,6 +15,7 @@
 #include <stdint.h>
 
 #include "components/system.h"
+#include "driver/uart.h"
 
 /****************************************************************************
  * MAC
@@ -29,10 +30,12 @@ bk_err_t bk_set_base_mac(const uint8_t *mac)
 
 bk_err_t bk_get_mac(uint8_t *mac, mac_type_t type)
 {
-  /* Chip-layer efuse/OTP MAC read is not wired yet (plan §11.3). */
-  (void)mac;
-  (void)type;
-  return BK_FAIL;
+  if (mac == NULL || type != MAC_TYPE_BASE)
+    {
+      return BK_FAIL;
+    }
+
+  return bk7258_wifi_board_get_mac(mac) == 0 ? BK_OK : BK_FAIL;
 }
 
 /****************************************************************************
@@ -167,6 +170,16 @@ void bk_set_printf_port(uint8_t port_num)
 int bk_get_printf_port(void)
 {
   return 0;
+}
+
+bk_err_t uart_write_string(uart_id_t id, const char *string)
+{
+  (void)id;
+  if (string != NULL)
+    {
+      fputs(string, stdout);
+    }
+  return BK_OK;
 }
 
 /****************************************************************************

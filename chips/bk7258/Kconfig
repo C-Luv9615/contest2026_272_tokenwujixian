@@ -50,6 +50,7 @@ config ARCH_CHIP_BK7258
 	bool "Beken BK7258 CP / CPU0"
 	default y
 	select ARCH_CORTEXM33
+	select ARCH_HAVE_FPU if BK7258_HARD_FLOAT
 	select ARCH_HAVE_TRUSTZONE
 	select ARMV8M_HAVE_DCACHE
 	select ARMV8M_HAVE_ICACHE
@@ -59,7 +60,16 @@ config ARCH_CHIP_BK7258
 	select OTHER_UART_SERIALDRIVER if BK7258_COMPONENT_CP
 	help
 			Secure BK7258 CP/AP support for the locked DevKit profile. CP owns
-			UART0; the first AP image runs on physical CPU1 without a UART.
+				UART0; the first AP image runs on physical CPU1 without a UART.
+
+config BK7258_HARD_FLOAT
+	bool "Enable BK7258 hard-float ABI"
+	default n
+	help
+		Enable the Cortex-M33 FPU and hard-float compiler ABI. This is required
+		when linking the vendor Wi-Fi archives, but remains independently
+		selectable for PSRAM startup controls so FPU effects can be tested
+		without linking Wi-Fi.
 
 config BK7258_SYSTICK_CLOCK_HZ
 	int "Secure SysTick clock frequency"
@@ -174,6 +184,6 @@ endmenu
 
 # Path is relative to this Kconfig file's directory (kconfiglib semantics);
 # re-verify against the parent-workspace Kconfig root at full build time.
-source "wifi/Kconfig"
+source "$BINDIR/../../../../../vendor/beken/chips/bk7258/wifi/Kconfig"
 
 endif

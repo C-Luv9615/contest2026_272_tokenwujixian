@@ -287,11 +287,17 @@ void up_irqinitialize(void)
 {
   int irq;
 
+  /* Polling-only BK-only boot ladder: this runs before the scheduler and
+   * intentionally does not depend on syslog or a registered console. */
+  BK7258_BOOT_MARK('A');
+
   for (irq = 0; irq < NR_IRQS - NVIC_IRQ_FIRST; irq += 32)
     {
       putreg32(UINT32_MAX, NVIC_IRQ_CLEAR(irq));
       putreg32(UINT32_MAX, NVIC_IRQ_CLRPEND(irq));
     }
+
+  BK7258_BOOT_MARK('B');
 
   putreg32((uintptr_t)_vectors, NVIC_VECTAB);
   irq_attach(NVIC_IRQ_SVCALL, arm_svcall, NULL);
@@ -306,9 +312,13 @@ void up_irqinitialize(void)
               NVIC_SYSHCON_USGFAULTENA | NVIC_SYSHCON_SECUREFAULTENA);
   up_prioritize_irq(NVIC_IRQ_PENDSV, NVIC_SYSH_PRIORITY_MIN);
 
+  BK7258_BOOT_MARK('C');
+
   /* SVC drives NuttX thread-mode context switches. It must remain above the
    * BASEPRI level used to mask normal interrupts in critical sections. */
 
   up_prioritize_irq(NVIC_IRQ_SVCALL, NVIC_SYSH_SVCALL_PRIORITY);
   up_irq_enable();
+
+  BK7258_BOOT_MARK('D');
 }

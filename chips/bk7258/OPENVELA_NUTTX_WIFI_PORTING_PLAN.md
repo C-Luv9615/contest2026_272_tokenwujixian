@@ -1,5 +1,27 @@
 # 全新芯片 OpenVela/NuttX Wi-Fi 适配计划
 
+## BK7258 当前执行状态（2026-08-26）
+
+本计划在 BK7258 上当前执行的是 CP 本地 STA-only 阶段，不包含 SoftAP 或
+“让别人连接本机”的功能。阶段顺序固定为：runtime-off 默认构建闭合；
+runtime-on 独立 probe 的 STA WPA/eloop/socket/source closure；RF/PHY
+初始化、SARADC 和连续扫描；WPA/EAPOL 关联、carrier 和 NuttX DHCP；
+断链、重连、DMA/cache、pbuf reserve 和长稳验证；SoftAP/P2P/monitor/并发
+另立后续阶段。
+
+当前已完成 capability table owner、P0/P1 OSAL、timer/workqueue、IRQ
+适配、vendor packet/pbuf 显式 copy bridge、netdev lower-half、BK7258
+SARADC PHY calibration lifecycle、校准表接入和手动 runtime app。
+
+当前限制：默认 CP 不自动调用 `bk_wifi_init()`；`runtime-probe` 已通过
+主要 STA WPA 源码编译并进入最终链接分析，但尚未链接闭合、未烧录、未做
+板上扫描/关联。AP/P2P/WPS 通过配置和源集合关闭，不以 stub 伪造闭合。
+
+当前未决项按优先级为：STA WPA core 的 queue/time/crypto/driver/L2
+provider；NuttX event/ARP/IP/carrier bridge；RF reset/校准实测；以及
+vendor descriptor/cache 行为。pbuf 708-byte private reserve 需要在闭源
+库实际分配路径上确认后，才可宣称 live data path 安全。
+
 ## 1. 目标与适用范围
 
 本文定义一套面向全新芯片或新 Wi-Fi 模组的 OpenVela/NuttX 适配流程，目标是最终向系统提供标准 `wlan0`，并让上层通过 WAPI、DHCP、DNS 和 POSIX socket 使用网络，而不是直接依赖厂商私有 Wi-Fi 或 socket API。

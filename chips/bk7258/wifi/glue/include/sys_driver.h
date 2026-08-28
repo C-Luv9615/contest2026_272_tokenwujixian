@@ -29,6 +29,22 @@ int32_t sys_drv_int_group2_enable(uint32_t param);
 uint32_t sys_drv_modem_bus_clk_ctrl(bool clk_en);
 uint32_t sys_drv_modem_clk_ctrl(bool clk_en);
 
+uint32_t sys_drv_cali_dpll(uint32_t param);
+void sys_drv_set_ana_cb_cal_manu_val(uint32_t value);
+void sys_drv_set_ana_cb_cal_trig(uint32_t value);
+void sys_drv_set_ana_cb_cal_manu(uint32_t value);
+uint32_t sys_drv_analog_set_xtalh_ctune(uint32_t param);
+uint32_t sys_drv_get_bgcalm(void);
+uint32_t sys_drv_set_bgcalm(uint32_t param);
+uint32_t sys_drv_get_vdd_value(void);
+uint32_t sys_drv_set_vdd_value(uint32_t param);
+void sys_drv_module_power_ctrl(power_module_name_t module,
+                               power_module_state_t state);
+void sys_drv_set_ana_reg11_apfms(uint32_t value);
+void sys_drv_set_ana_reg12_dpfms(uint32_t value);
+void sys_hal_enter_low_analog(void);
+void sys_hal_exit_low_analog(void);
+
 int32_t sys_drv_module_power_state_get(power_module_name_t module);
 
 #ifdef __cplusplus

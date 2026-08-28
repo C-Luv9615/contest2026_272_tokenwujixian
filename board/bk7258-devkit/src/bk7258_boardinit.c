@@ -4,9 +4,11 @@
 
 #include <nuttx/config.h>
 
+#include <nuttx/arch.h>
 #include <nuttx/board.h>
 
 void board_early_initialize(void)
 {
   /* Early pinmux and console hardware are owned by the secure chip layer. */
+  up_putc('J');
 }

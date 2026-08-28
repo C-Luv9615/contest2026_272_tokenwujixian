@@ -147,12 +147,24 @@ static int test_power_clock(void)
 
   ret = bk7258_phy_clock(false);
   failures += check("PHY clock off", ret);
+  value = bk7258_platform_test_read(BK7258_SYS_DEV_CLK_EN);
+  failures += check("PHY clock off readback",
+                    (value & BK7258_SYS_PHY_CKEN) == 0 ? OK : -EIO);
   ret = bk7258_mac_clock(false);
   failures += check("MAC clock off", ret);
+  value = bk7258_platform_test_read(BK7258_SYS_DEV_CLK_EN);
+  failures += check("MAC clock off readback",
+                    (value & BK7258_SYS_MAC_CKEN) == 0 ? OK : -EIO);
   ret = bk7258_phy_power(false);
   failures += check("PHY power off", ret);
+  value = bk7258_platform_test_read(BK7258_SYS_POWER_WAKEUP);
+  failures += check("PHY power off readback",
+                    (value & BK7258_SYS_WIFI_PHY_POWERDOWN) != 0 ? OK : -EIO);
   ret = bk7258_mac_power(false);
   failures += check("MAC power off", ret);
+  value = bk7258_platform_test_read(BK7258_SYS_POWER_WAKEUP);
+  failures += check("MAC power off readback",
+                    (value & BK7258_SYS_WIFI_MAC_POWERDOWN) != 0 ? OK : -EIO);
   return failures;
 }
 

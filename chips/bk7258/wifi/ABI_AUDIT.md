@@ -1,5 +1,10 @@
 # BK7258 Wi-Fi vendor ABI audit (P0 artifact)
 
+> Status update 2026-08-26: archive hashes and generated ABI contracts remain
+> valid. The NuttX integration now has a source-backed STA-only runtime probe;
+> it reaches final link analysis but is not yet link-complete or hardware
+> validated. SoftAP/P2P/WPS are intentionally outside this closure.
+
 Source: Armino SDK `release/v3.1.1`, commit `d2ded037798530175e5dc5cde6fa1878f5d5ef35`.
 
 ## 1. Vendor binary inventory
@@ -52,5 +57,8 @@ Armino TCP/IP stack.
    shim must stay layout-compatible with the integration branch's pbuf.
 3. **Secure/non-secure SYS base**: `0x44010000` secure vs `+0x10000000`
    non-secure; must be fixed before any clock/power/IRQ write.
-4. **License**: Armino root carries Apache-2.0; binary relink/redistribution
+4. **STA runtime closure**: WPA source integration is now aligned with the
+   Armino non-P2P manifest. Remaining link gaps are queue/time/crypto/driver
+   and NuttX capability providers; AP/P2P/WPS sources are excluded.
+5. **License**: Armino root carries Apache-2.0; binary relink/redistribution
    and NuttX-buildable delivery must be confirmed with Beken.
