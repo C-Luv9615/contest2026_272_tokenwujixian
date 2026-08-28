@@ -25,6 +25,7 @@
 #include <driver/int.h>
 #include <driver/aon_rtc.h>
 #include <generated/lmac_wifi_adapter.h>
+#include <gpio_driver.h>
 #include <modules/pm.h>
 #include <sys_types.h>
 #include "bk_phy_internal.h"
@@ -658,6 +659,60 @@ static void bk7258_wifi_phy_clk_close_cb(uint8_t is_wifi)
   phy_clk_close_handler(RF_BY_WIFI_BIT);
 }
 
+/* Blind-spot closure (2026-08-28 full-archive scan): every wifi_os_funcs_t
+ * slot the pinned libwifi.a/libbk_phy.a can dereference was cross-checked
+ * against the port bindings; the wrappers below close the NULL gaps so no
+ * 7236XX-family path can BLX through a zero slot.  Each wrapper copies the
+ * authoritative BK7258 profile binding: commented-out bodies stay empty,
+ * CKMN returns OK without CONFIG_CKMN, WAPI stays NULL exactly as upstream.
+ * _send_udp_bc_pkt (airkiss) and the low-analog pair have no provider in
+ * this profile; they log once and return instead of pretending success. */
+
+static void power_save_delay_sleep_check_cb(void) { }
+static void power_save_wake_mac_rf_if_in_sleep_cb(void) { }
+static void power_save_wake_mac_rf_end_clr_flag_cb(void) { }
+static bool power_save_if_ps_rf_dtim_enabled_cb(void) { return false; }
+static void power_save_forbid_trace_cb(void) { }
+static bool ps_need_pre_process_cb(void) { return false; }
+static uint32_t power_save_rf_sleep_check_cb(void) { return 0; }
+static void mac_ps_bcn_callback_cb(void) { }
+static UINT8 mac_sleeped_cb(void) { return 0; }
+static bk_err_t bk_ckmn_driver_get_rc32k_ppm_cb(void) { return BK_OK; }
+static UINT32 mcu_ps_machw_cal_cb(void) { return 0; }
+static void mcu_ps_machw_reset_cb(void) { }
+static void mcu_ps_machw_init_cb(void) { }
+static void mcu_ps_bcn_callback_cb(void) { }
+static void dbg_enable_debug_gpio_cb(void) { }
+static void bk7258_wifi_gpio_unmap_cb(uint32_t id) { (void)gpio_dev_unmap((gpio_id_t)id); }
+static void bk7258_wifi_gpio_map_cb(uint32_t id, uint32_t dev) { (void)gpio_dev_map((gpio_id_t)id, (gpio_dev_t)dev); }
+static void flush_all_dcache_cb(void) { }
+static uint32_t bk7258_wifi_udp_bc_pkt_cb(u8 random_data)
+{
+  static bool reported;
+  if (!reported) { reported = true;
+    bk_printf("[BK7258-WIFI] capability: _send_udp_bc_pkt (airkiss) not in profile\n"); }
+  (void)random_data;
+  return 0;
+}
+static void bk7258_wifi_enter_low_analog_cb(void)
+{
+  static bool reported;
+  if (!reported) { reported = true;
+    bk_printf("[BK7258-WIFI] capability: _sys_hal_enter_low_analog not in profile\n"); }
+}
+static void bk7258_wifi_exit_low_analog_cb(void)
+{
+  static bool reported;
+  if (!reported) { reported = true;
+    bk_printf("[BK7258-WIFI] capability: _sys_hal_exit_low_analog not in profile\n"); }
+}
+static void tx_verify_test_call_back_cb(void) { }
+
+extern bk_err_t bk_wifi_get_vendor_ie_cb_internal(void *vendor_ie, uint32_t vendor_type, uint16_t len, uint8_t frame_type);
+extern uint32_t bk_wifi_get_vendor_ie_type(void);
+extern uint8_t bk_wifi_get_vendor_ie_oui_len(void);
+extern void bk_wifi_csi_info_cb(void *data);
+
 /* ABI-complete objects: designated initializers preserve the generated
  * layout while leaving unported P3-P5 callbacks visibly NULL. Runtime startup
  * remains disabled until those rows are replaced by real providers. */
@@ -721,6 +776,33 @@ wifi_os_funcs_t g_wifi_os_funcs =
   ._bk_wifi_set_rf_en = bk_wifi_set_rf_en,
   ._bk_wifi_stop_rf = bk7258_wifi_stop_rf_cb,
   ._delay05us = delay05us,
+  /* blind-spot closure bindings, authoritative semantics per wrapper */
+  ._power_save_delay_sleep_check = power_save_delay_sleep_check_cb,
+  ._power_save_wake_mac_rf_if_in_sleep = power_save_wake_mac_rf_if_in_sleep_cb,
+  ._power_save_wake_mac_rf_end_clr_flag = power_save_wake_mac_rf_end_clr_flag_cb,
+  ._power_save_if_ps_rf_dtim_enabled = power_save_if_ps_rf_dtim_enabled_cb,
+  ._power_save_forbid_trace = power_save_forbid_trace_cb,
+  ._ps_need_pre_process = ps_need_pre_process_cb,
+  ._power_save_rf_sleep_check = power_save_rf_sleep_check_cb,
+  ._mac_ps_bcn_callback = mac_ps_bcn_callback_cb,
+  ._mac_sleeped = mac_sleeped_cb,
+  ._bk_ckmn_driver_get_rc32k_ppm = bk_ckmn_driver_get_rc32k_ppm_cb,
+  ._dbg_enable_debug_gpio = dbg_enable_debug_gpio_cb,
+  ._gpio_dev_unprotect_unmap = bk7258_wifi_gpio_unmap_cb,
+  ._gpio_dev_unprotect_map = bk7258_wifi_gpio_map_cb,
+  ._mcu_ps_machw_cal = mcu_ps_machw_cal_cb,
+  ._mcu_ps_machw_reset = mcu_ps_machw_reset_cb,
+  ._mcu_ps_machw_init = mcu_ps_machw_init_cb,
+  ._mcu_ps_bcn_callback = mcu_ps_bcn_callback_cb,
+  ._bk_feature_csi_out_cb = bk_wifi_csi_info_cb,
+  ._bk_wifi_get_vendor_ie_cb_internal = bk_wifi_get_vendor_ie_cb_internal,
+  ._bk_wifi_get_vendor_ie_type = bk_wifi_get_vendor_ie_type,
+  ._bk_wifi_get_vendor_ie_oui_len = bk_wifi_get_vendor_ie_oui_len,
+  ._flush_all_dcache = flush_all_dcache_cb,
+  ._send_udp_bc_pkt = bk7258_wifi_udp_bc_pkt_cb,
+  ._tx_verify_test_call_back = tx_verify_test_call_back_cb,
+  ._sys_hal_enter_low_analog = bk7258_wifi_enter_low_analog_cb,
+  ._sys_hal_exit_low_analog = bk7258_wifi_exit_low_analog_cb,
   ._cal_set_rfconfig_BTPLL = rwnx_cal_set_rfconfig_BTPLL,
   ._cal_set_rfconfig_WIFIPLL = rwnx_cal_set_rfconfig_WIFIPLL,
   ._calibration_init = calibration_init,
