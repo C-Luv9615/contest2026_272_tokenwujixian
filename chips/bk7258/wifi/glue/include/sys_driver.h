@@ -31,6 +31,7 @@ uint32_t sys_drv_modem_clk_ctrl(bool clk_en);
 
 uint32_t sys_drv_cali_dpll(uint32_t param);
 void sys_drv_set_ana_cb_cal_manu_val(uint32_t value);
+void sys_drv_set_ana_ioldo_lp(uint32_t value);
 void sys_drv_set_ana_cb_cal_trig(uint32_t value);
 void sys_drv_set_ana_cb_cal_manu(uint32_t value);
 uint32_t sys_drv_analog_set_xtalh_ctune(uint32_t param);

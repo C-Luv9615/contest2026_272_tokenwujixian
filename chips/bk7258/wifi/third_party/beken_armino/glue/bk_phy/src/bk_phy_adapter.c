@@ -580,17 +580,11 @@ const phy_os_funcs_t g_phy_os_funcs = {
 #endif
 
 #if CONFIG_SOC_BK7258
-    /* These fields are verified against BK7258 sys_ll.h and are implemented
-     * through the locked, latched analog shim. Keep unverified sys_drv
-     * calibration controls outside this narrow BK7258 extension. */
-    ._sys_ll_set_ana_reg5_adc_div     = sys_ll_set_ana_reg5_adc_div,
-    ._sys_ll_get_ana_reg5_adc_div     = sys_ll_get_ana_reg5_adc_div,
-    ._sys_ll_set_ana_reg8_ioldo_lp    = sys_ll_set_ana_reg8_ioldo_lp,
-    ._sys_ll_set_ana_reg9_vcorehsel   = sys_ll_set_ana_reg9_vcorehsel,
-    ._sys_ll_set_ana_reg9_spi_latch1v = sys_ll_set_ana_reg9_spi_latch1v,
-    ._sys_ll_set_ana_reg10_iobyapssen = sys_ll_set_ana_reg10_iobyapssen,
-    ._sys_ll_set_ana_reg11_aldosel    = sys_ll_set_ana_reg11_aldosel,
-    ._sys_ll_set_ana_reg12_dldosel    = sys_ll_set_ana_reg12_dldosel,
+    /* With CONFIG_SOC_BK7236XX aligned to the authoritative BK7258 profile
+     * (BK7258 is a BK7236-family part), the block above already binds the
+     * ANA reg5/8/9/10/11/12 set through the locked, latched analog shim and
+     * includes the iobyapssen latch wrapper; no BK7258-specific overrides
+     * remain.  Unverified sys_drv calibration controls stay out. */
 #endif
 
     ._sys_drv_cali_dpll               = sys_drv_cali_dpll,

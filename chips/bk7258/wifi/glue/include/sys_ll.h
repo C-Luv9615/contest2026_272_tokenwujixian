@@ -27,6 +27,7 @@ uint32_t sys_ll_get_cpu_power_sleep_wakeup_pwd_ofdm(void);
 void     sys_ll_set_ana_reg5_adc_div(uint32_t v);
 uint32_t sys_ll_get_ana_reg5_adc_div(void);
 void     sys_ll_set_ana_reg8_ioldo_lp(uint32_t v);
+void     sys_ll_set_ana_reg8_iocurlim(uint32_t v);
 void     sys_ll_set_ana_reg9_vcorehsel(uint32_t v);
 void     sys_ll_set_ana_reg9_spi_latch1v(uint32_t v);
 void     sys_ll_set_ana_reg10_iobyapssen(uint32_t v);
