@@ -23,6 +23,8 @@ typedef uint32_t rtc_tick_t;
 
 bk_err_t bk_aon_rtc_driver_init(void);
 bk_err_t bk_aon_rtc_driver_deinit(void);
+uint64_t bk_aon_rtc_get_current_tick(aon_rtc_id_t id);
+float bk_rtc_get_ms_tick_count(void);
 
 #ifdef __cplusplus
 }

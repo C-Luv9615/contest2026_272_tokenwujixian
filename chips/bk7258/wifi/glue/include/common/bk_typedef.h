@@ -80,6 +80,11 @@ typedef unsigned short     __u16;
 typedef signed short       __s16;
 typedef unsigned char      __u8;
 typedef unsigned long long __u64;
+typedef uint16_t           __le16;
+
+#ifndef cpu_to_le16
+#  define cpu_to_le16(v) ((uint16_t)(v))
+#endif
 
 #ifdef __cplusplus
 }

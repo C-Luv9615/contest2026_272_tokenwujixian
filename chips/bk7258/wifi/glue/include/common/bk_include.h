@@ -17,6 +17,8 @@ extern "C" {
 #include <common/sys_config.h>
 #include <common/bk_typedef.h>
 #include <common/bk_generic.h>
+#include <common/bk_err.h>
+#include <common/bk_kernel_err.h>
 
 #ifdef __cplusplus
 }

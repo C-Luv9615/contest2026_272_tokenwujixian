@@ -93,15 +93,34 @@ void __start(void)
   irq_attach(NVIC_IRQ_SECUREFAULT, arm_securefault, NULL);
 #endif
 
+  /* A hard-float image can use the VFP calling convention before nx_start()
+   * enters the generic initialization path.  Configure CP10/CP11 and the
+   * NuttX FP context policy while interrupts are still masked, after .data
+   * and .bss are valid but before any board peripheral or PSRAM work. */
+
+#ifdef CONFIG_ARCH_FPU
+  arm_fpuconfig();
+  __asm__ volatile ("dsb\n\tisb" : : : "memory");
+#endif
+
   bk7258_lowsetup();
   bk7258_lowputc('B');
   bk7258_lowputc('K');
   bk7258_lowputc('\r');
   bk7258_lowputc('\n');
 
+  /* Early-boot diagnostic ladder.  These polling UART markers deliberately
+   * bypass syslog, the serial driver, IRQs, and the scheduler.  They identify
+   * whether a BK-only boot stops in arm_earlyserialinit() or after nx_start()
+   * is entered.  Remove after the runtime-on cold-boot investigation. */
+
+  bk7258_lowputc('1');
+
 #ifdef USE_EARLYSERIALINIT
   arm_earlyserialinit();
 #endif
+
+  bk7258_lowputc('2');
 
   /* Trace marker: boot reached nx_start. */
   bk7258_lowputc('S');

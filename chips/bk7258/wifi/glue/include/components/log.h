@@ -16,6 +16,9 @@
 #define BK_LOGI(tag, fmt, ...) syslog(LOG_INFO, "[%s] " fmt, tag, ##__VA_ARGS__)
 #define BK_LOGD(tag, fmt, ...) syslog(LOG_DEBUG, "[%s] " fmt, tag, ##__VA_ARGS__)
 #define BK_LOGV(tag, fmt, ...) syslog(LOG_DEBUG, "[%s] " fmt, tag, ##__VA_ARGS__)
+#define BK_LOG_RAW(tag, fmt, ...) syslog(LOG_DEBUG, "[%s] " fmt, tag, ##__VA_ARGS__)
+#define BK_MAC_FORMAT "%02x:%02x:%02x:%02x:%02x:%02x"
+#define BK_MAC_STR(a) ((a)[0]), ((a)[1]), ((a)[2]), ((a)[3]), ((a)[4]), ((a)[5])
 
 #define BK_LOG_FLUSH()
 

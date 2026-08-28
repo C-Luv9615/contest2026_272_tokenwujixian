@@ -4,10 +4,7 @@
 
 #include <stdint.h>
 #include <common/bk_err.h>
-
-typedef uint32_t icu_int_src_t;
-typedef void (*int_group_isr_t)(void *arg);
-typedef void (*int_mac_ps_callback_t)(void);
+#include <driver/int_types.h>
 
 bk_err_t bk_icu_driver_init(void);
 bk_err_t bk_icu_driver_deinit(void);

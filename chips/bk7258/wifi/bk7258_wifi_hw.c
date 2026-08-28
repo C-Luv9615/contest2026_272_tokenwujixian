@@ -3,11 +3,9 @@
  *
  * BK7258 Wi-Fi clock/power/IRQ glue.
  *
- * Skeleton status: register evidence is recorded as comments; the actual
- * MMIO writes must reuse the chip-level SYS/ICU helpers (bk7258_clock.c,
- * bk7258_irq.c) after the secure/non-secure SYS base and the power-domain
- * read-modify-write semantics are validated on hardware. Until then every
- * operation returns -ENOSYS, not a silent no-op.
+ * Uses team-owned SYS clock and power-gate helpers. This deliberately stops
+ * before MAC/PHY reset, RF calibration, or vendor initialization: those need
+ * additional hardware contracts and remain outside the runtime-off stage.
  *
  * Register evidence (plan §11.2, Armino release/v3.1.1):
  *   secure SYS base            0x44010000
@@ -28,37 +26,109 @@
 
 #include <errno.h>
 
+#include <arch/chip/bk7258_clock.h>
+#include <arch/chip/bk7258_sysctrl.h>
+
 #include "bk7258_wifi_internal.h"
 
 int bk7258_wifi_hw_init(void)
 {
-  return -ENOSYS;
+  int ret;
+
+  ret = bk7258_wifi_hw_power_on();
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  ret = bk7258_wifi_hw_clock_on();
+  if (ret < 0)
+    {
+      bk7258_wifi_hw_power_off();
+      return ret;
+    }
+
+  return 0;
 }
 
 void bk7258_wifi_hw_deinit(void)
 {
+  bk7258_wifi_hw_clock_off();
+  bk7258_wifi_hw_power_off();
 }
 
 int bk7258_wifi_hw_power_on(void)
 {
-  /* Vendor power-domain vote (WIFIP_MAC + WIFI_PHY + PHY_WIFI) then RF vote.
-   * Not wired: needs the chip power-domain helper and validated polarity. */
-  return -ENOSYS;
+  int ret;
+
+  ret = bk7258_phy_power(true);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  ret = bk7258_mac_power(true);
+  if (ret < 0)
+    {
+      bk7258_phy_power(false);
+      return ret;
+    }
+
+  /* The NX MAC core sits behind the OFDM domain; without it crm_mdm_reset()
+   * in the pinned archive skips the modem reset release and the MAC state
+   * machine never leaves 0. */
+  ret = bk7258_ofdm_power(true);
+  if (ret < 0)
+    {
+      bk7258_mac_power(false);
+      bk7258_phy_power(false);
+      return ret;
+    }
+
+  return 0;
 }
 
 int bk7258_wifi_hw_power_off(void)
 {
-  return -ENOSYS;
+  int ret;
+  int phy_ret;
+
+  ret = bk7258_ofdm_power(false);
+  phy_ret = bk7258_mac_power(false);
+  if (ret >= 0)
+    {
+      ret = phy_ret;
+    }
+  phy_ret = bk7258_phy_power(false);
+  return ret < 0 ? ret : phy_ret;
 }
 
 int bk7258_wifi_hw_clock_on(void)
 {
-  /* Read-modify-write SYS_CPU_DEVICE_CLK_ENABLE MAC bit 26 and PHY bit 27,
-   * preserving unrelated bits. Not wired until the secure SYS base is fixed. */
-  return -ENOSYS;
+  int ret;
+
+  ret = bk7258_phy_clock(true);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  ret = bk7258_mac_clock(true);
+  if (ret < 0)
+    {
+      bk7258_phy_clock(false);
+      return ret;
+    }
+
+  return 0;
 }
 
 int bk7258_wifi_hw_clock_off(void)
 {
-  return -ENOSYS;
+  int ret;
+  int phy_ret;
+
+  ret = bk7258_mac_clock(false);
+  phy_ret = bk7258_phy_clock(false);
+  return ret < 0 ? ret : phy_ret;
 }
