@@ -712,13 +712,32 @@ static uint32_t bk7258_wifi_udp_bc_pkt_cb(u8 random_data)
   (void)random_data;
   return 0;
 }
+extern void hp_sys_hal_enter_low_analog(void);
+extern void hp_sys_hal_exit_low_analog(void);
+
 static void bk7258_wifi_enter_low_analog_cb(void)
+{
+  /* HAL-alignment: verbatim port of sys_pm_hal.c enter_low_analog
+   * (ANA bitfield RMW sequence), replacing the former NULL slot. */
+  hp_sys_hal_enter_low_analog();
+  return;
+}
+#if 0
+static void bk7258_wifi_enter_low_analog_cb_unused(void)
 {
   static bool reported;
   if (!reported) { reported = true;
     bk_printf("[BK7258-WIFI] capability: _sys_hal_enter_low_analog not in profile\n"); }
 }
+}
+
 static void bk7258_wifi_exit_low_analog_cb(void)
+{
+  hp_sys_hal_exit_low_analog();
+  return;
+}
+#if 0
+static void bk7258_wifi_exit_low_analog_cb_unused(void)
 {
   static bool reported;
   if (!reported) { reported = true;
