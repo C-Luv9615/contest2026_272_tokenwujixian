@@ -1123,6 +1123,21 @@ wifi_os_variable_t g_wifi_os_variable =
   ._pm_32k_step_begin = PM_32K_STEP_BEGIN,
   ._pm_32k_step_finish = PM_32K_STEP_FINISH,
 
+  /* Low-power clock-switch timing constants (values from the
+   * authoritative bk_wifi_adapter.c / bk7258 sys_types.h):
+   *  xtal_dpll_stability = (0.29ms DPLL + 0.75ms restore) * 1000 = 1040
+   *  hardware delay = 500us; 26M stability = 1800us (project config).
+   * The library consumes these during sleep/wake clock transitions;
+   * leaving them unbound left the timing at 0. */
+  ._low_power_xtal_dpll_stability_delay_time = 1040,
+  ._low_power_delay_time_hardware = 500,
+  ._low_power_26m_stability_delay_time_hardware = 1800,
+  /* WIFI_HSU interrupt enable bit: CPU0_INT_32_63_EN bit0 (WIFI_HSU). */
+  ._wifi_hsu_interrupt_ctrl_bit = 1,
+  /* Low-voltage wakeup lead time and debug config register address. */
+  ._pm_low_voltage_delta_wakeup_delay_in_us = 0,
+  ._sys_sys_debug_config1_addr = 0x44010000 + (0x39 << 2),
+
   ._cmd_rf_wifipll_hold_bit_set = CMD_RF_WIFIPLL_HOLD_BIT_SET,
   ._cmd_rf_wifipll_hold_bit_clr = CMD_RF_WIFIPLL_HOLD_BIT_CLR,
   ._rf_wifipll_hold_by_wifi_bit = RF_WIFIPLL_HOLD_BY_WIFI_BIT,
