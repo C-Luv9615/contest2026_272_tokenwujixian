@@ -999,6 +999,16 @@ int bk7258_wifi_initialize(void)
     vnd_cal_overlay();
     syslog(LOG_INFO, "[BK7258-WIFI] vnd_cal overlay applied\n");
   }
+  /* power_clk_rf_init: ROSC calibration + temp detect + analog clock enable
+   * (Armino driver_early_init → power_clk_rf_init, driver.c:119-258).
+   * Without this, the ROSC LPO runs uncalibrated and the analog clock
+   * is not enabled for the WiFi subsystem. */
+  {
+    extern void hp_power_clk_rf_init(void);
+
+    hp_power_clk_rf_init();
+    syslog(LOG_INFO, "[BK7258-WIFI] power_clk_rf init applied\n");
+  }
 
   syslog(LOG_INFO, "[BK7258-WIFI] runtime: bk_wifi_init begin\n");
   ret = bk_wifi_init(&(wifi_init_config_t)WIFI_DEFAULT_INIT_CONFIG());
