@@ -254,19 +254,32 @@ int32_t sys_drv_module_power_state_get(power_module_name_t module)
 
 void sys_ll_set_cpu_power_sleep_wakeup_pwd_ofdm(uint32_t v)
 {
+  /* Board evidence (2026-08-31): once the PS stub group was bound with
+   * authoritative semantics, the pinned archive's sleep path legitimately
+   * called this setter with v=1 between init and scan, powering the OFDM
+   * domain down (POWER_WAKEUP 0x70000000 -> 0x70002000, CRM modem field
+   * 0x3108 -> 0x0108) and parking the NX MAC core at FSM 0.  This profile
+   * has no power-save implementation, so a down-vote from the archive is
+   * explicitly refused and reported; the power-up direction stays real. */
+  if (v)
+    {
+      static bool reported;
+
+      if (!reported)
+        {
+          reported = true;
+          syslog(LOG_WARNING, "[BK7258-WIFI] capability: OFDM domain power-down refused"
+                    " (power-save not implemented)\n");
+        }
+
+      return;
+    }
+
   static spinlock_t lock = SP_UNLOCKED;
   irqstate_t flags = spin_lock_irqsave(&lock);
   uint32_t reg = getreg32(BK7258_SYS_POWER_WAKEUP);
 
-  if (v)
-    {
-      reg |= BK7258_SYS_OFDM_POWERDOWN;
-    }
-  else
-    {
-      reg &= ~BK7258_SYS_OFDM_POWERDOWN;
-    }
-
+  reg &= ~BK7258_SYS_OFDM_POWERDOWN;
   putreg32(reg, BK7258_SYS_POWER_WAKEUP);
   spin_unlock_irqrestore(&lock, flags);
 }
