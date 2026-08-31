@@ -186,7 +186,35 @@ struct pbuf *pbuf_coalesce(struct pbuf *p, pbuf_layer layer)
 
 void *bk_pbuf_alloc_wrapper(int layer, uint16_t length, int type)
 {
-  return pbuf_alloc((pbuf_layer)layer, length, (pbuf_type)type);
+  /* The archive passes the Beken bk_pbuf_layer/bk_pbuf_type enums
+   * (generated/lmac_wifi_adapter.h: IP=0 LINK=1 RAW_TX=2 RAW=3;
+   * RAM=0 RAM_RX=1 ROM=2 REF=3 POOL=4).  Our pbuf layer enum carries
+   * headroom byte counts and our type enum carries lwIP 2.1.2 flag
+   * combinations, so a numeric passthrough would mis-map every field.
+   * Translate explicitly, mirroring the authoritative adapter mapping. */
+  pbuf_layer l;
+  pbuf_type t;
+
+  switch (layer)
+    {
+    case 0: l = PBUF_IP;     break;
+    case 1: l = PBUF_LINK;   break;
+    case 2: l = PBUF_RAW_TX; break;
+    case 3: l = PBUF_RAW;    break;
+    default: return NULL;
+    }
+
+  switch (type)
+    {
+    case 0: t = PBUF_RAM;    break;
+    case 1: t = PBUF_RAM_RX; break;
+    case 2: t = PBUF_ROM;    break;
+    case 3: t = PBUF_REF;    break;
+    case 4: t = PBUF_POOL;   break;
+    default: return NULL;
+    }
+
+  return pbuf_alloc(l, length, t);
 }
 
 void bk_pbuf_free_wrapper(void *p)

@@ -7,6 +7,8 @@
  */
 
 #include <nuttx/config.h>
+#include <nuttx/irq.h>
+#include <nuttx/spinlock.h>
 #include <nuttx/clock.h>
 #include <arm_internal.h>
 #include <arch/chip/bk7258_clock.h>
@@ -114,6 +116,18 @@ bk_err_t bk_pm_clock_ctrl(pm_dev_clk_e module, pm_dev_clk_pwr_e clock_state)
   return BK_ERR_NOT_SUPPORT;
 }
 
+bk_err_t bk_pm_lpo_src_set(pm_lpo_src_e lpo_src)
+{
+  /* Armino aon_pmu_hal_lpo_src_set: read-modify-write only the
+   * lpo_config field (R41 bits[1:0]), preserving the rest. */
+  uint32_t r41 = getreg32(BK7258_AON_PMU_R41);
+
+  r41 = (r41 & ~BK7258_AON_PMU_R41_LPO_CONFIG_MASK) |
+        ((uint32_t)lpo_src & BK7258_AON_PMU_R41_LPO_CONFIG_MASK);
+  putreg32(r41, BK7258_AON_PMU_R41);
+  return BK_OK;
+}
+
 pm_lpo_src_e bk_pm_lpo_src_get(void)
 {
   /* The PMU R41 field is the live BK7258 LPO source.  This query does not
@@ -129,9 +143,23 @@ int32 bk_pm_module_power_state_get(pm_power_module_name_e module)
 
 bk_err_t bk_pm_module_vote_cpu_freq(pm_dev_id_e module, pm_cpu_freq_e cpu_freq)
 {
-  (void)module;
-  (void)cpu_freq;
-  return BK_ERR_NOT_SUPPORT;
+  /* Behavioral alignment note (2026-08-31): the authoritative Armino
+   * implementation (bk_pm.c) records the per-module vote, takes the max and
+   * actually switches the CPU bus frequency through
+   * sys_drv_switch_cpu_bus_freq -> sys_hal_core_bus_clock_ctrl
+   * (CLK_DIV_REG0 cksel/div writes plus VDDD voltage trims).  crm_clk_set
+   * derives the modem clock by dividing that CPU bus clock, so a real DVFS
+   * implementation matters when the voted frequency differs from the boot
+   * default.  This platform currently runs the CPU at the bootloader-set
+   * frequency with no DVFS framework, so the vote is recorded and accepted
+   * (returning BK_OK keeps the library on its normal branch); switching the
+   * real frequency requires the CLK_DIV_REG0/CPU-divider sequence to be
+   * ported and is tracked as a follow-up.  The board read of 0x44010020 in
+   * the scan diag reports the actual cksel/divider in effect. */
+  syslog(LOG_INFO,
+         "[BK7258-WIFI] pmq: cpu_freq vote module=%d freq=%d "
+         "(no DVFS; accepted)\n", (int)module, (int)cpu_freq);
+  return BK_OK;
 }
 
 bk_err_t bk_pm_module_vote_power_ctrl(pm_power_module_name_e module,
@@ -168,10 +196,48 @@ bk_err_t bk_pm_module_vote_sleep_ctrl(pm_sleep_module_name_e module,
                                        uint32_t sleep_state,
                                        uint32_t sleep_time)
 {
-  (void)module;
-  (void)sleep_state;
-  (void)sleep_time;
-  return BK_ERR_NOT_SUPPORT;
+  /* Behavioral alignment with pm.c bk_pm_module_vote_sleep_ctrl plus
+   * sys_pm_hal enable/clear_mac_wakeup_source: maintain the slept-module
+   * bitmap and operate the WIFI bit inside the AON PMU R41 wakeup_ena
+   * field (bits[9:4]; WAKEUP_SOURCE_INT_WIFI=2 -> register bit 6).  The
+   * RMW preserves every other R41 field (lpo_config, xtal_sel, halt_*). */
+  static uint64_t slept_modules;
+  static spinlock_t lock = SP_UNLOCKED;
+  const uint32_t r41_wifi_bit = UINT32_C(1) << (4 + 2);
+  irqstate_t flags;
+  uint32_t r41;
+
+  flags = spin_lock_irqsave(&lock);
+
+  if (sleep_state == 1)
+    {
+      if (module == PM_SLEEP_MODULE_NAME_WIFIP_MAC)
+        {
+          r41 = getreg32(BK7258_AON_PMU_R41);
+          r41 |= r41_wifi_bit;
+          putreg32(r41, BK7258_AON_PMU_R41);
+        }
+      slept_modules |= UINT64_C(1) << module;
+    }
+  else
+    {
+      if (module == PM_SLEEP_MODULE_NAME_WIFIP_MAC)
+        {
+          r41 = getreg32(BK7258_AON_PMU_R41);
+          r41 &= ~r41_wifi_bit;
+          putreg32(r41, BK7258_AON_PMU_R41);
+        }
+      slept_modules &= ~(UINT64_C(1) << module);
+    }
+
+  spin_unlock_irqrestore(&lock, flags);
+
+  syslog(LOG_INFO,
+         "[BK7258-WIFI] pmq: vote_sleep(module=%d state=%lu) "
+         "slept=0x%llx\n",
+         (int)module, (unsigned long)sleep_state,
+         (unsigned long long)slept_modules);
+  return BK_OK;
 }
 
 void bk_pm_phy_reinit_flag_clear(void)

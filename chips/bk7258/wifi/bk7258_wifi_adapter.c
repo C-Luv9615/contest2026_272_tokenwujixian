@@ -298,7 +298,18 @@ static bk_err_t bk7258_wifi_pm_vote_sleep_cb(uint32_t module,
 
 static uint32_t bk7258_wifi_pm_lpo_src_cb(void)
 {
-  return (uint32_t)bk_pm_lpo_src_get();
+  uint32_t v = (uint32_t)bk_pm_lpo_src_get();
+  static uint32_t last;
+  static bool first = true;
+
+  if (first || v != last)
+    {
+      first = false;
+      last = v;
+      syslog(LOG_INFO, "[BK7258-WIFI] pmq: lpo_src=%u\n", v);
+    }
+
+  return v;
 }
 
 static int32 bk7258_wifi_pm_module_power_state_cb(unsigned int module)
@@ -316,8 +327,15 @@ static bk_err_t bk7258_wifi_pm_vote_power_cb(unsigned int module,
 static bk_err_t bk7258_wifi_pm_vote_cpu_freq_cb(uint32_t module,
                                                  uint32_t cpu_freq)
 {
-  return bk_pm_module_vote_cpu_freq((pm_dev_id_e)module,
-                                    (pm_cpu_freq_e)cpu_freq);
+  /* Behavioral logger (bring-up diagnostic): crm_clk_set feeds the mode
+   * code it computed through this slot; the log line reveals the live
+   * rwnxl_compute_cpu_freq output that selects the clk_config row. */
+  bk_err_t ret = bk_pm_module_vote_cpu_freq((pm_dev_id_e)module,
+                                            (pm_cpu_freq_e)cpu_freq);
+  syslog(LOG_INFO,
+         "[BK7258-WIFI] pmq: vote_cpu_freq(module=%u freq=%u) ret=%d\n",
+         module, cpu_freq, (int)ret);
+  return ret;
 }
 
 static uint64_t bk7258_wifi_aon_rtc_tick_cb(uint32_t id)

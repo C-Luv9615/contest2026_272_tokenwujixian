@@ -41,6 +41,11 @@ struct bk7258_wifi_isr_slot
 
 static struct bk7258_wifi_isr_slot g_wifi_isr[64];
 
+/* Bring-up diagnostic: per-source invocation counters.  A zero count for
+ * source 36 (MAC GEN) after a scan proves the GEN interrupt never reached
+ * the host; a nonzero count moves the investigation into the handler. */
+volatile uint32_t bk7258_wifi_isr_count[64];
+
 static int bk7258_wifi_isr_trampoline(int irq, void *context, void *arg)
 {
   struct bk7258_wifi_isr_slot *slot = arg;
@@ -48,6 +53,9 @@ static int bk7258_wifi_isr_trampoline(int irq, void *context, void *arg)
   (void)context;
   if (slot != NULL && slot->callback != NULL)
     {
+      unsigned idx = (unsigned)(slot - g_wifi_isr);
+
+      bk7258_wifi_isr_count[idx]++;
       slot->callback(slot->arg);
     }
   return OK;
