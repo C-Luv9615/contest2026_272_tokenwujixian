@@ -679,6 +679,26 @@ static bk_err_t bk7258_wifi_scan_done(void *arg, event_module_t module,
     syslog(LOG_INFO,
            "[BK7258-WIFI] diag3c: isr36=%lu mmstate=%lu cm=0x%08lx\n",
            (unsigned long)bk7258_wifi_isr_count[36], state, cm);
+    /* libwifi doze/lowpll status bytes (rwnxl_get_status_in_doze reads
+     * 0x2807bdb1, rwnxl_check_is_lowpll_used reads 0x2807bdb8). */
+    syslog(LOG_INFO,
+           "[BK7258-WIFI] diag3g: in_doze=%u lowpll=%u\n",
+           (unsigned)*(volatile uint8_t *)0x2807bdb1u,
+           (unsigned)*(volatile uint8_t *)0x2807bdb8u);
+    /* [WPROBE3] hal_machw_setfreq conversion inputs (hal env +0xe4/e8/ec/f8). */
+    {
+      volatile uint32_t *envp = (volatile uint32_t *)0x2806fb90u;
+      uint32_t env = *envp;
+
+      syslog(LOG_INFO,
+             "[WPROBE3] env=%08x e4=%08x e8=%08x\n",
+             env, *(volatile uint32_t *)(env + 0xe4),
+             *(volatile uint32_t *)(env + 0xe8));
+      syslog(LOG_INFO,
+             "[WPROBE3] ec=%08x f8=%08x\n",
+             *(volatile uint32_t *)(env + 0xec),
+             *(volatile uint32_t *)(env + 0xf8));
+    }
   }
   /* NXMAC register-window dump (0x49100000-0x7F, 32 words = 8 short
    * lines).  Diff against the authoritative board's identical dump to
