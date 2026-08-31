@@ -199,6 +199,7 @@ int rw_msg_send_reset(void)
 int rw_msg_send_start(void)
 {
 	struct mm_start_req *start_req_param;
+	int ret;
 
 	/* Build the START REQ message */
 	start_req_param = ke_msg_alloc(MM_START_REQ, TASK_MM, TASK_API,
@@ -223,7 +224,14 @@ int rw_msg_send_start(void)
 	start_req_param->lp_clk_accuracy = 20;
 #endif
 	/* Send the START REQ message to LMAC FW */
-	return rw_msg_send(start_req_param, 1, MM_START_CFM, NULL);
+	bk_printf("[RSTWIN] mmstart pre  00000054=%08x 49100010=%08x\r\n",
+		(*(volatile unsigned int *)0x49100054u),
+		(*(volatile unsigned int *)0x49100010u));
+	ret = rw_msg_send(start_req_param, 1, MM_START_CFM, NULL);
+	bk_printf("[RSTWIN] mmstart post 00000054=%08x 49100010=%08x ret=%d\r\n",
+		(*(volatile unsigned int *)0x49100054u),
+		(*(volatile unsigned int *)0x49100010u), ret);
+	return ret;
 }
 
 int rw_msg_send_me_config_req(void)

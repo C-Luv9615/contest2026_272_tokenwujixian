@@ -1007,6 +1007,11 @@ int bk7258_wifi_initialize(void)
    *    changed value = counter runs (was merely never started). */
   putreg32(UINT32_C(0x10000), 0x49100054);
   putreg32(UINT32_C(0xDEAD0000), 0x49100010);
+  /* Experiment 3: force CRM macclk force bits (0x3000) off -- the
+   * authoritative board keeps 0x49850010=0x108 while ours reads 0x3108.
+   * If the 40MHz MAC domain (0x10 counter / 0x504 FSM) comes alive
+   * after this, the 0x3000 force bits were gating the domain. */
+  putreg32(UINT32_C(0x108), 0x49850010);
   /* Fix v2 seed ROLLED BACK (2026-09-01): the authoritative-board WPROBE
    * comparison proved the archive leaves rwnx_env+0xa8 at its native 0
    * through MM_START and the CRM stays on clk_config row 0
