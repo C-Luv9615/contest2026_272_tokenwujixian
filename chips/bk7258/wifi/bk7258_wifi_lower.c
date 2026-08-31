@@ -54,7 +54,7 @@ extern int bmsg_tx_sender(struct pbuf *p, uint32_t vif_idx);
  * compatibility macro surface merely to obtain the SDK scan request token. */
 
 extern void **rtos_get_current_thread(void);
-extern uint32_t sys_ll_get_cpu_power_sleep_wakeup_pwd_ofdm(void);
+extern uint32_t bk7258_wifi_pwd_ofdm_get_override(void);
 
 /****************************************************************************
  * Private data
@@ -644,7 +644,7 @@ static bk_err_t bk7258_wifi_scan_done(void *arg, event_module_t module,
      * 115200 console cannot truncate the fields.  All reads only. */
     syslog(LOG_INFO,
            "[BK7258-WIFI] diag3a: pwd_ofdm=%lu pwakeup=0x%08lx crm14=0x%08lx\n",
-           (unsigned long)sys_ll_get_cpu_power_sleep_wakeup_pwd_ofdm(),
+           (unsigned long)bk7258_wifi_pwd_ofdm_get_override(),
            (unsigned long)getreg32(BK7258_SYS_POWER_WAKEUP),
            (unsigned long)getreg32(0x49850014));
     /* GEN interrupt triple at scan end: enable/status/ack of the 0x49108000

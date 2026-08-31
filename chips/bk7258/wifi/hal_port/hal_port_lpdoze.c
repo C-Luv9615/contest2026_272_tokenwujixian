@@ -25,6 +25,7 @@
 #include <nuttx/spinlock.h>
 #include <bk7258_irq.h>
 #include "armino_compat.h"
+#include "hal_port_sys_all.h"
 
 /* ------------------------------------------------------------------ */
 /* LL: analog register window (sys_ll.h)                               */
@@ -67,13 +68,13 @@ static void hp_sys_set_ana_reg_bit(uint32_t reg_addr, uint32_t pos,
 /* sys_ll_set_ana_reg0_spitrig (sys_ll.h:6085): bit19 of ANA_REG0. */
 void hp_sys_ll_set_ana_reg0_spitrig(uint32_t v)
 {
-  hp_sys_set_ana_reg_bit(HP_SOC_SYS_REG_BASE + (0x40u << 2), 19, 0x1u, v);
+  hp_sys_set_ana_reg_bit(SOC_SYS_REG_BASE + (0x40u << 2), 19, 0x1u, v);
 }
 
 /* sys_ll_set_ana_reg0_spideten (sys_ll.h, ANA_REG0 bit4). */
 void hp_sys_ll_set_ana_reg0_spideten(uint32_t v)
 {
-  hp_sys_set_ana_reg_bit(HP_SOC_SYS_REG_BASE + (0x40u << 2), 4, 0x1u, v);
+  hp_sys_set_ana_reg_bit(SOC_SYS_REG_BASE + (0x40u << 2), 4, 0x1u, v);
 }
 
 /* ------------------------------------------------------------------ */
@@ -82,28 +83,28 @@ void hp_sys_ll_set_ana_reg0_spideten(uint32_t v)
 
 uint32_t hp_aon_pmu_ll_get_r41_lpo_config(void)
 {
-  hp_aon_pmu_r41_t *r = (hp_aon_pmu_r41_t *)(HP_SOC_AON_PMU_REG_BASE +
+  hp_aon_pmu_r41_t *r = (hp_aon_pmu_r41_t *)(SOC_AON_PMU_REG_BASE +
                                              (0x41u << 2));
   return r->lpo_config;
 }
 
 void hp_aon_pmu_ll_set_r41_lpo_config(uint32_t v)
 {
-  hp_aon_pmu_r41_t *r = (hp_aon_pmu_r41_t *)(HP_SOC_AON_PMU_REG_BASE +
+  hp_aon_pmu_r41_t *r = (hp_aon_pmu_r41_t *)(SOC_AON_PMU_REG_BASE +
                                              (0x41u << 2));
   r->lpo_config = v;
 }
 
 uint32_t hp_aon_pmu_ll_get_r41_wakeup_ena(void)
 {
-  hp_aon_pmu_r41_t *r = (hp_aon_pmu_r41_t *)(HP_SOC_AON_PMU_REG_BASE +
+  hp_aon_pmu_r41_t *r = (hp_aon_pmu_r41_t *)(SOC_AON_PMU_REG_BASE +
                                              (0x41u << 2));
   return r->wakeup_ena;
 }
 
 void hp_aon_pmu_ll_set_r41_wakeup_ena(uint32_t v)
 {
-  hp_aon_pmu_r41_t *r = (hp_aon_pmu_r41_t *)(HP_SOC_AON_PMU_REG_BASE +
+  hp_aon_pmu_r41_t *r = (hp_aon_pmu_r41_t *)(SOC_AON_PMU_REG_BASE +
                                              (0x41u << 2));
   r->wakeup_ena = v;
 }
@@ -229,49 +230,49 @@ void hp_aon_pmu_hal_clear_wakeup_source(uint32_t value)
 
 static void hp_sys_ll_set_ana_reg3_hpssren(uint32_t v)
 {
-  hp_sys_set_ana_reg_bit(HP_SOC_SYS_REG_BASE + (0x43u << 2), 8, 0x1u, v);
+  hp_sys_set_ana_reg_bit(SOC_SYS_REG_BASE + (0x43u << 2), 8, 0x1u, v);
 }
 
 static void hp_sys_ll_set_ana_reg3_anabuf_sel_rx(uint32_t v)
 {
-  hp_sys_set_ana_reg_bit(HP_SOC_SYS_REG_BASE + (0x43u << 2), 10, 0x1u, v);
+  hp_sys_set_ana_reg_bit(SOC_SYS_REG_BASE + (0x43u << 2), 10, 0x1u, v);
 }
 
 static void hp_sys_ll_set_ana_reg4_anabuf_sel_tx(uint32_t v)
 {
-  hp_sys_set_ana_reg_bit(HP_SOC_SYS_REG_BASE + (0x44u << 2), 0, 0x1u, v);
+  hp_sys_set_ana_reg_bit(SOC_SYS_REG_BASE + (0x44u << 2), 0, 0x1u, v);
 }
 
 static void hp_sys_ll_set_ana_reg8_t_vanaldosel(uint32_t v)
 {
-  hp_sys_set_ana_reg_bit(HP_SOC_SYS_REG_BASE + (0x48u << 2), 3, 0x7u, v);
+  hp_sys_set_ana_reg_bit(SOC_SYS_REG_BASE + (0x48u << 2), 3, 0x7u, v);
 }
 
 static void hp_sys_ll_set_ana_reg8_r_vanaldosel(uint32_t v)
 {
-  hp_sys_set_ana_reg_bit(HP_SOC_SYS_REG_BASE + (0x48u << 2), 6, 0x7u, v);
+  hp_sys_set_ana_reg_bit(SOC_SYS_REG_BASE + (0x48u << 2), 6, 0x7u, v);
 }
 
 static void hp_sys_ll_set_ana_reg8_alopowsel(uint32_t v)
 {
-  hp_sys_set_ana_reg_bit(HP_SOC_SYS_REG_BASE + (0x48u << 2), 19, 0x1u, v);
+  hp_sys_set_ana_reg_bit(SOC_SYS_REG_BASE + (0x48u << 2), 19, 0x1u, v);
 }
 
 static void hp_sys_ll_set_ana_reg9_spi_latch1v(uint32_t v)
 {
-  hp_sys_set_ana_reg_bit(HP_SOC_SYS_REG_BASE + (0x49u << 2), 9, 0x1u, v);
+  hp_sys_set_ana_reg_bit(SOC_SYS_REG_BASE + (0x49u << 2), 9, 0x1u, v);
 }
 
 static uint32_t hp_sys_ll_get_ana_reg11_aldosel(void)
 {
-  uint32_t reg_value = *(volatile uint32_t *)(HP_SOC_SYS_REG_BASE +
+  uint32_t reg_value = *(volatile uint32_t *)(SOC_SYS_REG_BASE +
                                               (0x4bu << 2));
   return (reg_value >> 31) & 0x1u;
 }
 
 static void hp_sys_ll_set_ana_reg11_aldosel(uint32_t v)
 {
-  hp_sys_set_ana_reg_bit(HP_SOC_SYS_REG_BASE + (0x4bu << 2), 31, 0x1u, v);
+  hp_sys_set_ana_reg_bit(SOC_SYS_REG_BASE + (0x4bu << 2), 31, 0x1u, v);
 }
 
 void hp_sys_hal_enter_low_analog(void)
