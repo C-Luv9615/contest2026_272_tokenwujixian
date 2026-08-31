@@ -1000,6 +1000,16 @@ int bk7258_wifi_initialize(void)
    * row 0, leaving 0x49000000=0 and the NXMAC core without a functional
    * clock.  Both functions are global exports of libwifi.a; seeding the
    * vote slot and applying row 1 restores the authoritative clock state. */
+  /* vnd_cal overlay (bk_init.c:270 order): load vendor calibration
+   * tables (power gain base, TSSI thresholds, EPA config) BEFORE
+   * bk_wifi_init -- the authoritative boot chain does this and our
+   * builds had no vnd_cal symbols linked at all. */
+  {
+    extern void vnd_cal_overlay(void);
+
+    vnd_cal_overlay();
+    syslog(LOG_INFO, "[BK7258-WIFI] vnd_cal overlay applied\n");
+  }
   /* LPO source alignment (2026-09-01): the authoritative board's AON PMU
    * R41=0x232 carries lpo_config=PM_LPO_SRC_ROSC; our boot chain leaves
    * the reset default 0 (DIVD), so the library receives a different LPO

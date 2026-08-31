@@ -30,6 +30,7 @@ if(CONFIG_BK7258_WIFI)
       glue/scan_diagnostics.c
       glue/platform_shim.c
       hal_port/hal_port_lpdoze.c
+      hal_port/vnd_cal.c
       glue/os_shim.c
       glue/net_param_shim.c
       glue/vendor_sources/rwnx_params.c
