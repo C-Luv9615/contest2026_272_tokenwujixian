@@ -634,11 +634,12 @@ static bk_err_t bk7258_wifi_scan_done(void *arg, event_module_t module,
 
     syslog(LOG_INFO,
            "[BK7258-WIFI] scan diag2: macfsm=0x%08lx/0x%08lx "
-           "chan_ctx=0x%08lx txhalt=0x%04x\n",
+           "chan_ctx=0x%08lx txhalt=0x%04x start38=0x%08lx\n",
            (unsigned long)getreg32(0x49100500),
            (unsigned long)getreg32(0x49100504),
            (unsigned long)*(volatile uint32_t *)(chan_env + 0x28),
-           (unsigned int)*(volatile uint16_t *)(txl_cntrl_env + 0x16e));
+           (unsigned int)*(volatile uint16_t *)(txl_cntrl_env + 0x16e),
+           (unsigned long)getreg32(0x49100038));
     /* Discriminate the crm_mdm_reset path, split into short lines so a
      * 115200 console cannot truncate the fields.  All reads only. */
     syslog(LOG_INFO,
@@ -647,12 +648,12 @@ static bk_err_t bk7258_wifi_scan_done(void *arg, event_module_t module,
            (unsigned long)getreg32(BK7258_SYS_POWER_WAKEUP),
            (unsigned long)getreg32(0x49850014));
     syslog(LOG_INFO,
-           "[BK7258-WIFI] diag3b: crm10=0x%08lx "
-           "mac00=0x%08lx mac04=0x%08lx mac08=0x%08lx\n",
+           "[BK7258-WIFI] diag3b: crm10=0x%08lx trx230=0x%08lx "
+           "mac00=0x%08lx mac04=0x%08lx\n",
            (unsigned long)getreg32(0x49850010),
+           (unsigned long)getreg32(0x4980c230),
            (unsigned long)getreg32(0x49100000),
-           (unsigned long)getreg32(0x49100004),
-           (unsigned long)getreg32(0x49100008));
+           (unsigned long)getreg32(0x49100004));
   }
   syslog(LOG_INFO,
          "[BK7258-WIFI] scan diag: req=%lu active=%lu passive=%lu "
@@ -818,13 +819,13 @@ static void bk7258_wifi_parity_banner(void)
          nulls[0] != '\0' ? nulls : "(none)");
   syslog(LOG_INFO,
          "[BK7258-WIFI] parity: pwakeup=0x%08lx clken=0x%08lx "
-         "macid=0x%08lx fsm=0x%08lx crm10=0x%08lx crm14=0x%08lx\n",
+         "macid=0x%08lx fsm=0x%08lx start38=0x%08lx crm10=0x%08lx\n",
          (unsigned long)getreg32(BK7258_SYS_POWER_WAKEUP),
          (unsigned long)getreg32(BK7258_SYS_DEV_CLK_EN),
          (unsigned long)getreg32(0x49100000),
          (unsigned long)getreg32(0x49100504),
-         (unsigned long)getreg32(0x49850010),
-         (unsigned long)getreg32(0x49850014));
+         (unsigned long)getreg32(0x49100038),
+         (unsigned long)getreg32(0x49850010));
 }
 #endif
 
