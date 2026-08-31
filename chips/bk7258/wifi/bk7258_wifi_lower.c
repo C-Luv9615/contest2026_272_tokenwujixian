@@ -699,6 +699,12 @@ static bk_err_t bk7258_wifi_scan_done(void *arg, event_module_t module,
              *(volatile uint32_t *)(env + 0xec),
              *(volatile uint32_t *)(env + 0xf8));
     }
+    /* Milestone M1 (alignment checklist): 0x49108050 is the interrupt
+     * control register hal_machw_init programs last; ==1 means
+     * hal_machw_init ran to its interrupt-enable step. */
+    syslog(LOG_INFO,
+           "[BK7258-WIFI] M1: 49108050=%08x\n",
+           (unsigned long)getreg32(0x49108050));
   }
   /* NXMAC register-window dump (0x49100000-0x7F, 32 words = 8 short
    * lines).  Diff against the authoritative board's identical dump to
