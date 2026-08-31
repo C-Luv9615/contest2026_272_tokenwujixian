@@ -936,6 +936,25 @@ int bk7258_wifi_initialize(void)
       return OK;
     }
 
+  /* bk_init.c ordering alignment: vote CPU to 120M and apply the vendor
+   * calibration overlay BEFORE any wifi/phy/calibration path runs --
+   * delay10us/200us loops and the calibration sequencer assume the CPU
+   * is at the voted frequency, and the calibration tables must be in
+   * place before calibration_init consumes them inside bk_wifi_init. */
+  {
+    extern bk_err_t bk_pm_module_vote_cpu_freq(uint32_t dev, uint32_t frq);
+
+    (void)bk_pm_module_vote_cpu_freq(26 /* PM_DEV_ID_DEFAULT */,
+                                     2 /* PM_CPU_FRQ_120M */);
+    syslog(LOG_INFO,
+           "[BK7258-WIFI] boot: cpu_freq vote 120M applied\n");
+  }
+  {
+    extern void vnd_cal_overlay(void);
+
+    vnd_cal_overlay();
+    syslog(LOG_INFO, "[BK7258-WIFI] vnd_cal overlay applied\n");
+  }
   ret = bk7258_wifi_osal_init();
   if (ret < 0)
     {
@@ -1006,16 +1025,6 @@ int bk7258_wifi_initialize(void)
    * row 0, leaving 0x49000000=0 and the NXMAC core without a functional
    * clock.  Both functions are global exports of libwifi.a; seeding the
    * vote slot and applying row 1 restores the authoritative clock state. */
-  /* vnd_cal overlay (bk_init.c:270 order): load vendor calibration
-   * tables (power gain base, TSSI thresholds, EPA config) BEFORE
-   * bk_wifi_init -- the authoritative boot chain does this and our
-   * builds had no vnd_cal symbols linked at all. */
-  {
-    extern void vnd_cal_overlay(void);
-
-    vnd_cal_overlay();
-    syslog(LOG_INFO, "[BK7258-WIFI] vnd_cal overlay applied\n");
-  }
   /* LPO source alignment (2026-09-01): the authoritative board's AON PMU
    * R41=0x232 carries lpo_config=PM_LPO_SRC_ROSC; our boot chain leaves
    * the reset default 0 (DIVD), so the library receives a different LPO
