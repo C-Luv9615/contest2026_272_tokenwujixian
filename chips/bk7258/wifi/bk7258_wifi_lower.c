@@ -647,13 +647,69 @@ static bk_err_t bk7258_wifi_scan_done(void *arg, event_module_t module,
            (unsigned long)sys_ll_get_cpu_power_sleep_wakeup_pwd_ofdm(),
            (unsigned long)getreg32(BK7258_SYS_POWER_WAKEUP),
            (unsigned long)getreg32(0x49850014));
+    /* GEN interrupt triple at scan end: enable/status/ack of the 0x49108000
+     * block.  status!=0 means the MAC raised interrupts nobody consumed
+     * (host routing problem); status==0 means the MAC never raised one
+     * (upstream of the interrupt controller). */
+    /* NXMAC free-running counter (0x49100120), read by hal_machw_time().
+     * Two spaced samples: a difference of 0 means the machw tick is dead --
+     * every timer/timeout in the firmware (chan once-switch, hal_machw_reset
+     * park loop) is time-based on this counter. */
+    {
+      uint32_t t1 = getreg32(0x49100120);
+      uint32_t clk1 = getreg32(0x49850008);
+      uint32_t t2 = getreg32(0x49100120);
+
+      syslog(LOG_INFO,
+             "[BK7258-WIFI] diag3b: machwtime=%lu->%lu (delta=%lu) "
+             "crm08=0x%08lx mac38=0x%08lx\n",
+             (unsigned long)t1, (unsigned long)t2,
+             (unsigned long)(t2 - t1),
+             (unsigned long)clk1,
+             (unsigned long)getreg32(0x49100038));
+    }
+  }
+  {
+    extern volatile uint32_t bk7258_wifi_isr_count[64];
+    extern int ke_state_get(uint8_t task_id);
+
+    uint32_t state = (unsigned)ke_state_get(0);  /* TASK_MM = 0 */
+    uint32_t cm = *(volatile uint32_t *)0x280700c0u;
+
     syslog(LOG_INFO,
-           "[BK7258-WIFI] diag3b: crm00=0x%08lx crm08=0x%08lx "
-           "trx230=0x%08lx mac38=0x%08lx\n",
-           (unsigned long)getreg32(0x49000000),
-           (unsigned long)getreg32(0x49850008),
-           (unsigned long)getreg32(0x4980c230),
-           (unsigned long)getreg32(0x49100038));
+           "[BK7258-WIFI] diag3c: isr36=%lu mmstate=%lu cm=0x%08lx\n",
+           (unsigned long)bk7258_wifi_isr_count[36], state, cm);
+  }
+  /* NXMAC register-window dump (0x49100000-0x7F, 32 words = 8 short
+   * lines).  Diff against the authoritative board's identical dump to
+   * expose every divergent NXMAC register in one pass. */
+  for (int wi = 0; wi < 44; wi += 4)
+    {
+      syslog(LOG_INFO, "[NXWIN] %02x:%08x %08x %08x %08x\n",
+             wi * 4,
+             (unsigned long)getreg32(0x49100000 + wi * 4),
+             (unsigned long)getreg32(0x49100000 + wi * 4 + 4),
+             (unsigned long)getreg32(0x49100000 + wi * 4 + 8),
+             (unsigned long)getreg32(0x49100000 + wi * 4 + 12));
+    }
+  {
+    /* mm_check_clk_change() is the exportable entry that programs the
+     * NXMAC LP-clock (nxmac_lp_clk_32786_hz_setf -> +0xAC) after a host
+     * clock change.  The authoritative board's internal timer counter
+     * (0x49100010) free-runs; ours read 0, freezing ke_timer expiry and
+     * the whole chan mechanism.  Call it once at init tail, then sample
+     * the counter twice to prove it ticks. */
+    extern void mm_check_clk_change(unsigned int type);
+    uint32_t t1 = getreg32(0x49100010);
+
+    mm_check_clk_change(0);
+
+    uint32_t t2 = getreg32(0x49100010);
+    uint32_t ac = getreg32(0x491000ac);
+
+    syslog(LOG_INFO,
+           "[BK7258-WIFI] diag3f: clktick=0x%08lx->0x%08lx lpac=0x%08lx\n",
+           (unsigned long)t1, (unsigned long)t2, (unsigned long)ac);
   }
   syslog(LOG_INFO,
          "[BK7258-WIFI] scan diag: req=%lu active=%lu passive=%lu "
@@ -817,15 +873,24 @@ static void bk7258_wifi_parity_banner(void)
   syslog(LOG_INFO,
          "[BK7258-WIFI] parity: null-vs-authoritative: %s\n",
          nulls[0] != '\0' ? nulls : "(none)");
-  syslog(LOG_INFO,
-         "[BK7258-WIFI] parity: pwakeup=0x%08lx clken=0x%08lx "
-         "macid=0x%08lx fsm=0x%08lx start38=0x%08lx crm10=0x%08lx\n",
-         (unsigned long)getreg32(BK7258_SYS_POWER_WAKEUP),
-         (unsigned long)getreg32(BK7258_SYS_DEV_CLK_EN),
-         (unsigned long)getreg32(0x49100000),
-         (unsigned long)getreg32(0x49100504),
-         (unsigned long)getreg32(0x49100038),
-         (unsigned long)getreg32(0x49850010));
+  {
+    uint32_t mt1 = getreg32(0x49100120);
+    uint32_t mt2 = getreg32(0x49100120);
+
+    syslog(LOG_INFO,
+           "[BK7258-WIFI] parity: pwakeup=0x%08lx clken=0x%08lx "
+           "macid=0x%08lx fsm=0x%08lx start38=0x%08lx crm10=0x%08lx\n",
+           (unsigned long)getreg32(BK7258_SYS_POWER_WAKEUP),
+           (unsigned long)getreg32(BK7258_SYS_DEV_CLK_EN),
+           (unsigned long)getreg32(0x49100000),
+           (unsigned long)getreg32(0x49100504),
+           (unsigned long)getreg32(0x49100038),
+           (unsigned long)getreg32(0x49850010));
+    syslog(LOG_INFO,
+           "[BK7258-WIFI] parity: machwtime=%lu->%lu (delta=%lu)\n",
+           (unsigned long)mt1, (unsigned long)mt2,
+           (unsigned long)(mt2 - mt1));
+  }
 }
 #endif
 
@@ -915,19 +980,41 @@ int bk7258_wifi_initialize(void)
    * row 0, leaving 0x49000000=0 and the NXMAC core without a functional
    * clock.  Both functions are global exports of libwifi.a; seeding the
    * vote slot and applying row 1 restores the authoritative clock state. */
+  /* LPO source alignment (2026-09-01): the authoritative board's AON PMU
+   * R41=0x232 carries lpo_config=PM_LPO_SRC_ROSC; our boot chain leaves
+   * the reset default 0 (DIVD), so the library receives a different LPO
+   * source answer.  Program ROSC here to match the authoritative
+   * environment before any libwifi clock/scan path runs. */
   {
-    extern void rwnxl_set_modu_vote_cpu_freq(uint32_t vote_idx, uint8_t code);
-    extern void crm_clk_set(uint32_t mode);
+    /* AON PMU R41.lpo_config (bits[1:0]): 0=DIVD 1=X32K 2=ROSC.
+     * Authoritative board runs ROSC. */
+    uint32_t r41 = getreg32(BK7258_AON_PMU_R41);
 
-    /* Seed the SOURCE of the mode code, not just one application:
-     * rwnxl_set_modu_vote_cpu_freq writes rwnx_env+4+vote_idx, so vote_idx
-     * 0xa4 lands on rwnx_env+0xa8 -- the 80 MHz mode code that every
-     * phy_set_channel -> crm_get_mac_freq -> rwnxl_covert_cpu_freq chain
-     * consumes.  Without it, the first scan-time phy_set_channel re-applies
-     * clk_config row 0 (clock off) over any row-1 fix done here. */
-    rwnxl_set_modu_vote_cpu_freq(0xa4, 1);
-    crm_clk_set(1);
+    r41 = (r41 & ~BK7258_AON_PMU_R41_LPO_CONFIG_MASK) | UINT32_C(2);
+    putreg32(r41, BK7258_AON_PMU_R41);
+    syslog(LOG_INFO,
+           "[BK7258-WIFI] pmq: lpo_src set to ROSC\n");
   }
+  /* Behavioral alignment experiments (2026-09-01):
+   * 1) 0x49100054: our builds carry bits[5]+[12] that the authoritative
+   *    board never sets (it reads 0x10000).  Force the authoritative
+   *    value at init; the scan-end NXWIN shows whether something
+   *    re-sets them (persistent doze-path writer) or the alignment
+   *    sticks (one-shot init-time write).
+   * 2) 0x49100010: the internal timer counter reads 0 while the
+   *    authoritative board counts (0x468c47c8).  Write a marker; the
+   *    scan-end NXWIN discriminates: marker intact = counter dead,
+   *    changed value = counter runs (was merely never started). */
+  putreg32(UINT32_C(0x10000), 0x49100054);
+  putreg32(UINT32_C(0xDEAD0000), 0x49100010);
+  /* Fix v2 seed ROLLED BACK (2026-09-01): the authoritative-board WPROBE
+   * comparison proved the archive leaves rwnx_env+0xa8 at its native 0
+   * through MM_START and the CRM stays on clk_config row 0
+   * (0x49000000=0 / 0x49850008=0x108 / 0x49850010=0x108) while the NXMAC
+   * FSM is fully active (0x49100504=0x40000000).  Seeding a8=1 and calling
+   * crm_clk_set(1) here diverged from the authoritative behavior (it also
+   * wrote 0x49850010=0x3108, bits[13:12] force) and is not needed: row 0
+   * IS the working configuration on both platforms. */
   bk7258_wifi_parity_banner();
 #endif
   return ret;
