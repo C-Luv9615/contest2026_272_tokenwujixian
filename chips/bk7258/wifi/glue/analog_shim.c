@@ -214,15 +214,12 @@ uint32_t sys_drv_analog_set_xtalh_ctune(uint32_t param)
 
 uint32_t sys_drv_cali_dpll(uint32_t param)
 {
-  int ret = bk7258_cali_dpll(param);
+  /* HAL-alignment: call the verbatim port of the authoritative
+   * sys_wifi_driver.c sequence (hp_sys_drv_cali_dpll) instead of the
+   * hand-written approximation in bk7258_sysctrl.c. */
+  extern uint32_t hp_sys_drv_cali_dpll(uint32_t param);
 
-  if (ret < 0)
-    {
-      BK_LOGE(ANALOG_TAG, "%s: ANA0 sequence failed=%d\n", __func__, ret);
-      return (uint32_t)BK_FAIL;
-    }
-
-  return BK_OK;
+  return hp_sys_drv_cali_dpll(param);
 }
 
 uint32_t sys_drv_get_bgcalm(void)
