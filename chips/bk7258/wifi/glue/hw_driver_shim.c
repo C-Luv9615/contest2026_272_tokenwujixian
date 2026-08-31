@@ -32,6 +32,7 @@
 #include "sys_types.h"
 #include "driver/int.h"
 #include <bk7258_irq.h>
+#include "hal_port_sys_all.h"
 
 struct bk7258_wifi_isr_slot
 {
@@ -229,16 +230,6 @@ uint32_t sys_drv_modem_clk_ctrl(bool clk_en)
  * sys_ll clock-enable state
  ****************************************************************************/
 
-uint32_t sys_ll_get_cpu_device_clk_enable_mac_cken(void)
-{
-  return (getreg32(BK7258_SYS_DEV_CLK_EN) & BK7258_SYS_MAC_CKEN) ? 1 : 0;
-}
-
-uint32_t sys_ll_get_cpu_device_clk_enable_phy_cken(void)
-{
-  return (getreg32(BK7258_SYS_DEV_CLK_EN) & BK7258_SYS_PHY_CKEN) ? 1 : 0;
-}
-
 /****************************************************************************
  * Module power state (skeleton)
  ****************************************************************************/
@@ -260,7 +251,7 @@ int32_t sys_drv_module_power_state_get(power_module_name_t module)
  * low-active POWER_WAKEUP register and the module-power bit numbering.
  ****************************************************************************/
 
-void sys_ll_set_cpu_power_sleep_wakeup_pwd_ofdm(uint32_t v)
+void bk7258_wifi_pwd_ofdm_override(uint32_t v)
 {
   /* Board evidence (2026-08-31): once the PS stub group was bound with
    * authoritative semantics, the pinned archive's sleep path legitimately
@@ -292,7 +283,7 @@ void sys_ll_set_cpu_power_sleep_wakeup_pwd_ofdm(uint32_t v)
   spin_unlock_irqrestore(&lock, flags);
 }
 
-uint32_t sys_ll_get_cpu_power_sleep_wakeup_pwd_ofdm(void)
+uint32_t bk7258_wifi_pwd_ofdm_get_override(void)
 {
   return (getreg32(BK7258_SYS_POWER_WAKEUP) & BK7258_SYS_OFDM_POWERDOWN) ? 1 : 0;
 }
