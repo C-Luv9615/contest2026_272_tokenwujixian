@@ -919,7 +919,13 @@ int bk7258_wifi_initialize(void)
     extern void rwnxl_set_modu_vote_cpu_freq(uint32_t vote_idx, uint8_t code);
     extern void crm_clk_set(uint32_t mode);
 
-    rwnxl_set_modu_vote_cpu_freq(0, 1);
+    /* Seed the SOURCE of the mode code, not just one application:
+     * rwnxl_set_modu_vote_cpu_freq writes rwnx_env+4+vote_idx, so vote_idx
+     * 0xa4 lands on rwnx_env+0xa8 -- the 80 MHz mode code that every
+     * phy_set_channel -> crm_get_mac_freq -> rwnxl_covert_cpu_freq chain
+     * consumes.  Without it, the first scan-time phy_set_channel re-applies
+     * clk_config row 0 (clock off) over any row-1 fix done here. */
+    rwnxl_set_modu_vote_cpu_freq(0xa4, 1);
     crm_clk_set(1);
   }
   bk7258_wifi_parity_banner();
