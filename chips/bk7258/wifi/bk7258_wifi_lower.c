@@ -949,12 +949,6 @@ int bk7258_wifi_initialize(void)
     syslog(LOG_INFO,
            "[BK7258-WIFI] boot: cpu_freq vote 120M applied\n");
   }
-  {
-    extern void vnd_cal_overlay(void);
-
-    vnd_cal_overlay();
-    syslog(LOG_INFO, "[BK7258-WIFI] vnd_cal overlay applied\n");
-  }
   ret = bk7258_wifi_osal_init();
   if (ret < 0)
     {
@@ -992,6 +986,19 @@ int bk7258_wifi_initialize(void)
       bk7258_wifi_hw_deinit();
       return -ENODEV;
     }
+
+  /* vnd_cal overlay: Armino runs it after app_phy_init/bk_rf_adapter_init
+   * and before app_wifi_init (phy/SARADC/analog access path ready, tables
+   * in place before calibration_init consumes them inside bk_wifi_init).
+   * Calling it before this point crashed inside the closed-source
+   * vnd_cal_set_epa_config (float logging path with uninitialized
+   * infrastructure). */
+  {
+    extern void vnd_cal_overlay(void);
+
+    vnd_cal_overlay();
+    syslog(LOG_INFO, "[BK7258-WIFI] vnd_cal overlay applied\n");
+  }
 
   syslog(LOG_INFO, "[BK7258-WIFI] runtime: bk_wifi_init begin\n");
   ret = bk_wifi_init(&(wifi_init_config_t)WIFI_DEFAULT_INIT_CONFIG());
