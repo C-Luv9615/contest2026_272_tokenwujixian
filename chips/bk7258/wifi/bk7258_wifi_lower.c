@@ -648,12 +648,12 @@ static bk_err_t bk7258_wifi_scan_done(void *arg, event_module_t module,
            (unsigned long)getreg32(BK7258_SYS_POWER_WAKEUP),
            (unsigned long)getreg32(0x49850014));
     syslog(LOG_INFO,
-           "[BK7258-WIFI] diag3b: crm10=0x%08lx trx230=0x%08lx "
-           "mac00=0x%08lx mac04=0x%08lx\n",
-           (unsigned long)getreg32(0x49850010),
+           "[BK7258-WIFI] diag3b: crm00=0x%08lx crm08=0x%08lx "
+           "trx230=0x%08lx mac38=0x%08lx\n",
+           (unsigned long)getreg32(0x49000000),
+           (unsigned long)getreg32(0x49850008),
            (unsigned long)getreg32(0x4980c230),
-           (unsigned long)getreg32(0x49100000),
-           (unsigned long)getreg32(0x49100004));
+           (unsigned long)getreg32(0x49100038));
   }
   syslog(LOG_INFO,
          "[BK7258-WIFI] scan diag: req=%lu active=%lu passive=%lu "
@@ -908,6 +908,20 @@ int bk7258_wifi_initialize(void)
       syslog(LOG_ERR, "[BK7258-WIFI] lower register failed=%d\n", ret);
     }
 #if CONFIG_BK7258_WIFI_VENDOR_RUNTIME
+  /* Clock-root fix (see investigation external-analysis-and-clock-root-cause
+   * .md §3): rwnx_env+0xa8 (the 80 MHz mode code feeding
+   * rwnxl_covert_cpu_freq -> rwnxl_compute_cpu_freq -> crm_clk_set) is never
+   * initialized by the pinned archive, so crm_clk_set ran with clk_config
+   * row 0, leaving 0x49000000=0 and the NXMAC core without a functional
+   * clock.  Both functions are global exports of libwifi.a; seeding the
+   * vote slot and applying row 1 restores the authoritative clock state. */
+  {
+    extern void rwnxl_set_modu_vote_cpu_freq(uint32_t vote_idx, uint8_t code);
+    extern void crm_clk_set(uint32_t mode);
+
+    rwnxl_set_modu_vote_cpu_freq(0, 1);
+    crm_clk_set(1);
+  }
   bk7258_wifi_parity_banner();
 #endif
   return ret;
