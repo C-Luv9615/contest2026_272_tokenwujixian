@@ -22,6 +22,8 @@
 #include <syslog.h>
 
 #include <arch/chip/bk7258_memorymap.h>
+#include <nuttx/spinlock.h>
+#include <bk7258_irq.h>
 #include "armino_compat.h"
 
 /* ------------------------------------------------------------------ */
@@ -167,7 +169,8 @@ void hp_sys_hal_cali_dpll_spi_detect_enable(void)
 
 uint32_t hp_sys_drv_cali_dpll(uint32_t param)
 {
-  irqstate_t int_level = enter_critical_section();
+  static spinlock_t lock = SP_UNLOCKED;
+  irqstate_t int_level = spin_lock_irqsave(&lock);
 
   hp_sys_hal_cali_dpll_spi_trig_disable();
 
@@ -194,7 +197,7 @@ uint32_t hp_sys_drv_cali_dpll(uint32_t param)
 
   hp_sys_hal_cali_dpll_spi_detect_enable();
 
-  leave_critical_section(int_level);
+  spin_unlock_irqrestore(&lock, int_level);
   return 0;
 }
 
@@ -217,4 +220,94 @@ void hp_aon_pmu_hal_clear_wakeup_source(uint32_t value)
 
   wakeup_source &= ~(UINT32_C(0x1) << value);
   hp_aon_pmu_ll_set_r41_wakeup_ena(wakeup_source);
+}
+
+/* ------------------------------------------------------------------ */
+/* HAL: low-analog enter/exit (sys_pm_hal.c:1281-1316, full upstream   */
+/* bodies; every step is an ANA bitfield RMW through the LL primitive) */
+/* ------------------------------------------------------------------ */
+
+static void hp_sys_ll_set_ana_reg3_hpssren(uint32_t v)
+{
+  hp_sys_set_ana_reg_bit(HP_SOC_SYS_REG_BASE + (0x43u << 2), 8, 0x1u, v);
+}
+
+static void hp_sys_ll_set_ana_reg3_anabuf_sel_rx(uint32_t v)
+{
+  hp_sys_set_ana_reg_bit(HP_SOC_SYS_REG_BASE + (0x43u << 2), 10, 0x1u, v);
+}
+
+static void hp_sys_ll_set_ana_reg4_anabuf_sel_tx(uint32_t v)
+{
+  hp_sys_set_ana_reg_bit(HP_SOC_SYS_REG_BASE + (0x44u << 2), 0, 0x1u, v);
+}
+
+static void hp_sys_ll_set_ana_reg8_t_vanaldosel(uint32_t v)
+{
+  hp_sys_set_ana_reg_bit(HP_SOC_SYS_REG_BASE + (0x48u << 2), 3, 0x7u, v);
+}
+
+static void hp_sys_ll_set_ana_reg8_r_vanaldosel(uint32_t v)
+{
+  hp_sys_set_ana_reg_bit(HP_SOC_SYS_REG_BASE + (0x48u << 2), 6, 0x7u, v);
+}
+
+static void hp_sys_ll_set_ana_reg8_alopowsel(uint32_t v)
+{
+  hp_sys_set_ana_reg_bit(HP_SOC_SYS_REG_BASE + (0x48u << 2), 19, 0x1u, v);
+}
+
+static void hp_sys_ll_set_ana_reg9_spi_latch1v(uint32_t v)
+{
+  hp_sys_set_ana_reg_bit(HP_SOC_SYS_REG_BASE + (0x49u << 2), 9, 0x1u, v);
+}
+
+static uint32_t hp_sys_ll_get_ana_reg11_aldosel(void)
+{
+  uint32_t reg_value = *(volatile uint32_t *)(HP_SOC_SYS_REG_BASE +
+                                              (0x4bu << 2));
+  return (reg_value >> 31) & 0x1u;
+}
+
+static void hp_sys_ll_set_ana_reg11_aldosel(uint32_t v)
+{
+  hp_sys_set_ana_reg_bit(HP_SOC_SYS_REG_BASE + (0x4bu << 2), 31, 0x1u, v);
+}
+
+void hp_sys_hal_enter_low_analog(void)
+{
+  hp_sys_ll_set_ana_reg9_spi_latch1v(1);
+  hp_sys_ll_set_ana_reg8_t_vanaldosel(0);
+  hp_sys_ll_set_ana_reg8_r_vanaldosel(0);
+  hp_sys_ll_set_ana_reg8_alopowsel(1);
+  hp_sys_ll_set_ana_reg9_spi_latch1v(0);
+
+  hp_sys_ll_set_ana_reg3_hpssren(0);
+  hp_sys_ll_set_ana_reg3_anabuf_sel_rx(1);
+  hp_sys_ll_set_ana_reg4_anabuf_sel_tx(1);
+}
+
+void hp_sys_hal_exit_low_analog(void)
+{
+  hp_sys_ll_set_ana_reg9_spi_latch1v(1);
+
+  /* When using LDO, ramp up the voltage to 1.5V over 50mv, and ensure
+   * consistency with the voltage when using buck (upstream comment). */
+  if (hp_sys_ll_get_ana_reg11_aldosel() == 0x1)
+    {
+      hp_sys_ll_set_ana_reg8_t_vanaldosel(0x5);
+      hp_sys_ll_set_ana_reg8_r_vanaldosel(0x5);
+    }
+  else
+    {
+      hp_sys_ll_set_ana_reg8_t_vanaldosel(4);
+      hp_sys_ll_set_ana_reg8_r_vanaldosel(4);
+    }
+
+  hp_sys_ll_set_ana_reg8_alopowsel(0);
+  hp_sys_ll_set_ana_reg9_spi_latch1v(0);
+
+  hp_sys_ll_set_ana_reg3_hpssren(1);
+  hp_sys_ll_set_ana_reg3_anabuf_sel_rx(0);
+  hp_sys_ll_set_ana_reg4_anabuf_sel_tx(0);
 }
