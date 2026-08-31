@@ -729,7 +729,7 @@ static void bk7258_wifi_enter_low_analog_cb_unused(void)
   if (!reported) { reported = true;
     bk_printf("[BK7258-WIFI] capability: _sys_hal_enter_low_analog not in profile\n"); }
 }
-}
+#endif
 
 static void bk7258_wifi_exit_low_analog_cb(void)
 {
@@ -743,6 +743,7 @@ static void bk7258_wifi_exit_low_analog_cb_unused(void)
   if (!reported) { reported = true;
     bk_printf("[BK7258-WIFI] capability: _sys_hal_exit_low_analog not in profile\n"); }
 }
+#endif
 static void tx_verify_test_call_back_cb(void) { }
 
 extern bk_err_t bk_wifi_get_vendor_ie_cb_internal(void *vendor_ie, uint32_t vendor_type, uint16_t len, uint8_t frame_type);
