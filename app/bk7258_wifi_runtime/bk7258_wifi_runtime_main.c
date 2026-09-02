@@ -113,7 +113,7 @@ static void bk7258_wifi_scan_decode(const uint8_t *data, size_t length)
   bk7258_wifi_scan_print(&ap);
 }
 
-static int bk7258_wifi_runtime_scan(void)
+static int bk7258_wifi_runtime_scan(FAR const char *ssid)
 {
   struct iwreq request = {0};
   int socket_fd;
@@ -128,6 +128,34 @@ static int bk7258_wifi_runtime_scan(void)
     }
 
   strlcpy(request.ifr_name, "wlan0", sizeof(request.ifr_name));
+
+  /* Select the SSID the next scan probes for -- ALWAYS issued, including the
+   * broadcast case, because the driver keeps this selection across scans: a
+   * bare `scan` after a `scan <ssid>` would otherwise stay directed and the
+   * reading would be misattributed.  A NULL pointer clears it.
+   *
+   * IW_ESSID_DELAY_ON, never IW_ESSID_ON.  netdev_upperhalf.c:1017 calls
+   * ops->connect() right after a successful essid set when the flag is
+   * IW_ESSID_ON, and associating before a scan has found an AP is exactly
+   * what the STA-only bring-up contract forbids.  DELAY_ON records the SSID
+   * and stops there.  IW_ESSID_OFF is avoided too: the upper half routes it
+   * to its disconnect path rather than to ops->essid.  No credentials are
+   * involved either way. */
+
+  request.u.essid.pointer = (FAR void *)ssid;
+  request.u.essid.length = ssid != NULL ? strlen(ssid) : 0;
+  request.u.essid.flags = IW_ESSID_DELAY_ON;
+
+  ret = ioctl(socket_fd, SIOCSIWESSID, (unsigned long)&request);
+  if (ret < 0)
+    {
+      printf("[bk7258_wifi_runtime] scan: essid failed: %d\n", errno);
+      close(socket_fd);
+      return 1;
+    }
+
+  memset(&request.u, 0, sizeof(request.u));
+
   ret = ioctl(socket_fd, SIOCSIWSCAN, (unsigned long)&request);
   if (ret < 0)
     {
@@ -206,9 +234,9 @@ static int bk7258_wifi_runtime_init(void)
 
 int main(int argc, char **argv)
 {
-  if (argc != 2)
+  if (argc < 2 || argc > 3)
     {
-      printf("usage: bk7258_wifi_runtime init|scan\n");
+      printf("usage: bk7258_wifi_runtime init|scan [ssid]\n");
       return 1;
     }
 
@@ -251,9 +279,12 @@ int main(int argc, char **argv)
             }
         }
 
-      return bk7258_wifi_runtime_scan();
+      /* `scan` alone stays a broadcast scan; `scan <ssid>` runs the directed
+       * form the authority reference run used (scanu_start_req ssid_len=3). */
+
+      return bk7258_wifi_runtime_scan(argc == 3 ? argv[2] : NULL);
     }
 
-  printf("usage: bk7258_wifi_runtime init|scan\n");
+  printf("usage: bk7258_wifi_runtime init|scan [ssid]\n");
   return 1;
 }

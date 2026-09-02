@@ -196,7 +196,34 @@ size_t rtos_get_minimum_free_heap_size(void)
 
 void *ke_malloc(size_t size)
 {
-  return kmm_malloc(size);
+  /* ZEROING IS DELIBERATE (2026-09-01) -- kmm_zalloc, not kmm_malloc.
+   *
+   * The closed library contains code that allocates and then assumes the
+   * memory is already zero.  One instance was found the hard way on-board:
+   * libwifi's me_strategy_mem_init() allocates sta_info_tab and
+   * sta_mgmt_entry_init() then treats entry+0x210 as an empty co_list, which
+   * only works if the block arrives zeroed (see the explicit memset in
+   * third_party/.../rw_ieee80211.c:rw_ieee80211_init -- keep that; it covers a
+   * buffer the library allocates through libc malloc, not through this slot).
+   *
+   * Why the authority gets away with it: FreeRTOS's heap is the static array
+   * `ucHeap[configTOTAL_HEAP_SIZE]` (heap_4.c:148), which lives in .bss and is
+   * therefore zeroed by startup, so early first-time allocations are zero by
+   * accident of placement.  NuttX's heap has already served the kernel, netdev
+   * registration and more before Wi-Fi init runs, so the same allocation comes
+   * back dirty.
+   *
+   * NOT a claim that FreeRTOS guarantees zeroed memory -- after any free/reuse
+   * it does not.  The point is that the library's init-time allocations
+   * happened to land on fresh .bss there and do not here, so we close the whole
+   * class rather than chasing instances we cannot see inside the archive.
+   *
+   * Cost is a memset on init-path allocations; the only caller in the compiled
+   * vendor set is rwnx_rx.c:812 (CFG_MSDU_MAX_LEN RX payloads).  Behaviour is
+   * otherwise unchanged: zeroed memory is valid input everywhere plain
+   * uninitialised memory was. */
+
+  return kmm_zalloc(size);
 }
 
 void ke_free(void *ptr)

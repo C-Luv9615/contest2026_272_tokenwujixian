@@ -652,12 +652,50 @@ static void bk7258_wifi_mac_phy_power_on_cb(void)
 {
   /* Armino wifi_mac_phy_power_on_wrapper: three power votes plus two clock
    * power-ups.  PHY_WIFI submodule voting collapses to the PHY domain
-   * control, which these helpers already cover idempotently. */
-  (void)bk7258_phy_power(true);
-  (void)bk7258_mac_power(true);
-  (void)bk7258_ofdm_power(true);
-  (void)bk7258_phy_clock(true);
-  (void)bk7258_mac_clock(true);
+   * control, which these helpers already cover idempotently.
+   *
+   * Errors are reported rather than discarded (2026-09-01): the slot
+   * signature is void, so a failure cannot be propagated to the closed
+   * library -- it will proceed assuming MAC/PHY/OFDM are powered and clocked.
+   * The previous `(void)` casts made that state silent.  bk7258_wifi_hw_init
+   * checks these same helpers at boot, but this callback is a SECOND entry
+   * the library drives later, and nothing was watching it. */
+
+  static const struct
+  {
+    const char *name;
+    int (*fn)(bool);
+  }
+  /* Exactly the authoritative wrapper's set (bk_wifi_adapter.c:426-436):
+   * MAC + PHY + PHY_WIFI power, then MAC + PHY clock.  OFDM is deliberately
+   * absent -- the authority never controls that domain from this callback;
+   * the library drives it through the pwd_ofdm slot instead. */
+
+  steps[] =
+  {
+    { "phy_power",  bk7258_phy_power  },
+    { "mac_power",  bk7258_mac_power  },
+    { "phy_clock",  bk7258_phy_clock  },
+    { "mac_clock",  bk7258_mac_clock  },
+  };
+
+  size_t i;
+
+  for (i = 0; i < sizeof(steps) / sizeof(steps[0]); i++)
+    {
+      int ret = steps[i].fn(true);
+
+      if (ret != OK)
+        {
+          /* Short by design: an 80-column console truncates past ~79 chars,
+           * and this is an error report that must survive to be useful.
+           * The library cannot be told about the failure (void slot), so it
+           * proceeds assuming the domain is powered and clocked. */
+
+          syslog(LOG_ERR, "[BK7258-WIFI] mpo FAIL %s ret=%d\n",
+                 steps[i].name, ret);
+        }
+    }
 }
 
 static void bk7258_wifi_vote_rf_ctrl_cb(uint8_t cmd)
@@ -992,7 +1030,12 @@ wifi_os_funcs_t g_wifi_os_funcs =
   ._lookup_ipaddr = hp_lookup_ipaddr,
   ._get_net_info = hp_get_net_info,
   ._save_net_info = hp_save_net_info,
-  ._set_sta_status = hp_set_sta_status,
+
+  /* ._set_sta_status intentionally NOT set here -- see the note at the
+   * ._set_sta_status assignment further down.  It was assigned twice in this
+   * same initializer and C silently keeps the LAST one, so this line was dead
+   * while looking live. */
+
   ._do_evm = hp_do_evm,
   ._do_rx_sensitivity = hp_do_rx_sensitivity,
   ._evm_via_mac_evt = hp_evm_via_mac_evt,
@@ -1005,8 +1048,20 @@ wifi_os_funcs_t g_wifi_os_funcs =
   ._tx_evm_pwr_idx_get = hp_tx_evm_pwr_idx_get,
   ._wapi_wpi_encrypt = hp_wapi_wpi_encrypt,
   ._wapi_wpi_decrypt = hp_wapi_wpi_decrypt,
-  ._get_pbuf_pool_size = hp_get_pbuf_pool_size,
-  ._get_rx_pbuf_type = hp_get_rx_pbuf_type,
+
+  /* ._get_pbuf_pool_size / ._get_rx_pbuf_type intentionally NOT set here.
+   *
+   * DUPLICATE-INITIALIZER BUG, fixed 2026-09-01: both were assigned here AND
+   * again below (to the bk_*_wrapper pair).  In a single initializer C keeps
+   * the LAST assignment and GCC says nothing by default (-Woverride-init is
+   * off), so these two lines were dead code that read as if the hal_port
+   * implementations were in use.  They were also wrong: hp_get_rx_pbuf_type
+   * returned lwIP's PBUF_RAM (a 0x0380 bit combination) where the slot's
+   * contract is a bk_pbuf_type ordinal 0..4.  The surviving pair in
+   * glue/pbuf_shim.c now returns BK_PBUF_RAM_RX, matching the authority.
+   *
+   * Checked at the same time: g_wifi_os_variable has no duplicates. */
+
   ._delay_us = bk7258_wifi_delay_us_cb,
   ._rtos_lock_mutex = bk7258_wifi_lock_mutex_cb,
   ._rtos_unlock_mutex = bk7258_wifi_unlock_mutex_cb,
