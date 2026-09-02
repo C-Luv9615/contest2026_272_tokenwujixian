@@ -164,35 +164,20 @@ int rw_msg_send_reset(void)
 {
 	void *void_param;
 	int ret;
-	uint32_t r0, r38, r54, crm10, t10;
 
 	/* RESET REQ has no parameter */
 	void_param = ke_msg_alloc(MM_RESET_REQ, TASK_MM, TASK_API, 0);
 	if (!void_param)
 		return -1;
 
-	/* [RSTWIN] state of the registers the reset path touches, taken at
-	 * MM_RESET_REQ send time.  hal_machw_reset (kick->poll->crm_mdm_reset)
-	 * runs inside the ke task between this send and the CFM; the timeout
-	 * print from rw_msg_send marks the window end. */
-	r0    = (*(volatile unsigned int *)0x49100000u);
-	r38   = (*(volatile unsigned int *)0x49100038u);
-	r54   = (*(volatile unsigned int *)0x49100054u);
-	crm10 = (*(volatile unsigned int *)0x49850010u);
-	t10   = (*(volatile unsigned int *)0x49100010u);
-	bk_printf("[RSTWIN] pre  00000000=%08x 00000038=%08x 00000054=%08x\r\n",
-		r0, r38, r54);
-	bk_printf("[RSTWIN] pre  49850010=%08x 49100010=%08x\r\n", crm10, t10);
-
+	/* hal_machw_reset (kick->poll->crm_mdm_reset) runs inside the ke task
+	 * between this send and the CFM, so latch the hardware state on both
+	 * sides.  All probe logic lives in glue/scan_diagnostics.c; this file
+	 * keeps only the call, the same way bk7258_scan_diag_record() is used. */
+	bk7258_hwprobe_latch(BK7258_HWPROBE_PRE_RESET, -1, 0);
 	ret = rw_msg_send(void_param, 1, MM_RESET_CFM, NULL);
+	bk7258_hwprobe_latch(BK7258_HWPROBE_POST_RESET, -1, ret);
 
-	r38   = (*(volatile unsigned int *)0x49100038u);
-	r54   = (*(volatile unsigned int *)0x49100054u);
-	crm10 = (*(volatile unsigned int *)0x49850010u);
-	t10   = (*(volatile unsigned int *)0x49100010u);
-	bk_printf("[RSTWIN] post 00000038=%08x 00000054=%08x\r\n", r38, r54);
-	bk_printf("[RSTWIN] post 49850010=%08x 49100010=%08x ret=%d\r\n",
-		crm10, t10, ret);
 	return ret;
 }
 
@@ -224,13 +209,17 @@ int rw_msg_send_start(void)
 	start_req_param->lp_clk_accuracy = 20;
 #endif
 	/* Send the START REQ message to LMAC FW */
-	bk_printf("[RSTWIN] mmstart pre  00000054=%08x 49100010=%08x\r\n",
-		(*(volatile unsigned int *)0x49100054u),
-		(*(volatile unsigned int *)0x49100010u));
+	/* ke_state(TASK_MM) is sampled alongside the registers because mm_active()
+	 * is the only writer that moves the NXMAC FSM off 0 (nxmac_next_state_setf
+	 * (3) -> 0x49100038 = 0x30) and it runs in the MM_START_REQ handler tail
+	 * next to ke_state_set(TASK_MM, MM_ACTIVE).  Unlike a register read it is
+	 * the library's own memory variable, so the pair cannot be dismissed as a
+	 * bad probe.  Reading order and interpretation live with the report, in
+	 * glue/scan_diagnostics.c and bk7258_wifi_lower.c. */
+	bk7258_hwprobe_latch(BK7258_HWPROBE_PRE_START, ke_state_get(TASK_MM), 0);
 	ret = rw_msg_send(start_req_param, 1, MM_START_CFM, NULL);
-	bk_printf("[RSTWIN] mmstart post 00000054=%08x 49100010=%08x ret=%d\r\n",
-		(*(volatile unsigned int *)0x49100054u),
-		(*(volatile unsigned int *)0x49100010u), ret);
+	bk7258_hwprobe_latch(BK7258_HWPROBE_POST_START,
+			ke_state_get(TASK_MM), ret);
 	return ret;
 }
 

@@ -8,6 +8,13 @@
 #include "lwip/pbuf.h"
 #include "os/mem.h"
 
+/* bk_pbuf_layer / bk_pbuf_type -- the enums the closed library speaks across
+ * the funcs table.  Included so the translation below can use the named
+ * constants instead of numeric literals; bare numbers are exactly how the
+ * layer mapping drifted out of sync with this header. */
+
+#include <generated/lmac_wifi_adapter.h>
+
 /* Headroom in front of the payload.
  *
  * Upstream lwIP semantics: the pbuf_layer enum value IS the headroom, and
@@ -186,31 +193,46 @@ struct pbuf *pbuf_coalesce(struct pbuf *p, pbuf_layer layer)
 
 void *bk_pbuf_alloc_wrapper(int layer, uint16_t length, int type)
 {
-  /* The archive passes the Beken bk_pbuf_layer/bk_pbuf_type enums
-   * (generated/lmac_wifi_adapter.h: IP=0 LINK=1 RAW_TX=2 RAW=3;
-   * RAM=0 RAM_RX=1 ROM=2 REF=3 POOL=4).  Our pbuf layer enum carries
-   * headroom byte counts and our type enum carries lwIP 2.1.2 flag
-   * combinations, so a numeric passthrough would mis-map every field.
-   * Translate explicitly, mirroring the authoritative adapter mapping. */
+  /* The archive passes the Beken bk_pbuf_layer / bk_pbuf_type enums; our
+   * pbuf_layer carries headroom byte counts and our pbuf_type carries lwIP
+   * 2.1.2 flag combinations, so the values must be translated, never passed
+   * through numerically.
+   *
+   * FIXED 2026-09-01 -- the layer switch was OFF BY ONE.  It used bare numeric
+   * cases with a comment asserting "IP=0 LINK=1 RAW_TX=2 RAW=3", but
+   * generated/lmac_wifi_adapter.h:26-32 actually declares
+   *
+   *     BK_PBUF_TRANSPORT=0  BK_PBUF_IP=1  BK_PBUF_LINK=2
+   *     BK_PBUF_RAW_TX=3     BK_PBUF_RAW=4
+   *
+   * so every case was shifted by one and BK_PBUF_RAW (4) fell through to
+   * `default: return NULL`.  The authoritative wrapper
+   * (bk_wifi_adapter.c:68-76) accepts ONLY BK_PBUF_RAW_TX and BK_PBUF_RAW and
+   * rejects everything else, so those two are the only values the closed
+   * library ever passes: we were failing outright the allocation used for RX
+   * buffers, and mis-sizing headroom on the other one.  Consistent with the
+   * board accepting zero frames (isr 33 = 0 RX interrupts, sd4 bcn = 0) while
+   * PHY energy measurement worked.
+   *
+   * The type switch was correct, but is rewritten with the same named
+   * constants and narrowed to the three values the authority accepts -- bare
+   * numbers are what let the layer mapping drift unnoticed. */
+
   pbuf_layer l;
   pbuf_type t;
 
   switch (layer)
     {
-    case 0: l = PBUF_IP;     break;
-    case 1: l = PBUF_LINK;   break;
-    case 2: l = PBUF_RAW_TX; break;
-    case 3: l = PBUF_RAW;    break;
+    case BK_PBUF_RAW_TX: l = PBUF_RAW_TX; break;
+    case BK_PBUF_RAW:    l = PBUF_RAW;    break;
     default: return NULL;
     }
 
   switch (type)
     {
-    case 0: t = PBUF_RAM;    break;
-    case 1: t = PBUF_RAM_RX; break;
-    case 2: t = PBUF_ROM;    break;
-    case 3: t = PBUF_REF;    break;
-    case 4: t = PBUF_POOL;   break;
+    case BK_PBUF_RAM:    t = PBUF_RAM;    break;
+    case BK_PBUF_RAM_RX: t = PBUF_RAM_RX; break;
+    case BK_PBUF_POOL:   t = PBUF_POOL;   break;
     default: return NULL;
     }
 
@@ -242,10 +264,29 @@ void *bk_pbuf_coalesce_wrapper(void *p)
   return pbuf_coalesce((struct pbuf *)p, PBUF_RAW);
 }
 
+/* These two answer questions the closed library asks BEFORE allocating, and
+ * both must speak the ABI enum -- not our lwIP values.
+ *
+ * FIXED 2026-09-01: this returned lwIP's `PBUF_RAM_RX`, which is a bit
+ * combination (0x0100|0x0200|0x80 = 896), where the slot's contract is a
+ * `bk_pbuf_type` ordinal (RAM=0 RAM_RX=1 ROM=2 REF=3 POOL=4).  The library
+ * feeds this answer straight back in as the `type` argument of _pbuf_alloc,
+ * so 896 hit that function's `default: return NULL` -- a second independent
+ * path to a failed RX buffer allocation, on top of the layer off-by-one fixed
+ * above.  Authority: bk_wifi_adapter.c:118-125 returns BK_PBUF_RAM_RX when
+ * MEM_TRX_DYNAMIC_EN is set, which it is in the reference build
+ * (lwipopts.h:184 -> CONFIG_LWIP_MEM_TRX_DYNAMIC_EN=1, reached through
+ * pbuf.h -> lwip/opt.h:51 -> lwipopts.h, so the branch is genuinely live and
+ * not dead code). */
+
 int bk_get_rx_pbuf_type_wrapper(void)
 {
-  return PBUF_RAM_RX;
+  return BK_PBUF_RAM_RX;
 }
+
+/* Authority returns 0 for the same MEM_TRX_DYNAMIC_EN=1 configuration
+ * (bk_wifi_adapter.c:127-134): with dynamic TRX memory there is no fixed
+ * PBUF_POOL, which also matches our heap-backed pbuf_alloc. */
 
 int bk_get_pbuf_pool_size_wrapper(void)
 {

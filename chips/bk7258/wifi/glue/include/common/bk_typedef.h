@@ -81,9 +81,20 @@ typedef signed short       __s16;
 typedef unsigned char      __u8;
 typedef unsigned long long __u64;
 typedef uint16_t           __le16;
+typedef uint32_t           __le32;
 
+/* Identity conversions: BK7258 is little-endian, so these are no-ops.  Same
+ * shape as the authority's definitions (wpa_supplicant
+ * src/common/ieee802_11_defs.h:2513-2514), which also define both as identity.
+ *
+ * cpu_to_le32 added 2026-09-01: only cpu_to_le16 was defined here, so enabling
+ * CONFIG_WIFI4 (which the authority has at 1) failed to link -- the VHT branch
+ * of rw_msg_send_me_config_req (rw_msg_tx.c:311) is the only user. */
 #ifndef cpu_to_le16
 #  define cpu_to_le16(v) ((uint16_t)(v))
+#endif
+#ifndef cpu_to_le32
+#  define cpu_to_le32(v) ((uint32_t)(v))
 #endif
 
 #ifdef __cplusplus
