@@ -14,7 +14,7 @@ commits: # filled at delivery
 
 BK7258 DevKit 需要在 OpenVela/NuttX 上提供标准 `wlan0`，让上层通过 WAPI、DHCP、DNS 和 POSIX socket 使用网络。当前只有 Armino/FreeRTOS 版的 Beken 二进制核心（`libwifi.a`、`libbk_phy.a`），没有 NuttX 版库，vendor ABI（Cortex-M33 hard-float、CMSE、SPE/NSPE）未验证，CP SRAM 窗口约 195 KiB。
 
-适配主路径（详见 `chips/bk7258/OPENVELA_NUTTX_WIFI_PORTING_PLAN.md` §11.4）是：保留 Beken MAC/PHY/RF 与 WPA 核心，用 NuttX OSAL 替换 FreeRTOS，用 `netdev_lowerhalf` + NuttX 网络栈替换 Armino lwIP/DHCP/socket。
+适配主路径（详见 `my_docs/bk7258-wifi/plan/OPENVELA_NUTTX_WIFI_PORTING_PLAN.md` §11.4，该文档已迁出本仓库，绝对路径 `/home/czp/openvela_contest/my_docs/bk7258-wifi/plan/`）是：保留 Beken MAC/PHY/RF 与 WPA 核心，用 NuttX OSAL 替换 FreeRTOS，用 `netdev_lowerhalf` + NuttX 网络栈替换 Armino lwIP/DHCP/socket。
 
 当前工作块已经超出纯骨架阶段：团队已完成 capability owner、NuttX OSAL、
 timer/workqueue、vendor packet/pbuf copy bridge、netdev lower-half、IRQ、
