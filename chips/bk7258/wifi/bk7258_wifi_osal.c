@@ -176,9 +176,14 @@ static int bk7258_wifi_osal_queue_send_common(
           return -EAGAIN;
         }
 
+      /* _uninterruptible for the same reason as
+       * bk7258_wifi_osal_sem_wait(): the vendor cannot distinguish EINTR from
+       * a full queue, and rtos_push_to_queue() failure is treated as a dropped
+       * message. */
+
       if (timeout_ms == BK7258_WIFI_WAIT_FOREVER)
         {
-          int ret = nxsem_wait(&q->space_sem);
+          int ret = nxsem_wait_uninterruptible(&q->space_sem);
           if (ret < 0)
             {
               return ret;
@@ -194,7 +199,8 @@ static int bk7258_wifi_osal_queue_send_common(
               return -ETIMEDOUT;
             }
 
-          ret = nxsem_tickwait(&q->space_sem, timeout - elapsed);
+          ret = nxsem_tickwait_uninterruptible(&q->space_sem,
+                                               timeout - elapsed);
           if (ret < 0)
             {
               return ret;
@@ -369,12 +375,41 @@ int bk7258_wifi_osal_sem_wait(uintptr_t handle, unsigned int timeout_ms)
       return nxsem_trywait(sem);
     }
 
+  /* The _uninterruptible variants, to match the FreeRTOS contract the pinned
+   * vendor library was built against.
+   *
+   * xSemaphoreTake() (cp/components/bk_rtos/freertos/v10/rtos_pub.c) has exactly
+   * two outcomes: taken, or timed out.  FreeRTOS has no EINTR, so the vendor
+   * callers treat "not taken" as "timed out" -- rw_msg_send() (rw_msg_tx.c:129)
+   * maps any failure to RWNX_ERR_TIMEOUT and abandons the request, losing the
+   * CFM it was waiting for.
+   *
+   * NuttX's nxsem_wait()/nxsem_tickwait() add a third outcome, -EINTR, when a
+   * signal reaches the waiting thread (sem_wait.c:67).  Our wrapper in
+   * glue/rtos_compat_shim.c collapses every negative return to BK_FAIL, so a
+   * spurious wakeup was indistinguishable from a real timeout.  The
+   * _uninterruptible forms retry on EINTR, and the timed one recomputes the
+   * remaining delay from the original deadline (semaphore.h:1048-1071) so the
+   * total timeout is preserved, not extended.
+   *
+   * HONEST SCOPE: this is NOT proven to be the cause of the intermittent
+   * rw_msg_send timeouts seen on the board (reqid 1 / 6173 / 7169 / 7172) -- no
+   * -EINTR was ever captured, and nothing in this profile is known to signal
+   * these threads.  It is fixed because it is a demonstrable divergence from the
+   * contract the library assumes, of the same class as the four board bugs
+   * already found, and because leaving it in keeps an unfalsifiable variable in
+   * every timing measurement.
+   *
+   * timeout_ms == 0 stays nxsem_trywait(): a non-blocking poll cannot be
+   * interrupted, and the vendor issues BEKEN_NO_WAIT from IRQ context.
+   */
+
   if (timeout_ms == BK7258_WIFI_WAIT_FOREVER)
     {
-      return nxsem_wait(sem);
+      return nxsem_wait_uninterruptible(sem);
     }
 
-  ret = nxsem_tickwait(sem, MSEC2TICK(timeout_ms));
+  ret = nxsem_tickwait_uninterruptible(sem, MSEC2TICK(timeout_ms));
   return ret < 0 ? ret : 0;
 }
 

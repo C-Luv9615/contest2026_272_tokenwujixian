@@ -165,4 +165,65 @@
 #  define __INCLUDE_NETINET_IF_ETHER_H 1
 #endif
 
+/* Select wpa_supplicant's full diagnostics instead of Beken's reduced stand-in.
+ *
+ * This is the vendor's own switch, used in two places:
+ *
+ *   1. build_config.h:174 -- with CONFIG_WPA_LOG undefined the preprocessor
+ *      evaluates `#if !CONFIG_WPA_LOG` as true and defines
+ *      CONFIG_NO_STDOUT_DEBUG, CONFIG_NO_HOSTAPD_LOGGER and CONFIG_NO_WPA_MSG.
+ *      Those collapse wpa_printf(), wpa_dbg(), wpa_msg() and the six
+ *      wpa_hexdump*() variants into `do { } while (0)` (wpa_debug.h:38-57,
+ *      :170-176) and keep the real implementations out of the image entirely --
+ *      `nm` found no wpa_dbg, no wpa_msg and no _wpa_hexdump in the ELF.
+ *
+ *   2. Double-written call sites such as wpa_supplicant.c:3894-3902, which pick
+ *      between the native `wpa_msg(wpa_s, MSG_INFO, ...)` and a `WPA_LOGD(...)`
+ *      stand-in that routes through Beken's BK_LOG* macros.
+ *
+ * So the port has been running on the stand-in tier all along, and this flips
+ * it to the full tier.  Nothing downstream is edited: wpa_debug.c and
+ * wpa_debug.h remain byte-identical to the authority copies.
+ *
+ * WHY: the association path is diagnosed almost entirely through these macros,
+ * so a failure there is silent by construction.  EVENT_ASSOC (events.c:5514)
+ * can drop an association without a trace --
+ *   if (wpa_s->disconnected)                  -> wpa_printf(MSG_INFO, "Ignore unexpected EVENT_ASSOC...")
+ *   if (wpa_s->wpa_state == WPA_DISCONNECTED) -> wpa_printf(MSG_INFO, "Rx EVENT_ASSOC when WPAS is in disconnected state...")
+ * -- and both lines were compiled out.  The board reaches `mm_set_vif_state ...
+ * is_active=1, aid=0x1`, CONNECT_IND is confirmed delivered to the supplicant
+ * queue, yet wpa_supplicant never leaves ASSOCIATING; telling "the handler never
+ * ran" apart from "it ran and took a silent early return" is impossible while
+ * its own log statements do not exist in the binary.
+ *
+ * The run-time level must stay MSG_DEBUG (main_supplicant.c:132).  Raising it to
+ * MSG_INFO to cut volume would be a regression: after this flip `State: %s ->
+ * %s` (wpa_supplicant.c:1056-1064) is emitted by wpa_dbg(MSG_DEBUG), so an INFO
+ * threshold would discard the state transitions that are currently readable.
+ *
+ * DELIBERATE DEVIATION from the authority, which leaves CONFIG_WPA_LOG unset
+ * (its sdkconfig.h has no such define, so cp/.../build_config.h:163 takes the
+ * same suppressing branch).  Accepted because the authority does not need these
+ * messages -- its association path works -- while ours is being brought up.  It
+ * is strictly extra output, never less, and it changes no control flow: every
+ * restored statement is a print.
+ *
+ * Cost, measured rather than assumed: the compiled WPA set (60 files listed in
+ * CMakeLists.txt) holds 1398 wpa_printf/wpa_dbg call sites, so format strings
+ * grow the image.  CP has room -- partition 0x165000 (1462272 B) against
+ * 1084908 B in use, ~368 KiB free.
+ *
+ * Credentials stay protected through the upstream mechanism rather than a local
+ * one: main_supplicant.c now passes wpa_debug_show_keys = 0, which makes every
+ * wpa_hexdump_key()/wpa_hexdump_ascii_key() site print "[REMOVED]" in place of
+ * the PMK/PTK/TK bytes (wpa_debug.c:113-127).
+ *
+ * REMOVE once the association path is closed: this is bring-up instrumentation,
+ * and dropping it restores parity with the authority's logging.
+ */
+
+#ifndef CONFIG_WPA_LOG
+#  define CONFIG_WPA_LOG 1
+#endif
+
 #endif /* __BK7258_WIFI_GLUE_BK_PRELUDE_H */
