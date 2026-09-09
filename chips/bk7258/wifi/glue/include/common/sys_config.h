@@ -51,6 +51,100 @@
 #define CONFIG_WIFI_ENABLE          1
 #define CONFIG_WIFI6                1
 
+/* PM alignment with the successful BK7258 Armino iperf image
+ * (build/bk7258/iperf/bk7258/config/sdkconfig.h).  These gates select the
+ * same Wi-Fi core-thread and LMAC configuration branches as the authority:
+ *
+ *   PM_V2: core thread wakes the MAC/RF before every work item and evaluates
+ *          the closed ps.c sleep state machine afterwards;
+ *   STA_PS: enables PS messages and station-PS API paths;
+ *   MCU_PS: exposes the authority's MCU-PS API paths (its adapter callbacks
+ *           are intentionally empty in the authority too);
+ *   PM_ENABLE/SUPER_DEEP_SLEEP: preserve authority registration behaviour.
+ *
+ * The invoked MAC doze/wake state machine is from the hash-pinned libwifi.a.
+ * Its external dependency closure is provided by this port before these gates
+ * are enabled; do not replace any authority-empty power_save_* callback with
+ * invented behaviour. */
+#define CONFIG_PM_V2                 1
+#define CONFIG_STA_PS                1
+#define CONFIG_MCU_PS                1
+#define CONFIG_PM_ENABLE             1
+#define CONFIG_PM_SUPER_DEEP_SLEEP   1
+#define CONFIG_DEFAULT_LPO_SRC       2
+
+/* Authority BK7258 sdkconfig.h enables the PHY temperature-compensation
+ * callback.  Without this, bk_feature_temp_detect_enable() returns 0 and the
+ * closed PHY bypasses the chip-owned temp_detect implementation entirely. */
+#define CONFIG_TEMP_DETECT          1
+/* Authority BK7258 defconfig:180.  The NuttX tempd worker owns the matching
+ * ADC0 periodic sample and rwnx_cal_do_volt_detect() callback. */
+#define CONFIG_VOLT_DETECT          1
+#define CONFIG_CALI                 1
+#define CONFIG_MANUAL_CALI          1
+#define CONFIG_TPC_PA_MAP           1
+#define CONFIG_SARADC_CALI          1
+#define CONFIG_SARADC               1
+#define CONFIG_SARADC_SERVER        1
+/* Do not activate authority multi-core feature macros independently. Their
+ * mailbox_channel and mb_ipc state machines now have an RPMsg backend, but
+ * PHY/SARADC clients and CPU0 servers are enabled together only after their
+ * full authority ABI and host lifecycle contracts are integrated. This image
+ * therefore does not define CONFIG_CPU_CNT or advertise CPU2. */
+#define CONFIG_PHY_MB               0
+#define CONFIG_SARADC_MB            0
+/* Complete-SDK BK7258 defconfig enables OTP v1 and leaves
+ * CONFIG_PHY_RFCALI_TO_OTP=n. The authority driver/HAL/LL/map closure owns
+ * both read and write APIs; the default Wi-Fi profile does not elect RF
+ * calibration persistence, matching the SDK rather than refusing updates in
+ * a local shim. */
+#define CONFIG_OTP_V1               1
+/* BK7258 authority defconfig:184.  This selects adc_restore plus the BAKP
+ * SARADC power-vote lifecycle; platform_shim.c provides the matching PM
+ * registration, unregistration, and parent-domain reference counting. */
+#define CONFIG_SARADC_PM_CB_SUPPORT 1
+/* Authority BK7258 iperf config leaves CONFIG_SARADC_NEED_FLUSH undefined.
+ * Defining it starts bk_adc_init() with adc_flush() before adc_hal_init()
+ * assigns s_adc.hal.hw, which dereferences the zeroed HAL pointer. */
+/* #define CONFIG_SARADC_NEED_FLUSH 1 */
+#define CONFIG_ADC_BUF_SIZE         32
+#define CONFIG_ADC_STATIS           1
+#define CONFIG_SYSTEM_CTRL          1
+
+/* Low-power core voltage level, consumed by sys_hal_low_power_hardware_init()
+ * as sys_hal_lp_vol_set(CONFIG_LP_VOL).  0x6 matches the authority BK7258 CP
+ * project config (projects/app/cp/config/bk7258/config:941). */
+#define CONFIG_LP_VOL               0x6
+
+/* Core clock the imported sys_hal.c assumes when it programs the MCLK divider
+ * (sys_hal.c:2734, 480000000/CONFIG_CPU_FREQ_HZ - 1).  120 MHz matches the
+ * authority BK7258 CP project config (:673) and the 120M vote this port makes
+ * before any PHY/calibration path runs. */
+#define CONFIG_CPU_FREQ_HZ          120000000
+
+/* Authority BK7258 CP sets CONFIG_MAILBOX=y.  pwr_clk.c guards its
+ * <driver/mailbox_channel.h> include on it (:17) while using MB_CHNL_PWC /
+ * MB_CHNL_GET_STATUS unconditionally in bk_pm_cp_mb_busy() (:763), so the
+ * imported PM sources need it set to compile the same way upstream does.
+ * Everything it enables is self-contained: the three CP0 mailbox ISRs and
+ * PM_CHNL_STATE_BUSY are defined inside pwr_clk.c, and mb_chnl_open/ctrl/write
+ * already link from the imported mb_ipc mailbox driver.  No file outside
+ * pm/authority tests this symbol, so nothing else changes behaviour. */
+#define CONFIG_MAILBOX              1
+
+/* AON RTC configuration gate for the directly imported BK7258 authority module
+ * under chips/bk7258/aon_rtc/.  The values (and the authority defconfig
+ * provenance of each one) live in that module's own port header, but they are
+ * reached from here rather than force-included for the module alone, because
+ * CONFIG_AON_RTC_64BIT selects the rtc_tick_t typedef and AON_RTC_ROUND_TICK
+ * width in the authority <driver/aon_rtc_types.h>, and that header is also
+ * included by translation units outside the module: bk7258_wifi_adapter.c,
+ * glue/hw_driver_shim.c, glue/platform_shim.c, aon_pmu authority
+ * aon_pmu_driver.c, temp_detect authority temp_detect.c, and the third_party
+ * bk_wifi_adapter.c.  All of them must agree on the tick width, the
+ * alarm_info_t/alarm_node_t layout and the published prototypes. */
+#include "../../../../aon_rtc/nuttx_port/include/aon_rtc_port_config.h"
+
 /* ALIGNED 2026-09-01: authority sdkconfig.h:72 has CONFIG_WIFI4=1 (alongside
  * WIFI6=1) -- it advertises both HT and HE.  We had 0, which zeroed the
  * erp/ht/vht fields of ME_CONFIG_REQ (rw_msg_tx.c:279-300) that the closed
@@ -102,6 +196,11 @@
 #define CONFIG_STA_AUTO_RECONNECT   1
 #define CONFIG_MONITOR_REQ          0
 #define CONFIG_WIFI_SCAN_COUNTRY_CODE 1
+/* Authority BK7258 defaults 2.4 GHz country policy to automatic.  The
+ * already-vendored scan builders then mark channels 12/13/14 CHAN_NO_IR until
+ * a country IE establishes the regulatory domain.  The country-code scan
+ * producer/consumer closure above is already enabled. */
+#define CONFIG_WIFI_AUTO_COUNTRY_CODE 1
 /* CONFIG_ROLE_* comes from the vendored Armino bk_wifi_types.h.  Do not
  * define it here: these are enum-like ABI values, not NuttX booleans. */
 
@@ -113,6 +212,13 @@
 #define CONFIG_WIFI_MAC_SUPPORT_STAS_MAX_NUM 2
 #define CONFIG_WIFI_KMSG_TASK_PRIO  3
 #define CONFIG_WIFI_KMSG_TASK_STACK_SIZE 4096
+#define CONFIG_WIFI_CORE_TASK_PRIO  2
+#define CONFIG_WIFI_CORE_TASK_STACK_SIZE 2048
+/* Authority BK7258 enables this.  The vendored scan producer, WPA consumer
+ * and hostapd_intf ownership release provider are all already in the runtime
+ * source closure, so select the authority wpa_scan_res ABI and its matching
+ * release discipline rather than the incompatible sta_scan_res branch. */
+#define CONFIG_MINIMUM_SCAN_RESULTS 1
 /* DELIBERATE DIVERGENCE (authority has 1): CONFIG_SHELL_ASYNCLOG=1 requires
  * shell_cmd_ind_out(), which this port does not provide -- enabling it would
  * not link.  Keeping 0 is safe AND already authority-equivalent at the one site
@@ -133,31 +239,10 @@
 #define CONFIG_SCAN_SPEED_LEVEL     3
 #define CONFIG_SOC_BK7258           1
 
-/* Armino submodule identifiers (middleware/soc/bk7258/hal/sys_types.h:394-400).
- *
- * These are NOT small ordinals: each submodule id is
- * `parent_module * PM_MODULE_SUB_POWER_DOMAIN_MAX + k`, with
- * PM_MODULE_SUB_POWER_DOMAIN_MAX == 20 (sys_types.h:145), so the PHY group
- * starts at POWER_MODULE_NAME_WIFI_PHY(10) * 20 == 200.
- *
- * FIXED 2026-09-01: the previous values 2 and 3 were plain ordinals and
- * collide with real entries of `power_module_name_t` (2 = MEM3, 3 = ENCP).
- * Board-visible consequence: wifi_init.c:71's third power vote,
- * `bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_PHY_WIFI, ON)`,
- * matched neither WIFIP_MAC nor PHY in our vote handler and returned
- * BK_ERR_NOT_SUPPORT without touching a register -- the log shows only two
- * `power gate mask` lines (0x200 MAC, 0x400 PHY) inside bk_wifi_init where
- * the authoritative sequence votes three times. */
-#define PM_MODULE_SUB_POWER_DOMAIN_MAX 20
-#ifndef POWER_SUB_MODULE_NAME_PHY_BT
-#  define POWER_SUB_MODULE_NAME_PHY_BT   200  /* WIFI_PHY(10)*20 + 0 */
-#endif
-#ifndef POWER_SUB_MODULE_NAME_PHY_WIFI
-#  define POWER_SUB_MODULE_NAME_PHY_WIFI 201  /* WIFI_PHY(10)*20 + 1 */
-#endif
-#ifndef POWER_SUB_MODULE_NAME_PHY_RF
-#  define POWER_SUB_MODULE_NAME_PHY_RF   202  /* WIFI_PHY(10)*20 + 2 */
-#endif
+/* PM module and PHY submodule identifiers are owned by the imported BK7258
+ * authority sys_types.h.  Do not reproduce them as configuration macros:
+ * source files that include the authority enum would otherwise have their
+ * identifiers macro-expanded before the enum can be parsed. */
 
 /****************************************************************************
  * "#define X 0" is not the same as "off"

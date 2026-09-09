@@ -67,37 +67,38 @@ enum bk7258_scan_diag_event_e
  * bk7258_hwprobe_report(), so nothing read those globals any more. */
 
 /****************************************************************************
- * Hardware register snapshots around the MM bring-up handshake
+ * MM bring-up handshake latches
  *
- * These sample absolute SoC registers (NXMAC 0x49100000, its interrupt block
- * 0x49108000, the modem clock 0x49000000 and CRM 0x49850000) at the four
- * moments the MM_RESET/MM_START handshake passes through.  MMIO addresses are
- * fixed by the SoC and do not move when code is recompiled, which is what
- * makes this class of probe worth keeping -- unlike anything derived from a
- * disassembly of library RAM, which drifts.
+ * Four sample points around the MM_RESET / MM_START handshake, recording only
+ * memory-resident facts: which site was reached (`seen`), ke_state_get(TASK_MM)
+ * as read in the caller's own translation unit, and the rw_msg_send() return
+ * code.  Pass kestate = -1 at the two reset sites, which have no MM task state
+ * worth reporting, and ret = 0 on the two `pre` sites.
  *
- * The reads have to happen inside the vendored senders (rw_msg_send_reset and
- * rw_msg_send_start): the register state being measured only exists for the
- * duration of that handshake, and we never call those two functions directly.
- * So rw_msg_tx.c keeps four one-line calls -- the same shape as
- * bk7258_scan_diag_record() -- and all probe logic, storage and formatting
- * lives here.  sa_station.c used to carry its own copy of these probes around
- * the very calls that now latch internally; it is back to pristine vendor
- * source as a result.
+ * THIS FACILITY NO LONGER READS ANY REGISTER, AND MUST NOT REGAIN ONE.
+ * It used to snapshot 13 words from NXMAC (0x49100000), the MAC interrupt block
+ * (0x49108000), the modem clock (0x49000000) and CRM (0x49850000).  All of
+ * those sit behind the MAC clock gate, and with CONFIG_PM_V2 && CONFIG_STA_PS
+ * compiled in (as here, and as on the authority CP) the MAC is in doze from the
+ * end of bk_wifi_init() onward -- rwnx_intf_init() calls rwnxl_sleep()
+ * (rw_task.c:1245) -- and is awake only inside the windows
+ * mac_wakeup_and_pwr_update() opens on the core thread (rw_task.c:821).  These
+ * four latch sites run on the supplicant/app thread via
+ * sa_station_cfg80211_init() (sa_station.c:128,139), so they hold no wake, and
+ * a load from a gated register stalls the AHB permanently: no fault, no log, no
+ * other thread scheduled.  The full reasoning, and the board evidence that the
+ * register columns were uninformative anyway, is in glue/scan_diagnostics.c.
  *
- * Latching rather than printing in place is deliberate: printing from those
+ * The "safety note" that used to stand here -- that these addresses had been
+ * read at these very points on hardware without faulting -- was true only of
+ * the pre-STA_PS configuration, where rwnxl_sleep() was not compiled and the
+ * MAC never dozed.  Do not restore it as a licence.
+ *
+ * Latching rather than printing in place stays deliberate: printing from those
  * contexts raced with other threads' console output and destroyed the
- * measurement.
- *
- * `kestate` and `ret` carry the two values only the caller's translation unit
- * can see, keeping the vendored side to a single line: ke_state_get(TASK_MM)
- * and the rw_msg_send() return code.  Pass kestate = -1 at the reset sites,
- * which have no MM task state worth reporting, and ret = 0 on the pre sites.
- *
- * Safety note: every address read here was already being read at these exact
- * four points by the probes this replaces, on hardware, without faulting --
- * the MAC and modem are powered from the pre-reset point onward in this
- * sequence.  Do not extend the site list to places where that is not known.
+ * measurement.  The four one-line calls in the vendored rw_msg_tx.c stay for
+ * the reason they were introduced -- we never call rw_msg_send_reset() /
+ * rw_msg_send_start() ourselves -- and are now stall-free by construction.
  ****************************************************************************/
 
 enum bk7258_hwprobe_site_e

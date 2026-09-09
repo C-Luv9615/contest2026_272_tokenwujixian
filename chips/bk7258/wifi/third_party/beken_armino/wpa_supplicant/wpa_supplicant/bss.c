@@ -963,11 +963,13 @@ void wpa_bss_flush_by_age(struct wpa_supplicant *wpa_s, int age)
 {
 	struct wpa_bss *bss, *n;
 	struct os_reltime t;
+	struct os_reltime now;
 
 	if (dl_list_empty(&wpa_s->bss))
 		return;
 
 	os_get_reltime(&t);
+	now = t;
 	t.sec -= age;
 
 	dl_list_for_each_safe(bss, n, &wpa_s->bss, struct wpa_bss, list) {
@@ -975,6 +977,27 @@ void wpa_bss_flush_by_age(struct wpa_supplicant *wpa_s, int age)
 			continue;
 
 		if (os_reltime_before(&bss->last_update, &t)) {
+			/* TEMPORARY bring-up diagnostic (2026-09-08).  A
+			 * connect attempt lost its selected BSS to this flush
+			 * 18 ms after the scan that added it, which the
+			 * arithmetic does not explain: age is 10 (confirmed
+			 * from the compiled immediate), res->age is always 0
+			 * (zalloc'd, never assigned), so last_update should
+			 * equal the scan's fetch_time.  One of these three
+			 * inputs is not what the source says it is; print all
+			 * of them so a UART capture identifies which.  Only
+			 * fires on an actual removal, so it stays silent in
+			 * the healthy case.  Remove with the other probes. */
+			wpa_printf(MSG_DEBUG,
+				   "BSS-AGE: remove id=%u now=%u.%06u thr=%u.%06u last_update=%u.%06u age=%d",
+				   bss->id,
+				   (unsigned int) now.sec,
+				   (unsigned int) now.usec,
+				   (unsigned int) t.sec,
+				   (unsigned int) t.usec,
+				   (unsigned int) bss->last_update.sec,
+				   (unsigned int) bss->last_update.usec,
+				   age);
 			wpa_bss_remove(wpa_s, bss, __func__);
 		} else
 			break;

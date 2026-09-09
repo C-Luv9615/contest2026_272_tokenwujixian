@@ -91,6 +91,7 @@ int      bk_printf_init(void);
 int      bk_printf_deinit(void);
 void     bk_set_printf_enable(uint8_t enable);
 void     bk_set_printf_sync(uint8_t enable);
+int      bk_get_printf_sync(void);
 void     bk_printf_ex(int level, char *tag, const char *fmt, ...);
 void     bk_printf_ext(int level, char *tag, const char *fmt, ...);
 void     bk_printf_nonblock(int level, char *tag, const char *fmt, ...);

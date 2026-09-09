@@ -26,8 +26,12 @@
 #include "os/os.h"
 
 static bool g_phy_reinit;
-static pm_sleep_cb_t g_pm_sleep_enter[PM_MODE_DEFAULT];
-static pm_sleep_cb_t g_pm_sleep_exit[PM_MODE_DEFAULT];
+/* The authority stores low-voltage callbacks by PM device ID.  A single slot
+ * per sleep mode loses SARADC's callback when Wi-Fi registers its own MAC
+ * callback, so retain the same ownership dimension even though NuttX does not
+ * yet execute an Armino low-voltage transition. */
+static pm_sleep_cb_t g_pm_sleep_enter[PM_MODE_DEFAULT][PM_DEV_ID_MAX];
+static pm_sleep_cb_t g_pm_sleep_exit[PM_MODE_DEFAULT][PM_DEV_ID_MAX];
 /* The CP has no owner for the external-32k mux yet.  Preserve registrations
  * faithfully for that future owner, but do not synthesize a source switch or
  * invoke a registered callback from this layer.  volatile makes this a real
@@ -51,41 +55,23 @@ static pm_lpo_src_e bk7258_wifi_lpo_src_read(void)
   return (pm_lpo_src_e)source;
 }
 
-uint64_t bk_aon_rtc_get_current_tick(aon_rtc_id_t id)
-{
-  uint32_t low;
-  uint32_t high;
-
-  /* BK7258 has one AON RTC unit (ID 0).  Do not initialize it from this
-   * accessor: the Armino init sequence resets the shared counter and changes
-   * interrupt/compare state.  This provider is deliberately read-only. */
-  if (id != 0)
-    {
-      return 0;
-    }
-
-  /* Match the BK7258 64-bit Armino HAL snapshot sequence.  Counter low/high
-   * are independently visible MMIO words; reread until the pair is stable so
-   * a carry cannot produce a torn timestamp. */
-  do
-    {
-      low = getreg32(BK7258_AON_RTC_COUNTER_LO);
-      high = getreg32(BK7258_AON_RTC_COUNTER_HI);
-    }
-  while (getreg32(BK7258_AON_RTC_COUNTER_LO) != low ||
-         getreg32(BK7258_AON_RTC_COUNTER_HI) != high);
-
-  return ((uint64_t)high << 32) | low;
-}
-
-float bk_rtc_get_ms_tick_count(void)
-{
-  /* Armino's API name is misleading: this is the AON RTC tick rate expressed
-   * in ticks per millisecond, not a running millisecond timestamp.  Read the
-   * live PMU source selection rather than asserting that CP owns external 32K.
-   * The vendor uses 32 kHz for both ROSC and DIVD, while X32K is 32768 Hz. */
-  return bk7258_wifi_lpo_src_read() == PM_LPO_SRC_X32K ? 32.768f : 32.0f;
-}
+/* bk_aon_rtc_get_current_tick() and bk_rtc_get_ms_tick_count() used to be
+ * defined here.  Both now come from the authority AON RTC module imported under
+ * chips/bk7258/aon_rtc/ (authority/middleware/driver/rtc/aon_rtc_driver_64bit.c
+ * :1111 and :132), which additionally owns the counter enable/start sequence
+ * that the read-only version here could not perform.
+ *
+ * The tick rate is unchanged by the switch.  This port returned 32.0f for a
+ * non-X32K LPO source; the authority version returns s_aon_rtc_clock_freq/1000,
+ * and with CONFIG_EXTERN_32K unset (authority BK7258 CP) s_aon_rtc_clock_freq
+ * is AON_RTC_DEFAULT_CLOCK_FREQ == 32000, i.e. also 32.0f.  This matters
+ * because libwifi.a's rwnxl_sleep() derives its poll timeout from this rate.
+ * The authority value is a build-time default rather than a live PMU read, so
+ * it no longer tracks a runtime LPO source change; the CP votes ROSC once
+ * during bring-up (bk7258_wifi_lower.c) and does not switch afterwards, and the
+ * authority firmware itself has the same static behavior via
+ * CONFIG_DEFAULT_LPO_SRC.
+ */
 
 bk_err_t bk_pm_clock_ctrl(pm_dev_clk_e module, pm_dev_clk_pwr_e clock_state)
 {
@@ -166,6 +152,17 @@ extern void hp_sys_hal_clk_pwr_ctrl(uint32_t dev, bool power_up);
  * way pm.c:634 does. */
 extern int32_t sys_drv_module_power_state_get(power_module_name_t module);
 
+/* Keep the direct PHY module vote and PHY submodule votes in one ownership
+ * state machine.  Armino's pm.c records PHY calibration when the direct PHY
+ * vote succeeds; the following PHY_WIFI vote then observes an already-powered,
+ * calibrated domain and must not replay phy_wakeup_reinit(). */
+
+static uint32_t g_phy_submodule_state;
+static uint32_t g_phy_calibration_state;
+static spinlock_t g_phy_power_lock = SP_UNLOCKED;
+static uint32_t g_bakp_submodule_state;
+static spinlock_t g_bakp_power_lock = SP_UNLOCKED;
+
 int32 bk_pm_module_power_state_get(pm_power_module_name_e module)
 {
   return (int32)hp_bk_pm_module_power_state_get(module);
@@ -210,9 +207,65 @@ bk_err_t bk_pm_module_vote_power_ctrl(pm_power_module_name_e module,
     {
       return bk7258_mac_power(enable) == OK ? BK_OK : BK_FAIL;
     }
+  else if ((uint32_t)module >=
+             (uint32_t)PM_POWER_MODULE_NAME_BAKP *
+             PM_MODULE_SUB_POWER_DOMAIN_MAX &&
+           (uint32_t)module <=
+             (uint32_t)PM_POWER_MODULE_NAME_BAKP *
+             PM_MODULE_SUB_POWER_DOMAIN_MAX + 16)
+    {
+      /* Armino pm.c:504-536 and :726-755: BAKP submodules hold their
+       * parent domain until the final user releases it.  This is required
+       * by the BK7258 authority SARADC PM callback path. */
+      const uint32_t bit = UINT32_C(1) <<
+        ((uint32_t)module %
+         ((uint32_t)PM_POWER_MODULE_NAME_BAKP *
+          PM_MODULE_SUB_POWER_DOMAIN_MAX));
+      irqstate_t flags = spin_lock_irqsave(&g_bakp_power_lock);
+
+      if (enable)
+        {
+          g_bakp_submodule_state |= bit;
+          spin_unlock_irqrestore(&g_bakp_power_lock, flags);
+
+          if (sys_drv_module_power_state_get(PM_POWER_MODULE_NAME_BAKP) == 0x0)
+            {
+              return BK_OK;
+            }
+
+          return bk7258_bakp_power(true) == OK ? BK_OK : BK_FAIL;
+        }
+
+      g_bakp_submodule_state &= ~bit;
+      if (g_bakp_submodule_state == 0)
+        {
+          spin_unlock_irqrestore(&g_bakp_power_lock, flags);
+          return bk7258_bakp_power(false) == OK ? BK_OK : BK_FAIL;
+        }
+
+      spin_unlock_irqrestore(&g_bakp_power_lock, flags);
+      return BK_OK;
+    }
   else if (module == PM_POWER_MODULE_NAME_PHY)
     {
-      return bk7258_phy_power(enable) == OK ? BK_OK : BK_FAIL;
+      irqstate_t flags;
+
+      /* Authority pm.c permits direct PHY ON for PHY initialization and
+       * calibration, but only submodule votes may turn it back off. */
+      if (!enable)
+        {
+          return BK_FAIL;
+        }
+
+      if (bk7258_phy_power(true) != OK)
+        {
+          return BK_FAIL;
+        }
+
+      flags = spin_lock_irqsave(&g_phy_power_lock);
+      g_phy_calibration_state = 0x1;
+      spin_unlock_irqrestore(&g_phy_power_lock, flags);
+      return BK_OK;
     }
   else if (module == (pm_power_module_name_e)POWER_SUB_MODULE_NAME_PHY_BT ||
            module == (pm_power_module_name_e)POWER_SUB_MODULE_NAME_PHY_WIFI ||
@@ -234,9 +287,6 @@ bk_err_t bk_pm_module_vote_power_ctrl(pm_power_module_name_e module,
        * pwd bit, so 0x0 means "powered ON" -- the comparisons below read
        * exactly as upstream writes them. */
 
-      static uint32_t phy_submodule_state;
-      static uint32_t phy_calibration_state;
-      static spinlock_t phy_lock = SP_UNLOCKED;
       const uint32_t bit = UINT32_C(1) <<
         ((uint32_t)module % (uint32_t)(PM_POWER_MODULE_NAME_PHY *
                                        PM_MODULE_SUB_POWER_DOMAIN_MAX));
@@ -244,12 +294,12 @@ bk_err_t bk_pm_module_vote_power_ctrl(pm_power_module_name_e module,
 
       if (enable)
         {
-          flags = spin_lock_irqsave(&phy_lock);
-          phy_submodule_state |= bit;
-          spin_unlock_irqrestore(&phy_lock, flags);
+          flags = spin_lock_irqsave(&g_phy_power_lock);
+          g_phy_submodule_state |= bit;
+          spin_unlock_irqrestore(&g_phy_power_lock, flags);
 
           if (sys_drv_module_power_state_get(PM_POWER_MODULE_NAME_PHY) == 0x0 &&
-              phy_calibration_state == 0x1)
+              g_phy_calibration_state == 0x1)
             {
               return BK_OK;
             }
@@ -277,25 +327,25 @@ bk_err_t bk_pm_module_vote_power_ctrl(pm_power_module_name_e module,
 
               g_phy_reinit = true;
 
-              flags = spin_lock_irqsave(&phy_lock);
-              phy_calibration_state = 0x1;
-              spin_unlock_irqrestore(&phy_lock, flags);
+              flags = spin_lock_irqsave(&g_phy_power_lock);
+              g_phy_calibration_state = 0x1;
+              spin_unlock_irqrestore(&g_phy_power_lock, flags);
             }
 
           return BK_OK;
         }
 
-      flags = spin_lock_irqsave(&phy_lock);
-      phy_submodule_state &= ~bit;
+      flags = spin_lock_irqsave(&g_phy_power_lock);
+      g_phy_submodule_state &= ~bit;
 
-      if (phy_submodule_state == 0x0)
+      if (g_phy_submodule_state == 0x0)
         {
-          phy_calibration_state = 0x0;
-          spin_unlock_irqrestore(&phy_lock, flags);
+          g_phy_calibration_state = 0x0;
+          spin_unlock_irqrestore(&g_phy_power_lock, flags);
           return bk7258_phy_power(false) == OK ? BK_OK : BK_FAIL;
         }
 
-      spin_unlock_irqrestore(&phy_lock, flags);
+      spin_unlock_irqrestore(&g_phy_power_lock, flags);
       return BK_OK;
     }
 
@@ -391,22 +441,57 @@ bk_err_t bk_pm_sleep_register_cb(pm_sleep_mode_e sleep_mode,
       return BK_ERR_PARAM;
     }
 
+  if ((uint32_t)dev_id >= PM_DEV_ID_MAX)
+    {
+      return BK_ERR_PARAM;
+    }
+
   /* NuttX currently has no mapped BK sleep transition.  Retaining these
    * source-backed registrations is nevertheless required so a later owned
    * transition driver can invoke exactly the callback and opaque argument
    * supplied by the Wi-Fi/PHY source. */
-  if (enter_config != NULL)
+  if (enter_config != NULL && enter_config->cb != NULL)
     {
-      g_pm_sleep_enter[sleep_mode].id = dev_id;
-      g_pm_sleep_enter[sleep_mode].cfg = *enter_config;
+      g_pm_sleep_enter[sleep_mode][dev_id].id = dev_id;
+      g_pm_sleep_enter[sleep_mode][dev_id].cfg = *enter_config;
     }
 
-  if (exit_config != NULL)
+  if (exit_config != NULL && exit_config->cb != NULL)
     {
-      g_pm_sleep_exit[sleep_mode].id = dev_id;
-      g_pm_sleep_exit[sleep_mode].cfg = *exit_config;
+      g_pm_sleep_exit[sleep_mode][dev_id].id = dev_id;
+      g_pm_sleep_exit[sleep_mode][dev_id].cfg = *exit_config;
     }
 
+  return BK_OK;
+}
+
+bk_err_t bk_pm_sleep_unregister_cb(pm_sleep_mode_e sleep_mode,
+                                   pm_dev_id_e dev_id,
+                                   bool enter_cb, bool exit_cb)
+{
+  irqstate_t flags;
+
+  if (sleep_mode >= PM_MODE_DEFAULT || (uint32_t)dev_id >= PM_DEV_ID_MAX)
+    {
+      return BK_ERR_PARAM;
+    }
+
+  flags = enter_critical_section();
+  if (enter_cb)
+    {
+      g_pm_sleep_enter[sleep_mode][dev_id].id = PM_DEV_ID_MAX;
+      g_pm_sleep_enter[sleep_mode][dev_id].cfg.cb = NULL;
+      g_pm_sleep_enter[sleep_mode][dev_id].cfg.args = NULL;
+    }
+
+  if (exit_cb)
+    {
+      g_pm_sleep_exit[sleep_mode][dev_id].id = PM_DEV_ID_MAX;
+      g_pm_sleep_exit[sleep_mode][dev_id].cfg.cb = NULL;
+      g_pm_sleep_exit[sleep_mode][dev_id].cfg.args = NULL;
+    }
+
+  leave_critical_section(flags);
   return BK_OK;
 }
 
@@ -420,8 +505,19 @@ bk_err_t bk_pm_sleep_register_wrapper(void *config_cb)
   pm_cb_conf_t enter_config_wifi = {NULL, NULL};
 
   enter_config_wifi.cb = config_cb;
+#if !CONFIG_PM_SUPER_DEEP_SLEEP
   return bk_pm_sleep_register_cb(PM_MODE_DEEP_SLEEP, PM_DEV_ID_MAC,
                                  &enter_config_wifi, NULL);
+#else
+  /* Match the authority wrapper: retain both registrations.  The NuttX PM
+   * owner still decides when a system sleep transition may occur; this layer
+   * does not claim such a transition happened. */
+  (void)bk_pm_sleep_register_cb(PM_MODE_DEEP_SLEEP, PM_DEV_ID_MAC,
+                                &enter_config_wifi, NULL);
+  (void)bk_pm_sleep_register_cb(PM_MODE_SUPER_DEEP_SLEEP, PM_DEV_ID_MAC,
+                                &enter_config_wifi, NULL);
+  return BK_OK;
+#endif
 }
 
 bk_err_t bk_pm_low_voltage_register_wrapper(void *config_cb)
@@ -457,12 +553,6 @@ void bk_system_dump(const char *func, const int line)
 {
   (void)func;
   (void)line;
-}
-
-bk_err_t bk_sensor_set_current_temperature(float temperature)
-{
-  (void)temperature;
-  return BK_ERR_NOT_SUPPORT;
 }
 
 bool ate_is_enabled(void)

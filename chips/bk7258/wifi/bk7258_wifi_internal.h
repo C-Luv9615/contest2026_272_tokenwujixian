@@ -98,6 +98,7 @@ int  bk7258_wifi_osal_thread_create(uintptr_t *handle, int prio,
                                     void (*entry)(void *arg), void *arg,
                                     size_t stack_size);
 int  bk7258_wifi_osal_thread_delete(uintptr_t handle);
+int  bk7258_wifi_osal_thread_set_priority(uintptr_t handle, int prio);
 
 int  bk7258_wifi_osal_queue_create(uintptr_t *handle, const char *name,
                                    size_t msg_size, size_t msg_count);
@@ -271,5 +272,33 @@ bool bk7258_wifi_sta_is_connected(void);
 
 FAR const char *bk7258_wifi_sta_state_str(int state);
 FAR const char *bk7258_wifi_sta_reason_str(int reason);
+
+/****************************************************************************
+ * Data-plane TX injection (bring-up probe)
+ *
+ * Queues one complete 802.3 frame -- Ethernet header included, the layout the
+ * vendor TX path expects -- through the same vendor call the netdev data path
+ * uses, bypassing the NuttX network stack.
+ *
+ * Exists because the stack side of the data plane is not wired yet: d_mac is
+ * never populated and carrier never rises, so a frame sent through the stack
+ * would fail for reasons that have nothing to do with the vendor TX path this
+ * probe is meant to measure.
+ *
+ * Takes bytes rather than a pbuf on purpose -- this header must keep including
+ * nothing but NuttX and libc, see the note at the top of the file.
+ *
+ * len must be greater than 14 and at most BK7258_WIFI_FRAME_MAX.  OK means the
+ * frame was queued, which is NOT an on-air acknowledgement: read the ACK bit
+ * from the TX confirmation probe in rwnx_tx.c.
+ ****************************************************************************/
+
+int bk7258_wifi_lower_tx_inject(FAR const uint8_t *frame, uint16_t len);
+
+/* The address the vendor bridge treats as this vif's own, for building the
+ * source field of an injected frame.  NOT the same as
+ * bk7258_wifi_board_get_mac(), which is the raw partition read underneath it. */
+
+int bk7258_wifi_sta_own_mac(FAR uint8_t *mac);
 
 #endif /* __CHIPS_BK7258_WIFI_BK7258_WIFI_INTERNAL_H */

@@ -5,6 +5,7 @@
 #include <errno.h>
 #include <net/if.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
@@ -213,7 +214,8 @@ static int bk7258_wifi_connect_worker(int argc, char *argv[])
 {
   int ret;
 
-  /* argv[0] is the task name; the two credentials follow it. */
+  /* argv[0] is the task name; ssid and psk follow it.  The psk is always
+   * present as a business parameter -- "" for open networks, never NULL. */
 
   if (argc < 3 || argv[1] == NULL || argv[2] == NULL)
     {
@@ -338,8 +340,15 @@ static int bk7258_wifi_runtime_connect(FAR const char *ssid,
   args[1] = (FAR char *)psk;
   args[2] = NULL;
 
-  printf("[bk7258_wifi_runtime] connect: ssid=\"%s\", psk %u chars\n",
-         ssid, (unsigned)strlen(psk));
+  if (strlen(psk) == 0)
+    {
+      printf("[bk7258_wifi_runtime] connect: ssid=\"%s\", open\n", ssid);
+    }
+  else
+    {
+      printf("[bk7258_wifi_runtime] connect: ssid=\"%s\", psk %u chars\n",
+             ssid, (unsigned)strlen(psk));
+    }
 
   pid = kthread_create("bk7258-connect", BK7258_WIFI_APP_PRIORITY,
                        BK7258_WIFI_APP_STACKSIZE,
@@ -388,11 +397,135 @@ static int bk7258_wifi_runtime_connect(FAR const char *ssid,
   return 1;
 }
 
+/* Data-plane TX probe.
+ *
+ * Sends one UNICAST data frame straight into the vendor TX path and lets the
+ * TX confirmation probe in rwnx_tx.c report whether the peer acknowledged it.
+ *
+ * Why unicast and not a broadcast ARP: group-addressed frames are never
+ * acknowledged in 802.11 by design, so a broadcast frame always confirms as
+ * "done, not acknowledged, no retry" -- the exact shape the EAPOL M2 failure
+ * shows.  It would look like a reproduction while carrying no information.
+ * Addressed to the BSSID, this frame is the M2 case minus the handshake: same
+ * peer, same unencrypted open-AP link, same requirement to be ACKed.
+ *
+ * Why ethertype 0x88B5 (IEEE 802 local experimental) and not ARP: the vendor
+ * classifies ARP, RARP, EAPOL and DHCP as frames worth a software retransmit
+ * (rwnx_need_retry_tx_frame(), rwnx_tx.c:110) and leaves everything else
+ * alone.  An unclassified ethertype keeps this frame out of the same family as
+ * EAPOL -- which is the distinction being measured -- and yields exactly one
+ * confirmation per injection instead of a retry series.
+ *
+ * The payload is arbitrary: an 802.11 ACK is emitted by the receiving MAC on
+ * address and FCS alone, before anything looks at the payload.
+ */
+
+#define BK7258_TXTEST_ETHTYPE_HI  0x88u
+#define BK7258_TXTEST_ETHTYPE_LO  0xb5u
+#define BK7258_TXTEST_FRAME_LEN   60u   /* minimum Ethernet frame */
+#define BK7258_TXTEST_MAX_COUNT   8
+
+static int bk7258_wifi_parse_mac(FAR const char *str, FAR uint8_t *mac)
+{
+  unsigned int byte[6];
+  int i;
+
+  /* %x into unsigned int rather than %hhx: the narrow length modifier is not
+   * uniformly supported, and the range check below covers what it would. */
+
+  if (sscanf(str, "%x:%x:%x:%x:%x:%x",
+             &byte[0], &byte[1], &byte[2],
+             &byte[3], &byte[4], &byte[5]) != 6)
+    {
+      return -EINVAL;
+    }
+
+  for (i = 0; i < 6; i++)
+    {
+      if (byte[i] > 0xffu)
+        {
+          return -EINVAL;
+        }
+
+      mac[i] = (uint8_t)byte[i];
+    }
+
+  return 0;
+}
+
+static int bk7258_wifi_runtime_txtest(FAR const char *dst_str, int count)
+{
+  uint8_t frame[BK7258_TXTEST_FRAME_LEN];
+  uint8_t src[6];
+  unsigned int i;
+  int failed = 0;
+  int ret;
+
+  if (bk7258_wifi_parse_mac(dst_str, frame) < 0)
+    {
+      printf("[bk7258_wifi_runtime] txtest: bad MAC \"%s\", "
+             "expected aa:bb:cc:dd:ee:ff\n", dst_str);
+      return 1;
+    }
+
+  ret = bk7258_wifi_sta_own_mac(src);
+  if (ret < 0)
+    {
+      printf("[bk7258_wifi_runtime] txtest: own MAC unavailable: %d\n", ret);
+      return 1;
+    }
+
+  memcpy(frame + 6, src, sizeof(src));
+  frame[12] = BK7258_TXTEST_ETHTYPE_HI;
+  frame[13] = BK7258_TXTEST_ETHTYPE_LO;
+
+  for (i = 14; i < sizeof(frame); i++)
+    {
+      frame[i] = (uint8_t)i;
+    }
+
+  /* Not a hard requirement, deliberately: the frame is worth sending even
+   * when the link is down, because "no confirmation at all" and "confirmed
+   * unacknowledged" are different findings.  But an unassociated run cannot
+   * be compared against M2, so say so rather than silently producing a
+   * misleading zero. */
+
+  if (!bk7258_wifi_sta_is_connected())
+    {
+      printf("[bk7258_wifi_runtime] txtest: WARNING not associated; "
+             "an unassociated frame cannot be compared against M2\n");
+    }
+
+  printf("[bk7258_wifi_runtime] txtest: %d frame(s), %u bytes, "
+         "unicast to %s\n", count, (unsigned)sizeof(frame), dst_str);
+
+  for (i = 0; i < (unsigned int)count; i++)
+    {
+      ret = bk7258_wifi_lower_tx_inject(frame, (uint16_t)sizeof(frame));
+      printf("  inject %u: %s (%d)\n", i,
+             ret == 0 ? "queued" : "failed", ret);
+      if (ret < 0)
+        {
+          failed++;
+        }
+
+      /* Spaced so each injection's confirmation lands before the next one is
+       * queued, keeping one cfm line attributable to one frame. */
+
+      usleep(200 * 1000);
+    }
+
+  printf("[bk7258_wifi_runtime] txtest: done; read the txcfm/l2tx lines in "
+         "syslog for the ACK bit -- queued is not acknowledged\n");
+  return failed == 0 ? 0 : 1;
+}
+
 static void bk7258_wifi_runtime_usage(void)
 {
   printf("usage: bk7258_wifi_runtime init\n"
          "       bk7258_wifi_runtime scan [ssid]\n"
-         "       bk7258_wifi_runtime connect <ssid> <psk>\n");
+         "       bk7258_wifi_runtime connect <ssid> [psk]\n"
+         "       bk7258_wifi_runtime txtest <dst-mac> [count]\n");
 }
 
 int main(int argc, char **argv)
@@ -424,11 +557,13 @@ int main(int argc, char **argv)
   if (strcmp(argv[1], "connect") == 0)
     {
       /* Credentials are command-line only, by design: nothing here writes the
-       * passphrase to a file, a defconfig or a compiled-in default. */
+       * passphrase to a file, a defconfig or a compiled-in default.
+       * PSK is optional: omit it for open (no-password) networks. */
 
-      if (argc != 4)
+      if (argc != 3 && argc != 4)
         {
-          printf("[bk7258_wifi_runtime] connect needs an SSID and a PSK\n");
+          printf("[bk7258_wifi_runtime] connect needs an SSID, "
+                 "optional PSK\n");
           bk7258_wifi_runtime_usage();
           return 1;
         }
@@ -438,7 +573,40 @@ int main(int argc, char **argv)
           return 1;
         }
 
-      return bk7258_wifi_runtime_connect(argv[2], argv[3]);
+      return bk7258_wifi_runtime_connect(argv[2],
+                                         argc == 4 ? argv[3] : "");
+    }
+
+  if (strcmp(argv[1], "txtest") == 0)
+    {
+      int count;
+
+      /* The destination is a parameter, not a compiled-in constant: it keeps a
+       * specific AP's BSSID out of the image and makes swapping the target
+       * (BSSID vs gateway vs a second AP) a console decision. */
+
+      if (argc != 3 && argc != 4)
+        {
+          printf("[bk7258_wifi_runtime] txtest needs a destination MAC, "
+                 "optional count\n");
+          bk7258_wifi_runtime_usage();
+          return 1;
+        }
+
+      count = argc == 4 ? atoi(argv[3]) : 1;
+      if (count < 1 || count > BK7258_TXTEST_MAX_COUNT)
+        {
+          printf("[bk7258_wifi_runtime] txtest: count must be 1..%d\n",
+                 BK7258_TXTEST_MAX_COUNT);
+          return 1;
+        }
+
+      if (!bk7258_wifi_runtime_ensure_ready("txtest"))
+        {
+          return 1;
+        }
+
+      return bk7258_wifi_runtime_txtest(argv[2], count);
     }
 
   bk7258_wifi_runtime_usage();

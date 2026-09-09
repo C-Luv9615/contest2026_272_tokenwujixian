@@ -1,9 +1,8 @@
-#ifndef __HP_SYS_LL_H_GUARD
-#define __HP_SYS_LL_H_GUARD
-#include <stdint.h>
-#include "sys_struct.h"
-#include "aon_pmu_struct.h"
-#include <stdbool.h>
+/* Legacy Wi-Fi include path.  The full generated SYS LL is imported once
+ * from the AON authority module, avoiding duplicate static-inline bodies. */
+#include "../../aon_pmu/authority/middleware/soc/bk7258/hal/sys_ll.h"
+
+#if 0
 // Copyright 2022-2023 Beken
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -9452,4 +9451,4 @@ static inline uint32_t sys_ll_get_ana_reg27_hcen1stg(void) {
 
 #endif // CONFIG_TFM_SYS_LL_NSC
 
-#endif /* __HP_SYS_LL_H_GUARD */
+#endif

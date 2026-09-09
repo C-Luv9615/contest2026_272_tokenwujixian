@@ -2,8 +2,9 @@
  * chips/bk7258/wifi/glue/include/components/log.h
  *
  * NuttX reimplementation of the Armino BK_LOG* macros used by the vendored
- * glue. Maps onto NuttX syslog; verbose is a compile-time no-op, matching the
- * authority. Passphrases/PMK must never be logged through these macros.
+ * glue. Maps onto NuttX syslog.  The default authority-compatible configuration
+ * compiles verbose logging out; this diagnostic worktree intentionally enables
+ * it to trace the ADC/PHY initialization path.
  */
 
 #ifndef __BK7258_WIFI_GLUE_COMPONENTS_LOG_H
@@ -11,7 +12,7 @@
 
 #include <syslog.h>
 
-/* Verbose is compiled out, and this is load-bearing rather than cosmetic.
+/* Verbose is normally compiled out, and this is load-bearing rather than cosmetic.
  *
  * Two vendored call sites print the passphrase in the clear:
  *   wifi_v2.c:2781  WIFI_LOGV("sta config, ssid=%s password=%s security=%d")
@@ -30,25 +31,18 @@
  * just a credential leak, it was a behavioural divergence: output the authority
  * does not produce.
  *
- * The fix belongs here and not in wifi_v2.c.  That file's function bodies are
+ * The normal policy belongs here and not in wifi_v2.c.  That file's function bodies are
  * byte-identical to the authority copy (the only differences are include
  * depth, one #if/#ifdef, and the g_wifi_funcs/g_wifi_vars definition that
  * lives in funcs_fill.c here), and that identity is the evidence the whole
  * association design rests on.  Editing a log line inside it would spend that
  * evidence to fix a problem that is ours, in our own macro layer.
  *
- * The expansion deviates from the authority's literal `(void)(format, ...)`.
- * That form discards every operand of a comma expression, and this build's
- * warning set flags each one: it produced ~97 new -Wunused-value warnings
- * across the vendored glue.  The `if (0)` form below emits no code either, but
- * it keeps the compiler parsing the arguments, so format/type mistakes in a
- * disabled log line are still caught.
- *
- * One semantic difference is worth stating: a comma expression evaluates its
- * operands, `if (0)` does not, so a call whose arguments had side effects would
- * lose them.  Checked before choosing this form -- no BK_LOGV/WIFI_LOGV call
- * site in the compiled set passes anything but plain variables and struct
- * members.  Do not put side effects in log arguments.
+ * This diagnostic override deliberately emits verbose records through the same
+ * LOG_DEBUG sink as BK_LOGD.  It is not safe for distributable firmware: some
+ * vendor WIFI_LOGV call sites print the configured STA password/PSK.  Keep
+ * UART captures local or redact credentials before sharing, then restore the
+ * authority-compatible no-op before a production build.
  *
  * BK_LOGD is deliberately NOT gated, even though the authority also compiles it
  * out at level 3.  The 4-way handshake fingerprint this bring-up is verified
@@ -63,15 +57,7 @@
 #define BK_LOGW(tag, fmt, ...) syslog(LOG_WARNING, "[%s] " fmt, tag, ##__VA_ARGS__)
 #define BK_LOGI(tag, fmt, ...) syslog(LOG_INFO, "[%s] " fmt, tag, ##__VA_ARGS__)
 #define BK_LOGD(tag, fmt, ...) syslog(LOG_DEBUG, "[%s] " fmt, tag, ##__VA_ARGS__)
-#define BK_LOGV(tag, fmt, ...) \
-  do \
-    { \
-      if (0) \
-        { \
-          syslog(LOG_DEBUG, "[%s] " fmt, tag, ##__VA_ARGS__); \
-        } \
-    } \
-  while (0)
+#define BK_LOGV(tag, fmt, ...) syslog(LOG_DEBUG, "[%s] " fmt, tag, ##__VA_ARGS__)
 #define BK_LOG_RAW(tag, fmt, ...) syslog(LOG_DEBUG, "[%s] " fmt, tag, ##__VA_ARGS__)
 #define BK_MAC_FORMAT "%02x:%02x:%02x:%02x:%02x:%02x"
 #define BK_MAC_STR(a) ((a)[0]), ((a)[1]), ((a)[2]), ((a)[3]), ((a)[4]), ((a)[5])

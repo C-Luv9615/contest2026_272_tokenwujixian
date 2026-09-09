@@ -67,12 +67,16 @@
 
 #define BK7258_SYS_BASE          UINT32_C(0x44010000)
 #define BK7258_AON_PMU_BASE      UINT32_C(0x44000000)
+#define BK7258_AON_PMU_R0        (BK7258_AON_PMU_BASE + UINT32_C(0x000))
 #define BK7258_AON_RTC_BASE      UINT32_C(0x44000200)
 #define BK7258_FLASH_CTRL_BASE   UINT32_C(0x44030000)
 #define BK7258_AON_GPIO_BASE     UINT32_C(0x44000400)
 #define BK7258_UART0_BASE        UINT32_C(0x44820000)
 #define BK7258_TIMER0_BASE       UINT32_C(0x44810000)
 #define BK7258_SADC_BASE         UINT32_C(0x45890000)
+#define BK7258_TRNG_BASE         UINT32_C(0x458c0000)
+#define BK7258_OTP_APB_BASE      UINT32_C(0x4b100000)
+#define BK7258_OTP_AHB_BASE      UINT32_C(0x4b010000)
 
 #define BK7258_SYS_CLKDIV1       (BK7258_SYS_BASE + UINT32_C(0x20))
 #define BK7258_SYS_CLKDIV2       (BK7258_SYS_BASE + UINT32_C(0x24))
@@ -157,6 +161,8 @@
 #define BK7258_SYS_PHY_CKEN       (UINT32_C(1) << 27)
 #define BK7258_SYS_WIFI_MAC_POWERDOWN (UINT32_C(1) << 9)
 #define BK7258_SYS_WIFI_PHY_POWERDOWN (UINT32_C(1) << 10)
+#define BK7258_SYS_ENCP_POWERDOWN     (UINT32_C(1) << 3)
+#define BK7258_SYS_OTP_CLK_EN          (UINT32_C(1) << 15)
 /* Armino power_module_name_t: POWER_MODULE_NAME_OFDM = bit 13.  The NX MAC
  * core lives behind the OFDM/modem domain; crm_mdm_reset() in the pinned
  * libwifi.a refuses to release the MAC reset while this domain reads as

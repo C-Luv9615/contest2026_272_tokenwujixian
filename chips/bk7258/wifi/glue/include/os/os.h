@@ -25,8 +25,6 @@
 #define BEKEN_NO_WAIT                  0
 #define SECONDS                        1000u
 #define CORE_QITEM_COUNT               64u
-#define CONFIG_WIFI_CORE_TASK_PRIO    CONFIG_WIFI_KMSG_TASK_PRIO
-#define CONFIG_WIFI_CORE_TASK_STACK_SIZE CONFIG_WIFI_KMSG_TASK_STACK_SIZE
 
 typedef void    *beken_thread_arg_t;
 typedef uint8_t  beken_bool_t;
