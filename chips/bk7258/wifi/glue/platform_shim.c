@@ -413,11 +413,12 @@ bk_err_t bk_pm_module_vote_sleep_ctrl(pm_sleep_module_name_e module,
 
   spin_unlock_irqrestore(&lock, flags);
 
-  syslog(LOG_INFO,
-         "[BK7258-WIFI] pmq: vote_sleep(module=%d state=%lu) "
-         "slept=0x%llx\n",
-         (int)module, (unsigned long)sleep_state,
-         (unsigned long long)slept_modules);
+  /* The per-vote record is dropped.  This function has no failure path -- it
+   * always returns BK_OK -- so the line carried no error information, but the
+   * temperature/voltage sampler votes the SARADC module asleep and awake on
+   * every cycle, which made it one of the loudest sources in a capture and
+   * pushed the wpa_supplicant association trace out of the visible window. */
+
   return BK_OK;
 }
 
