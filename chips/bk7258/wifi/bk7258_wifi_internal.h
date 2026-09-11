@@ -38,6 +38,13 @@
 #define BK7258_WIFI_MTU         1500u
 #define BK7258_WIFI_FRAME_MAX   (BK7258_WIFI_MTU + 14u)
 
+/* The authority's INVALID_VIF_IDX (generated/lmac_msg.h:141, 0xFF).  Defined
+ * locally rather than by including that header, which is exactly what the
+ * authority's own wrapper does for the same reason: wifi_netif.c:28 defines
+ * WIFI_INVALID_VIFID 0xff instead of reaching for the generated header. */
+
+#define BK7258_INVALID_VIF_IDX  0xffu
+
 /* Scan results have SDK-owned storage only until the scan-done callback
  * returns.  Keep a bounded, NuttX-owned snapshot for WEXT result queries.
  * This is deliberately a scan-only cache: it contains no credentials or
@@ -163,6 +170,7 @@ struct bk7258_wifi_s
   uint8_t vif_idx;
   bool carrier;
   bool registered;
+  bool sta_event_registered;
   struct iob_s *rx_head;
   struct iob_s *rx_tail;
 
@@ -280,10 +288,12 @@ FAR const char *bk7258_wifi_sta_reason_str(int reason);
  * vendor TX path expects -- through the same vendor call the netdev data path
  * uses, bypassing the NuttX network stack.
  *
- * Exists because the stack side of the data plane is not wired yet: d_mac is
- * never populated and carrier never rises, so a frame sent through the stack
- * would fail for reasons that have nothing to do with the vendor TX path this
- * probe is meant to measure.
+ * Exists to measure the vendor TX path on its own, with the NuttX stack out of
+ * the picture: a frame sent through the stack can fail for stack-side reasons
+ * (addressing, routing, carrier, quota) that say nothing about whether the
+ * vendor path carried the bytes.  Kept after d_mac population and carrier were
+ * wired up, because that separation is still what makes a TX failure
+ * attributable.
  *
  * Takes bytes rather than a pbuf on purpose -- this header must keep including
  * nothing but NuttX and libc, see the note at the top of the file.

@@ -103,6 +103,10 @@ static struct bk7258_wifi_s g_bk7258_wifi;
 #if CONFIG_BK7258_WIFI_VENDOR_RUNTIME
 static bk_err_t bk7258_wifi_scan_done(void *arg, event_module_t module,
                                       int event_id, void *event_data);
+static bk_err_t bk7258_wifi_sta_connected(void *arg, event_module_t module,
+                                          int event_id, void *event_data);
+static bk_err_t bk7258_wifi_sta_disconnected(void *arg, event_module_t module,
+                                             int event_id, void *event_data);
 #endif
 
 void bk7258_wifi_lower_rx_submit(struct bk7258_wifi_s *priv,
@@ -262,9 +266,14 @@ static int bk7258_wifi_ifup(FAR struct netdev_lowerhalf_s *lower)
   FAR struct bk7258_wifi_s *priv =
     (FAR struct bk7258_wifi_s *)lower;
 
-  /* Skeleton: administrative up only. Carrier stays off until the vendor
-   * authentication event is connected. */
-  priv->carrier = false;
+  /* Administrative up only.  Carrier is owned by the association events
+   * (bk7258_wifi_sta_connected/disconnected) and must not be touched here: an
+   * interface is legitimately brought up before associating, and clearing the
+   * flag on ifup would desync this mirror from the IFF_RUNNING bit that
+   * netdev_carrier_on/off actually own -- including the case where ifconfig up
+   * follows a successful connect. */
+
+  (void)priv;
   return OK;
 }
 
@@ -273,7 +282,11 @@ static int bk7258_wifi_ifdown(FAR struct netdev_lowerhalf_s *lower)
   FAR struct bk7258_wifi_s *priv =
     (FAR struct bk7258_wifi_s *)lower;
 
-  priv->carrier = false;
+  /* Administrative down only; carrier is owned by the association events for
+   * the same reason as in ifup above.  Taking the interface down does not
+   * disassociate, so the link -- and therefore the carrier -- outlives it. */
+
+  (void)priv;
   return OK;
 }
 
@@ -730,6 +743,41 @@ int bk7258_wifi_lower_init(struct bk7258_wifi_s *priv)
       }
 
     priv->scan_callback_registered = true;
+
+    /* Association and disconnection drive the carrier flag; see the comment
+     * above bk7258_wifi_sta_connected() for why carrier is dynamic here while
+     * the authority keeps NETIF_FLAG_LINK_UP constant.
+     *
+     * Treated as fatal for the same reason the scan callback above is: if the
+     * event module cannot take a callback, nothing about this driver works, and
+     * a netdev whose carrier can never rise would accept an ifconfig and then
+     * silently refuse to carry traffic. */
+
+    ret = bk_event_register_cb(EVENT_MOD_WIFI, EVENT_WIFI_STA_CONNECTED,
+                               bk7258_wifi_sta_connected, priv);
+    if (ret == BK_OK || ret == BK_ERR_EVENT_CB_EXIST)
+      {
+        ret = bk_event_register_cb(EVENT_MOD_WIFI, EVENT_WIFI_STA_DISCONNECTED,
+                                   bk7258_wifi_sta_disconnected, priv);
+        if (ret != BK_OK && ret != BK_ERR_EVENT_CB_EXIST)
+          {
+            (void)bk_event_unregister_cb(EVENT_MOD_WIFI,
+                                         EVENT_WIFI_STA_CONNECTED,
+                                         bk7258_wifi_sta_connected);
+          }
+      }
+
+    if (ret != BK_OK && ret != BK_ERR_EVENT_CB_EXIST)
+      {
+        (void)bk_event_unregister_cb(EVENT_MOD_WIFI, EVENT_WIFI_SCAN_DONE,
+                                     bk7258_wifi_scan_done);
+        priv->scan_callback_registered = false;
+        nxmutex_destroy(&priv->scan_lock);
+        priv->scan_lock_ready = false;
+        return -EIO;
+      }
+
+    priv->sta_event_registered = true;
   }
 #endif
 
@@ -744,6 +792,15 @@ int bk7258_wifi_lower_uninit(struct bk7258_wifi_s *priv)
       (void)bk_event_unregister_cb(EVENT_MOD_WIFI, EVENT_WIFI_SCAN_DONE,
                                    bk7258_wifi_scan_done);
       priv->scan_callback_registered = false;
+    }
+
+  if (priv->sta_event_registered)
+    {
+      (void)bk_event_unregister_cb(EVENT_MOD_WIFI, EVENT_WIFI_STA_CONNECTED,
+                                   bk7258_wifi_sta_connected);
+      (void)bk_event_unregister_cb(EVENT_MOD_WIFI, EVENT_WIFI_STA_DISCONNECTED,
+                                   bk7258_wifi_sta_disconnected);
+      priv->sta_event_registered = false;
     }
 #endif
 
@@ -1069,6 +1126,156 @@ static bk_err_t bk7258_wifi_scan_done(void *arg, event_module_t module,
   bk_wifi_scan_free_result(&result);
   return BK_OK;
 }
+
+/* Declared here rather than by including <bk_private/bk_rw.h>: that header
+ * pulls in fhost_msg.h, fhost_mac.h and pbuf.h, and our own
+ * glue/include/pbuf.h includes bk_rw.h back, so including it here would drag a
+ * circular chain into this file.  Same single-symbol extern pattern the
+ * chan_env/txl_cntrl_env declarations in the scan-done probe already use.
+ *
+ * Provenance: bk_rw.h:389, defined at rwnx_utils.c:108 (which forwards to
+ * mac_vif_mgmt_mac_to_index).  Both are linked into the image -- verified with
+ * nm: rwm_mgmt_vif_mac2idx and mac_vif_mgmt_mac_to_index are both T.
+ *
+ * wifi_netif_mac_to_vifid() would have been the tidier wrapper, but
+ * wifi_netif.c is not in the build set (wifi/CMakeLists.txt lists only
+ * rwnx_utils.c from that directory), so the symbol is absent from the ELF. */
+
+extern uint8_t rwm_mgmt_vif_mac2idx(void *mac);
+
+/* Association is the point where the link becomes usable, so it is where
+ * carrier rises.
+ *
+ * Ordering is what makes this correct rather than merely plausible.  The
+ * authority posts EVENT_WIFI_STA_CONNECTED from notify.c:346-370, *after* the
+ * key material has been installed into the MAC.  Board evidence
+ * (evidence-20260908/bk7258-connect-SUCCESS-2-26a68589.log) shows exactly
+ * that order:
+ *
+ *   1962  [hitf] add hw key idx=8      <- PTK into a hardware slot
+ *   1988  [hitf] add hw key idx=1      <- GTK into a hardware slot
+ *   1989  [wpa]  Key negotiation completed [PTK=CCMP GTK=CCMP]
+ *   1998  [wpa]  CTRL-EVENT-CONNECTED
+ *
+ * So by the time carrier rises the encrypted data path is genuinely usable;
+ * there is no window where the stack could transmit before the keys are in
+ * place.
+ *
+ * This differs in shape from the authority, which never raises link state
+ * dynamically at all: it burns NETIF_FLAG_LINK_UP into the flags initialiser
+ * (wlanif.c:137) because its lwIP netif is created on association, so the
+ * netif's existence *is* the link-up signal.  NuttX registers the netdev once
+ * at boot (bk7258_wifi_lower_register below, from the init path), long before
+ * any association, so the same fact has to be carried by the carrier flag
+ * instead.  Adapting this is an RTOS integration point, not a divergence --
+ * unconditionally raising carrier at register time would be the divergence,
+ * because the stack would then transmit while unassociated.
+ */
+
+static bk_err_t bk7258_wifi_sta_connected(void *arg, event_module_t module,
+                                          int event_id, void *event_data)
+{
+  FAR struct bk7258_wifi_s *priv = arg;
+  uint8_t vif_idx;
+
+  if (priv == NULL || module != EVENT_MOD_WIFI ||
+      event_id != EVENT_WIFI_STA_CONNECTED)
+    {
+      return BK_OK;
+    }
+
+  /* event_data is deliberately unused: wifi_event_sta_connected_t carries only
+   * ssid and bssid (wifi_types.h:684-687), no vif index, so the vif has to be
+   * resolved from our own MAC below. */
+
+  (void)event_data;
+
+  if (!priv->registered)
+    {
+      /* The event callback is installed in bk7258_wifi_lower_init(), which
+       * runs before bk7258_wifi_lower_register().  Nothing can associate in
+       * that window, but touching an unregistered netdev is not worth the
+       * risk of being wrong about that. */
+
+      syslog(LOG_WARNING, "[BK7258-WIFI] connected: netdev not registered\n");
+      return BK_OK;
+    }
+
+  /* Resolve the STA vif index the same way the authority does when it needs
+   * the vif for its own MAC: rwm_mgmt_vif_mac2idx() on the station address
+   * (wifi_v2.c:3086 passes &g_sta_param_ptr->own_mac to it).  The zero-MAC
+   * rejection is the authority's too, from the wrapper we cannot link
+   * (wifi_netif.c:31-33) -- a zeroed address must not be looked up, because
+   * index 0 is a valid vif and would silently look like success.
+   *
+   * Until now vif_idx was never assigned anywhere, so it held the zero left by
+   * the static initialiser.  Zero happens to be the right STA vif, which is
+   * why TX worked, but by coincidence rather than by construction.  Filling it
+   * from the association matters because bmsg_tx_handler() returns *without
+   * freeing* when vif_idx == INVALID_VIF_IDX (rw_task.c:178), a failure that
+   * from the outside is indistinguishable from "the frame was never
+   * submitted". */
+
+  if ((priv->mac[0] | priv->mac[1] | priv->mac[2] |
+       priv->mac[3] | priv->mac[4] | priv->mac[5]) == 0)
+    {
+      syslog(LOG_ERR, "[BK7258-WIFI] connected: own MAC is zero; "
+                      "keeping vif=%u\n", (unsigned)priv->vif_idx);
+    }
+  else
+    {
+      vif_idx = rwm_mgmt_vif_mac2idx(priv->mac);
+      if (vif_idx == BK7258_INVALID_VIF_IDX)
+        {
+          syslog(LOG_ERR, "[BK7258-WIFI] connected: vif lookup failed; "
+                          "keeping vif=%u\n", (unsigned)priv->vif_idx);
+        }
+      else
+        {
+          priv->vif_idx = vif_idx;
+        }
+    }
+
+  syslog(LOG_INFO, "[BK7258-WIFI] connected: carrier on, vif=%u\n",
+         (unsigned)priv->vif_idx);
+
+  bk7258_wifi_lower_carrier_on(priv);
+  return BK_OK;
+}
+
+static bk_err_t bk7258_wifi_sta_disconnected(void *arg, event_module_t module,
+                                             int event_id, void *event_data)
+{
+  FAR struct bk7258_wifi_s *priv = arg;
+  FAR wifi_event_sta_disconnected_t *info = event_data;
+
+  if (priv == NULL || module != EVENT_MOD_WIFI ||
+      event_id != EVENT_WIFI_STA_DISCONNECTED)
+    {
+      return BK_OK;
+    }
+
+  if (!priv->registered)
+    {
+      return BK_OK;
+    }
+
+  /* Carrier drops on every disconnect, including a locally requested one:
+   * either way the encrypted data path is gone.  netdev_carrier_off() is
+   * guarded by IFF_IS_RUNNING (netdev_carrier.c:84), so a disconnect event
+   * arriving while carrier is already down is a no-op -- which matters,
+   * because EVENT_WIFI_STA_DISCONNECTED is posted from several places
+   * (rw_msg_rx.c:1630, notify.c:471,488, config_none.c:168,231,
+   * wpa_scan.c:2912) and may well arrive more than once per failure. */
+
+  syslog(LOG_INFO, "[BK7258-WIFI] disconnected: carrier off, reason=%d "
+                   "local=%d\n",
+         info != NULL ? info->disconnect_reason : -1,
+         info != NULL ? (int)info->local_generated : -1);
+
+  bk7258_wifi_lower_carrier_off(priv);
+  return BK_OK;
+}
 #endif
 
 int bk7258_wifi_lower_register(struct bk7258_wifi_s *priv)
@@ -1081,6 +1288,39 @@ int bk7258_wifi_lower_register(struct bk7258_wifi_s *priv)
 #endif
   atomic_init(&priv->lower.quota[NETPKT_TX], 1);
   atomic_init(&priv->lower.quota[NETPKT_RX], 1);
+
+#if CONFIG_BK7258_WIFI_VENDOR_RUNTIME
+  /* Link-layer address.  This is the counterpart of the authority's
+   * low_level_init(), which fills the lwIP netif from the vif's MAC:
+   *
+   *   netif->hwaddr_len = ETHARP_HWADDR_LEN;
+   *   os_memcpy(netif->hwaddr, macptr, ETHARP_HWADDR_LEN);
+   *
+   * (cp/components/lwip_intf_v2_1/lwip-2.1.2/port/wlanif.c:130-131, where
+   * macptr is wifi_netif_vif_to_mac(vif)).  Same fact, different field name:
+   * NuttX keeps the link-layer address in net_driver_s.d_mac, lwIP in
+   * netif->hwaddr.
+   *
+   * Done here rather than on association because the address is a property of
+   * the chip, not of the link: bk_wifi_init() has already run by the time this
+   * is reached, so the accessor resolves to the cached bk_get_mac() value.
+   *
+   * A failure is not fatal.  Leaving d_mac zeroed keeps the interface
+   * registered and inspectable via ifconfig, which is what makes the failure
+   * diagnosable at all -- whereas refusing to register would remove the only
+   * place the missing address is visible. */
+
+  if (bk7258_wifi_sta_own_mac(priv->mac) == OK)
+    {
+      memcpy(PRIV2LOWER(priv)->netdev.d_mac.ether.ether_addr_octet,
+             priv->mac, sizeof(priv->mac));
+    }
+  else
+    {
+      syslog(LOG_ERR, "[BK7258-WIFI] register: own MAC unavailable; "
+                      "d_mac left zeroed\n");
+    }
+#endif
 
   ret = netdev_lower_register(PRIV2LOWER(priv), NET_LL_IEEE80211);
   if (ret < 0)
@@ -1640,6 +1880,7 @@ int bk7258_wifi_initialize(void)
     syslog(LOG_INFO,
            "[BK7258-WIFI] boot: cpu_freq vote 120M ret=%d\n", (int)freq_ret);
   }
+
   ret = bk7258_wifi_osal_init();
   if (ret < 0)
     {
