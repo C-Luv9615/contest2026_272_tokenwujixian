@@ -1953,7 +1953,13 @@ int bk7258_wifi_initialize(void)
      * meant to fix the analog state would confound both.  Revisit once the die
      * ID is read back and an external 32 kHz crystal is confirmed present. */
 
-    sys_hal_low_power_hardware_init();
+    /* sys_hal_low_power_hardware_init() used to be called here.  It now runs
+     * from __start() ahead of nx_start() (bk7258_start.c), which is where the
+     * authority calls it -- one line before its RTOS entry point
+     * (startup_cpu0.c:402-407).  See that call site for why the position is
+     * load-bearing: the function switches the AHBP power domain off, PSRAM
+     * belongs to that domain, and PSRAM is 16 MiB of our heap, so calling it
+     * once PSRAM had been in the heap all boot destroyed the heap contents. */
 
     ret = bk_trng_driver_init();
     if (ret != BK_OK)
