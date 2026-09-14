@@ -378,8 +378,18 @@ static FAR netpkt_t *bk7258_wifi_receive(FAR struct netdev_lowerhalf_s *lower)
 
 static void bk7258_wifi_reclaim(FAR struct netdev_lowerhalf_s *lower)
 {
-  /* Nothing queued at skeleton stage; a real TX queue would walk and free
-   * completed descriptors here. */
+  /* Genuinely nothing to reclaim, rather than a stub.
+   *
+   * netdev_upper_can_tx() (netdev_upperhalf.c:248-256) calls this when the TX
+   * quota has run out, giving a driver the chance to walk its hardware
+   * descriptors and release the netpkts it still owns.  This driver never owns
+   * one past the transmit call: bk7258_wifi_transmit() copies the payload into a
+   * vendor pbuf, hands that to bmsg_tx_sender(), and frees the netpkt before
+   * returning, so quota is returned on the same call stack that consumed it.
+   *
+   * Kept in netdev_ops_s regardless.  Without it can_tx() has no recovery path
+   * at all, and quota loss would then be permanently fatal instead of merely
+   * costing one poll cycle. */
 }
 
 /****************************************************************************
