@@ -157,6 +157,50 @@ void ethernetif_input(int iface, struct pbuf *p, uint8_t dst_idx)
     }
 
 #if CONFIG_BK7258_WIFI_VENDOR_RUNTIME
+  /* TEMPORARY RX frame probe (2026-09-14) -- remove once the RX classification
+   * gap is understood.
+   *
+   * ifconfig reports RX Received=11 with Errors=0, yet IPv4=0 and ARP=0: eleven
+   * data frames were handed to the stack after ifup and not one was classified.
+   * NETDEV_RXPACKETS is only bumped after the IFF_UP check in
+   * netdev_upperhalf.c:719-727, so those eleven really did reach eth_input().
+   *
+   * Leading hypothesis: 802.11 data frames carry an LLC/SNAP header, and if the
+   * vendor hands the frame over without translating it to Ethernet II, then what
+   * eth_input() reads at offset 12 is an LLC length (< 0x0600) rather than an
+   * ethertype -- matching neither 0x0800 nor 0x0806, so it is dropped silently.
+   * That produces exactly Received > 0 with IPv4 and ARP both zero.  Printing
+   * offsets 12..19 settles it: a SNAP frame shows aa aa 03 00 00 00 followed by
+   * the real ethertype.
+   *
+   * Placed ahead of the EAPOL split on purpose -- the split, the self-echo
+   * filter and the oversize drop all return early, so a probe further down would
+   * miss whole classes of frame.
+   *
+   * Bounded to the first 24 frames: this runs in the vendor RX callback, and an
+   * unbounded record here would both flood the console and perturb the path it
+   * is measuring. */
+
+  {
+    static unsigned int probe_count;
+
+    if (probe_count < 24u && p->len > BK7258_ETH_HDR_LEN)
+    {
+      FAR const uint8_t *b = (FAR const uint8_t *)p->payload;
+
+      probe_count++;
+      syslog(LOG_WARNING,
+             "[BK7258-WIFI] rx#%u len=%u/%u dst=%02x:%02x:%02x:%02x:%02x:%02x "
+             "et=%02x%02x tail=%02x %02x %02x %02x %02x %02x\n",
+             probe_count, (unsigned)p->len, (unsigned)p->tot_len,
+             b[0], b[1], b[2], b[3], b[4], b[5],
+             b[12], b[13],
+             b[14], b[15], b[16], b[17], b[18], b[19]);
+    }
+  }
+#endif
+
+#if CONFIG_BK7258_WIFI_VENDOR_RUNTIME
   /* Hand EAPOL to wpa_supplicant instead of to the NuttX stack.
    *
    * Transcribed from the vendor's own bridge, ethernetif_input() in
@@ -1297,6 +1341,23 @@ int bk7258_wifi_lower_register(struct bk7258_wifi_s *priv)
   priv->lower.iw_ops = &g_bk7258_iw_ops;
 #endif
   atomic_init(&priv->lower.quota[NETPKT_TX], 1);
+
+  /* RX quota stays 1 for now.  netpkt_alloc() does enforce it -- the raw
+   * iob_tryalloc() it replaced did not -- so two frames arriving back to back
+   * only get one through: vela-7 showed two ARP frames 7 ms apart with ifconfig
+   * reporting RX Received=1 and Dropped=0, the second lost before any counter.
+   *
+   * Raising it to 8 is left out anyway, because the run that tried it hung
+   * during scan (0914-vela-8: scanu_start_req reached the firmware, then no
+   * output at all, chan_survey=0).  That is the second time a change in this
+   * path has coincided with scan breaking while the changed code demonstrably
+   * never ran -- the rx# probe printed nothing, so netpkt_alloc() was never
+   * reached.  The first time, reverting the change restored scan.  Unexplained,
+   * so it is not carried while the ARP reply is still missing.
+   *
+   * ponytail: quota 1 costs one frame in a back-to-back pair; revisit with a
+   * bounded RX queue once association and ARP are stable. */
+
   atomic_init(&priv->lower.quota[NETPKT_RX], 1);
 
 #if CONFIG_BK7258_WIFI_VENDOR_RUNTIME
@@ -1454,25 +1515,63 @@ void bk7258_wifi_lower_rx_submit(struct bk7258_wifi_s *priv,
       return;
     }
 
+  /* The lower bound is now a hard requirement, not just a sanity check: the
+   * netpkt_copyin() below writes the frame starting at -NET_LL_HDRLEN, so a
+   * frame without a full Ethernet header plus at least one payload byte would
+   * reach the stack with io_pktlen == 0. */
+
   len = vpkt->tot_len;
-  if (len == 0 || len > BK7258_WIFI_FRAME_MAX)
+  if (len <= BK7258_ETH_HDR_LEN || len > BK7258_WIFI_FRAME_MAX)
     {
       bk7258_vpkt_free(vpkt);
       return;
     }
 
-  iob = iob_tryalloc(false);
+  /* netpkt_alloc/netpkt_copyin rather than raw iob calls, because the offset
+   * arithmetic is the whole bug.  netpkt_copyin() passes
+   * `offset - NET_LL_HDRLEN` down to iob_trycopyin(), so offset 0 writes at -14
+   * and the Ethernet header lands in the reserve area, leaving IOB_DATA on the
+   * L3 payload.  That is what eth_input() and arp_in() expect:
+   *
+   *   IPBUF(hl) = IOB_DATA(d_iob) + hl          netdev.h:206
+   *   NETLLBUF  = IPBUF(0) - NET_LL_HDRLEN      netdev.h:207
+   *
+   * The previous code did iob_reserve() + iob_trycopyin(offset 0) by hand, which
+   * put the whole frame after the reserve area and left IOB_DATA on the Ethernet
+   * header -- one header too early for every stack reader.  Board evidence:
+   * well-formed ARP replies arrived (rx#13 et=0806 tail=00 01 08 00 06 04) while
+   * arp_in() reported "Invalid hardware type", because ah_hwtype was read from
+   * the destination MAC.
+   *
+   * netpkt_alloc() also accounts the RX quota, which the raw iob_tryalloc() path
+   * never did while the upper half kept returning quota in netpkt_put(). */
+
+  iob = netpkt_alloc(PRIV2LOWER(priv), NETPKT_RX);
   if (iob == NULL)
     {
       bk7258_vpkt_free(vpkt);
       return;
     }
 
-  iob_reserve(iob, CONFIG_NET_LL_GUARDSIZE);
-  if (iob_trycopyin(iob, vpkt->payload, len, 0, false) != (int)len ||
-      bk7258_wifi_rx_enqueue(priv, iob) < 0)
+  if (netpkt_copyin(PRIV2LOWER(priv), iob, vpkt->payload, len, 0) < 0)
     {
-      iob_free_chain(iob);
+      netpkt_free(PRIV2LOWER(priv), iob, NETPKT_RX);
+      bk7258_vpkt_free(vpkt);
+      return;
+    }
+
+  /* No netpkt_setdatalen() here.  The spec lists a missing setdatalen as an
+   * anti-pattern (eth_netdev_pattern.md:766-773), but that case is a driver
+   * whose copy does not update the packet length.  netpkt_copyin() ->
+   * iob_trycopyin() already extends io_pktlen over what it wrote, and the board
+   * agrees: the run without setdatalen reported RX Bytes=0x2a for a 42-byte ARP
+   * frame, i.e. the length was already right.  Adding the call on top coincided
+   * with scan hanging, so it stays out. */
+
+
+  if (bk7258_wifi_rx_enqueue(priv, iob) < 0)
+    {
+      netpkt_free(PRIV2LOWER(priv), iob, NETPKT_RX);
       bk7258_vpkt_free(vpkt);
       return;
     }
