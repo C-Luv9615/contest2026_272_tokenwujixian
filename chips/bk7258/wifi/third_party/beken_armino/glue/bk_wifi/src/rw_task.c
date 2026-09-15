@@ -1014,7 +1014,24 @@ static void core_thread_main(void *arg)
 				rtos_set_semaphore(&msg.sema);
 
 			if (!ke_skip)
+			{
+				/* Bring-up diagnostic: sample the ke_evt mask around the
+				 * scheduler.  A mask stuck at 0xffffffff with the scheduler
+				 * running proves the event-processing loop itself is
+				 * broken; a mask that clears proves events are consumed
+				 * and the stall is elsewhere. */
+				extern uint32_t core_evt_mask;
+				uint32_t before = core_evt_mask;
+
 				ke_evt_core_scheduler();
+
+				uint32_t after = core_evt_mask;
+				static uint32_t seq;
+
+				if ((seq++ & 0x1f) == 0 || before != after)
+					RWNX_LOGW("ke_sched[%lu] before=0x%08x after=0x%08x\n",
+							  (unsigned long)seq, before, after);
+			}
 			else
 				ke_skip = 0;
 		}
