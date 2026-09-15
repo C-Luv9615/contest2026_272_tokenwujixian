@@ -2,8 +2,9 @@
  * chips/bk7258/wifi/glue/system_shim.c
  *
  * NuttX implementation of the Armino system API (printf/reboot/mac/tick)
- * used by the vendored glue. printf maps onto NuttX stdio; reboot onto
- * up_systemreset. MAC reading is deferred to the chip layer (efuse/OTP).
+ * used by the vendored glue. printf maps onto syslog, which is safe to call
+ * from the vendor's IRQ handlers; reboot onto up_systemreset. MAC reading is
+ * deferred to the chip layer (efuse/OTP).
  */
 
 #include <nuttx/config.h>
@@ -13,6 +14,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdint.h>
+#include <syslog.h>
 
 #include "components/system.h"
 #include "driver/uart.h"
@@ -86,12 +88,58 @@ int bk_printf_deinit(void)
   return 0;
 }
 
+/* syslog rather than printf, because the vendor logs from hard IRQ context.
+ *
+ * printf() takes the stdout FILE lock through flockfile() -> nxmutex_wait(),
+ * whose first DEBUGASSERT is !up_interrupt_context() (semaphore.h:518).  The
+ * vendor registers bk_printf_ext as the ._log op of both the Wi-Fi and the PHY
+ * adapter (bk_wifi_adapter.c:1389, bk_phy_adapter.c:603), and the MAC hardware
+ * IRQ handler calls it, so one log line on that path takes the system down:
+ *
+ *   exception_direct -> bk7258_wifi_isr_trampoline -> hal_machw_gen_handler
+ *     -> bk_printf_ext -> vfprintf -> flockfile -> nxmutex_wait -> _assert
+ *
+ * Board evidence: 0914-vela-17 asserted at semaphore.h:518 with exactly that
+ * frame chain, once in eighteen runs, which fits a rare error path inside the
+ * vendor IRQ handler rather than a race.
+ *
+ * syslog() is the NuttX facility for this: syslog_write.c:65 downgrades to a
+ * non-blocking write in interrupt context, and syslog_device.c:261 returns
+ * -ENOSYS instead of asserting when the device is not open yet.  The crash dump
+ * that exposed the bug was itself written from interrupt context through
+ * syslog.  The same rule is already stated for queues in
+ * bk7258_wifi_osal_queue_send_common(); this file had missed it.
+ *
+ * The tagged variants format into one buffer and emit a single syslog call,
+ * because nx_vsyslog() prepends a timestamp per call
+ * (vsyslog.c:106-163, CONFIG_SYSLOG_TIMESTAMP=y): a separate call for the tag
+ * would print two timestamps and split the line.
+ *
+ * The level argument stays ignored, as it was with printf: the vendor's levels
+ * do not map onto syslog priorities and nothing here depends on the
+ * distinction.
+ *
+ * ponytail: 192-byte line cap; the longest vendor lines seen on the board are
+ * ~130 bytes (lmac_connect_req), and this runs on the 2 KiB IRQ stack.  Raise
+ * it only if a real line is seen truncated. */
+
+#define BK7258_LOG_LINE_MAX 192
+
+static void bk7258_vlog_tagged(FAR const char *tag, FAR const char *fmt,
+                               va_list ap)
+{
+  char line[BK7258_LOG_LINE_MAX];
+
+  vsnprintf(line, sizeof(line), fmt, ap);
+  syslog(LOG_INFO, "[%s] %s", tag, line);
+}
+
 void bk_printf(const char *fmt, ...)
 {
   va_list ap;
 
   va_start(ap, fmt);
-  vprintf(fmt, ap);
+  vsyslog(LOG_INFO, fmt, ap);
   va_end(ap);
 }
 
@@ -104,9 +152,8 @@ void bk_printf_ex(int level, char *tag, const char *fmt, ...)
 {
   va_list ap;
 
-  printf("[%s] ", tag);
   va_start(ap, fmt);
-  vprintf(fmt, ap);
+  bk7258_vlog_tagged(tag, fmt, ap);
   va_end(ap);
   (void)level;
 }
@@ -115,9 +162,8 @@ void bk_printf_ext(int level, char *tag, const char *fmt, ...)
 {
   va_list ap;
 
-  printf("[%s] ", tag);
   va_start(ap, fmt);
-  vprintf(fmt, ap);
+  bk7258_vlog_tagged(tag, fmt, ap);
   va_end(ap);
   (void)level;
 }
@@ -128,22 +174,21 @@ void bk_printf_raw(int level, char *tag, const char *fmt, ...)
 
   (void)tag;
   va_start(ap, fmt);
-  vprintf(fmt, ap);
+  vsyslog(LOG_INFO, fmt, ap);
   va_end(ap);
   (void)level;
 }
 
 void bk_vprintf_ext(int level, char *tag, const char *fmt, va_list args)
 {
-  printf("[%s] ", tag);
-  vprintf(fmt, args);
+  bk7258_vlog_tagged(tag, fmt, args);
   (void)level;
 }
 
 void bk_vprintf_raw(int level, char *tag, const char *fmt, va_list args)
 {
   (void)tag;
-  vprintf(fmt, args);
+  vsyslog(LOG_INFO, fmt, args);
   (void)level;
 }
 
