@@ -18,6 +18,7 @@
 #include <errno.h>
 #include <stdint.h>
 #include <string.h>
+#include <stdatomic.h>
 
 #include "bk7258_wifi_internal.h"
 

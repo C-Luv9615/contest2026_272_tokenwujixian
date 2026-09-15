@@ -11,5 +11,6 @@ CHIP_CSRCS += bk7258_wifi_osal.c
 CHIP_CSRCS += bk7258_wifi_packet.c
 CHIP_CSRCS += bk7258_wifi_hw.c
 CHIP_CSRCS += glue/hw_driver_shim.c
+CHIP_CSRCS += glue/netif_shim.c
 
 endif
