@@ -133,15 +133,22 @@ void board_late_initialize(void)
 
 int board_app_initialize(uintptr_t arg)
 {
-#if defined(CONFIG_BK7258_COMPONENT_AP) && defined(CONFIG_FS_PROCFS)
-  /* nshlib does not mount procfs by itself, and the AP has no startup
-   * script: mount it here so `ps` and the per-task affinity view work in
-   * the RPMsg-backed AP NSH. */
+#ifdef CONFIG_FS_PROCFS
+  /* nshlib does not mount procfs by itself, and neither component has a startup
+   * script (CONFIG_NSH_ROMFSETC is unset for both): mount it here so `ps` and
+   * the per-task affinity view work in the RPMsg-backed AP NSH.
+   *
+   * No longer restricted to the AP.  On the CP this is what makes `ifconfig`
+   * usable at all: nsh_netcmds.c reads /proc/net to enumerate devices (:373)
+   * and per-device state (:189), so without the mount the command exists but
+   * fails with "is procfs mounted?".  That is also why
+   * NSH_DISABLE_IFCONFIG/IFUPDOWN default to y when FS_PROCFS is off -- the
+   * commands are useless without it. */
 
   if (mount(NULL, CONFIG_NSH_PROC_MOUNTPOINT, "procfs", 0, NULL) < 0 &&
       get_errno() != EEXIST)
     {
-      syslog(LOG_ERR, "[AP] procfs mount failed: %d\n", get_errno());
+      syslog(LOG_ERR, "[BK7258] procfs mount failed: %d\n", get_errno());
     }
 #endif
 
