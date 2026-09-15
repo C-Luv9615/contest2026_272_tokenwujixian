@@ -15,6 +15,9 @@ STA-only runtime bring-up。当前已具备 NuttX OSAL、vendor packet/pbuf
 当前功能阶段是“扫描 → WPA/EAPOL 建立 → 连接 → 断开/状态 → DHCP”。
 SoftAP、P2P、WPS、monitor、STA+AP 并发和 BT coexistence 暂不实现。
 
-详细进度见 [BK7258 Wi-Fi capability status](wifi/CAPABILITY_TABLE_STATUS.md)、
-[Wi-Fi feature note](BK7258_WIFI_FEATURE.md) 和
-[STA porting plan](OPENVELA_NUTTX_WIFI_PORTING_PLAN.md)。
+详细进度见 [BK7258 Wi-Fi capability status](wifi/CAPABILITY_TABLE_STATUS.md) 和
+[Wi-Fi feature note](BK7258_WIFI_FEATURE.md)。
+
+STA 适配方案与架构原则（原 `OPENVELA_NUTTX_WIFI_PORTING_PLAN.md`）已迁出本仓库，现位于
+`/home/czp/openvela_contest/my_docs/bk7258-wifi/plan/`；同处 `my_docs/bk7258-wifi/` 下还有
+排查过程记录与方法论复盘，总索引见该目录 `README.md`。
