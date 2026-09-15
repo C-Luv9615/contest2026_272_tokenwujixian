@@ -128,8 +128,12 @@ int rw_msg_send(const void *msg_params, int reqcfm, uint16_t reqid, void *cfm)
 	} else if (reqcfm) {
 		ret = rtos_get_semaphore(&tx_msg->semaphore, 5 * MICROSECONDS);
 		if (0 != ret) {
-			RWNX_LOGD("%s timeout for %d\n", __FUNCTION__, reqid);
-			BK_ASSERT(0); /* ASSERT VERIFIED */
+			/* Timeout already maps to RWNX_ERR_TIMEOUT below; a hard panic
+			 * here also wedges the ke task mid-request during bring-up
+			 * (observed once with the functional clock finally running and
+			 * hal_machw_reset's park loop stalling), so downgrade to the
+			 * error return the surrounding code already handles. */
+			RWNX_LOGE("%s timeout for %d\n", __FUNCTION__, reqid);
 			GLOBAL_INT_DISABLE();
 			co_list_extract(&rw_msg_tx_head, &tx_msg->hdr);
 			GLOBAL_INT_RESTORE();
@@ -159,18 +163,43 @@ failed_or_timeout:
 int rw_msg_send_reset(void)
 {
 	void *void_param;
+	int ret;
+	uint32_t r0, r38, r54, crm10, t10;
 
 	/* RESET REQ has no parameter */
 	void_param = ke_msg_alloc(MM_RESET_REQ, TASK_MM, TASK_API, 0);
 	if (!void_param)
 		return -1;
 
-	return rw_msg_send(void_param, 1, MM_RESET_CFM, NULL);
+	/* [RSTWIN] state of the registers the reset path touches, taken at
+	 * MM_RESET_REQ send time.  hal_machw_reset (kick->poll->crm_mdm_reset)
+	 * runs inside the ke task between this send and the CFM; the timeout
+	 * print from rw_msg_send marks the window end. */
+	r0    = (*(volatile unsigned int *)0x49100000u);
+	r38   = (*(volatile unsigned int *)0x49100038u);
+	r54   = (*(volatile unsigned int *)0x49100054u);
+	crm10 = (*(volatile unsigned int *)0x49850010u);
+	t10   = (*(volatile unsigned int *)0x49100010u);
+	bk_printf("[RSTWIN] pre  00000000=%08x 00000038=%08x 00000054=%08x\r\n",
+		r0, r38, r54);
+	bk_printf("[RSTWIN] pre  49850010=%08x 49100010=%08x\r\n", crm10, t10);
+
+	ret = rw_msg_send(void_param, 1, MM_RESET_CFM, NULL);
+
+	r38   = (*(volatile unsigned int *)0x49100038u);
+	r54   = (*(volatile unsigned int *)0x49100054u);
+	crm10 = (*(volatile unsigned int *)0x49850010u);
+	t10   = (*(volatile unsigned int *)0x49100010u);
+	bk_printf("[RSTWIN] post 00000038=%08x 00000054=%08x\r\n", r38, r54);
+	bk_printf("[RSTWIN] post 49850010=%08x 49100010=%08x ret=%d\r\n",
+		crm10, t10, ret);
+	return ret;
 }
 
 int rw_msg_send_start(void)
 {
 	struct mm_start_req *start_req_param;
+	int ret;
 
 	/* Build the START REQ message */
 	start_req_param = ke_msg_alloc(MM_START_REQ, TASK_MM, TASK_API,
@@ -195,7 +224,14 @@ int rw_msg_send_start(void)
 	start_req_param->lp_clk_accuracy = 20;
 #endif
 	/* Send the START REQ message to LMAC FW */
-	return rw_msg_send(start_req_param, 1, MM_START_CFM, NULL);
+	bk_printf("[RSTWIN] mmstart pre  00000054=%08x 49100010=%08x\r\n",
+		(*(volatile unsigned int *)0x49100054u),
+		(*(volatile unsigned int *)0x49100010u));
+	ret = rw_msg_send(start_req_param, 1, MM_START_CFM, NULL);
+	bk_printf("[RSTWIN] mmstart post 00000054=%08x 49100010=%08x ret=%d\r\n",
+		(*(volatile unsigned int *)0x49100054u),
+		(*(volatile unsigned int *)0x49100010u), ret);
+	return ret;
 }
 
 int rw_msg_send_me_config_req(void)
