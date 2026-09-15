@@ -52,6 +52,12 @@ bk_err_t bk_sensor_init(void);
  */
 bk_err_t bk_sensor_deinit(void);
 
+/* The BK7258 PHY calibration library updates these cached sensor values after
+ * its temperature/voltage compensation passes.  Keep the authority setter
+ * ABI alongside the public getters. */
+bk_err_t bk_sensor_set_current_temperature(float temperature);
+bk_err_t bk_sensor_set_current_voltage(float voltage);
+
 /**
  * @brief     Obtain current temperature of MCU
  *  parameter: temperature 

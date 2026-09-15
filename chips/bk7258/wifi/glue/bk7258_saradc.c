@@ -6,6 +6,8 @@
  * adc_ll.h, adc_struct.h, adc_hal.c, and adc_driver.c.
  ****************************************************************************/
 
+#if 0 /* Moved to chips/bk7258/saradc/bk7258_saradc.c. */
+
 #include <nuttx/config.h>
 
 #include <errno.h>
@@ -471,3 +473,5 @@ bk_err_t bk_adc_read_raw(uint16_t *read_buf, uint32_t size, uint32_t timeout)
          (unsigned long)timeout);
   return BK_ERR_ADC_GET_READ_SEMA;
 }
+
+#endif /* moved SARADC fallback */

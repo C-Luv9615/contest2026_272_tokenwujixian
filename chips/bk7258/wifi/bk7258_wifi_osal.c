@@ -25,6 +25,7 @@
 #include <nuttx/signal.h>
 
 #include <pthread.h>
+#include <sched.h>
 #include <errno.h>
 #include <stdint.h>
 #include <time.h>
@@ -48,6 +49,36 @@ struct bk7258_wifi_thread_bundle_s
   void (*entry)(void *arg);
   void *arg;
 };
+
+/* FreeRTOS and NuttX native schedulers both use increasing numeric
+ * priorities.  Beken's public RTOS API deliberately reverses that native
+ * range, however: authority rtos_impl.h defines
+ * BK_PRIORITY_TO_NATIVE_PRIORITY(p) as RTOS_HIGHEST_PRIORITY - p, and both
+ * rtos_create_sram_thread() and rtos_thread_set_priority() apply it.
+ *
+ * Preserve that Beken API contract while projecting its 0..9 range into
+ * NuttX's SCHED_PRIORITY_MIN..SCHED_PRIORITY_MAX interval.  Thus authority
+ * core=2, kmsg=3 and wpas=5 become decreasing NuttX priorities, matching the
+ * authority native order core=7 > kmsg=6 > wpas=4. */
+
+#define BK7258_WIFI_BEKEN_PRIO_MAX 9U
+
+static int bk7258_wifi_native_priority(int priority)
+{
+  unsigned int logical = priority < 0 ? 0U : (unsigned int)priority;
+  unsigned int native;
+
+  if (logical > BK7258_WIFI_BEKEN_PRIO_MAX)
+    {
+      logical = BK7258_WIFI_BEKEN_PRIO_MAX;
+    }
+
+  native = BK7258_WIFI_BEKEN_PRIO_MAX - logical;
+  return SCHED_PRIORITY_MIN +
+         (int)((native * (SCHED_PRIORITY_MAX - SCHED_PRIORITY_MIN) +
+                BK7258_WIFI_BEKEN_PRIO_MAX / 2U) /
+               BK7258_WIFI_BEKEN_PRIO_MAX);
+}
 
 static FAR void *bk7258_wifi_thread_trampoline(FAR void *arg)
 {
@@ -80,8 +111,37 @@ int bk7258_wifi_osal_thread_create(uintptr_t *handle, int prio,
   bundle->entry = entry;
   bundle->arg = arg;
 
-  pthread_attr_init(&attr);
-  pthread_attr_setstacksize(&attr, stack_size);
+  ret = pthread_attr_init(&attr);
+  if (ret != 0)
+    {
+      kmm_free(bundle);
+      return -ret;
+    }
+
+  param.sched_priority = bk7258_wifi_native_priority(prio);
+  ret = pthread_attr_setstacksize(&attr, stack_size);
+  if (ret == 0)
+    {
+      ret = pthread_attr_setinheritsched(&attr, PTHREAD_EXPLICIT_SCHED);
+    }
+
+  if (ret == 0)
+    {
+      ret = pthread_attr_setschedparam(&attr, &param);
+    }
+
+  if (ret == 0)
+    {
+      ret = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+    }
+
+  if (ret != 0)
+    {
+      pthread_attr_destroy(&attr);
+      kmm_free(bundle);
+      return -ret;
+    }
+
   ret = pthread_create(&tid, &attr, bk7258_wifi_thread_trampoline, bundle);
   pthread_attr_destroy(&attr);
   if (ret != 0)
@@ -90,20 +150,33 @@ int bk7258_wifi_osal_thread_create(uintptr_t *handle, int prio,
       return -ret;
     }
 
-  param.sched_priority = prio;
-  pthread_setschedprio(tid, param.sched_priority);
-  pthread_detach(tid);
-
   *handle = (uintptr_t)tid;
   return 0;
 }
 
 int bk7258_wifi_osal_thread_delete(uintptr_t handle)
 {
-  /* Detached threads are not joined; cancellation is deliberately not used
-   * because vendor tasks must self-exit, matching the FreeRTOS contract. */
-  return 0;
+  int ret = pthread_cancel((pthread_t)handle);
+
+  /* FreeRTOS treats an already-finished target as successfully deleted. */
+
+  return ret == ESRCH ? 0 : -ret;
 }
+
+int bk7258_wifi_osal_thread_set_priority(uintptr_t handle, int prio)
+{
+  return -pthread_setschedprio((pthread_t)handle,
+                               bk7258_wifi_native_priority(prio));
+}
+
+/* Queue internals and public Beken semaphores are both backed directly by
+ * NuttX counting semaphores.  This mirrors Armino's rtos_pub.c mapping:
+ * xSemaphoreCreateCounting(max_count, 0), xSemaphoreTake(), xSemaphoreGive(),
+ * and vQueueDelete().  Do not add a second ownership or count-tracking layer
+ * around the RTOS primitive. */
+
+static int bk7258_wifi_osal_sem_wait_raw(FAR sem_t *sem,
+                                         unsigned int timeout_ms);
 
 /****************************************************************************
  * Queue
@@ -256,7 +329,7 @@ int bk7258_wifi_osal_queue_recv(uintptr_t handle, void *msg,
   irqstate_t flags;
   int ret;
 
-  ret = bk7258_wifi_osal_sem_wait((uintptr_t)&q->count_sem, timeout_ms);
+  ret = bk7258_wifi_osal_sem_wait_raw(&q->count_sem, timeout_ms);
   if (ret < 0)
     {
       return ret;
@@ -352,23 +425,43 @@ int bk7258_wifi_osal_mutex_delete(uintptr_t handle)
 
 int bk7258_wifi_osal_sem_create(uintptr_t *handle, unsigned int max_count)
 {
-  FAR sem_t *sem = kmm_malloc(sizeof(*sem));
+  FAR sem_t *sem;
+
+  sem = kmm_malloc(sizeof(*sem));
   if (sem == NULL)
     {
       return -ENOMEM;
     }
 
-  nxsem_init(sem, 0, 0);
+  if (nxsem_init(sem, 0, 0) < 0)
+    {
+      kmm_free(sem);
+      return -ENOMEM;
+    }
+
   nxsem_set_protocol(sem, SEM_PRIO_NONE);
   (void)max_count;
   *handle = (uintptr_t)sem;
   return 0;
 }
 
-int bk7258_wifi_osal_sem_wait(uintptr_t handle, unsigned int timeout_ms)
+static int bk7258_wifi_osal_sem_wait_raw(FAR sem_t *sem,
+                                         unsigned int timeout_ms)
 {
-  FAR sem_t *sem = (FAR sem_t *)handle;
   int ret;
+
+  if (sem == NULL)
+    {
+      return -EINVAL;
+    }
+
+  /* NuttX forbids all semaphore wait variants, including trywait, from IRQ
+   * context.  A queue path already enforces this rule; keep semaphore waits
+   * equally strict rather than entering NuttX's timed-wait machinery. */
+  if (up_interrupt_context())
+    {
+      return -EAGAIN;
+    }
 
   if (timeout_ms == 0)
     {
@@ -411,6 +504,11 @@ int bk7258_wifi_osal_sem_wait(uintptr_t handle, unsigned int timeout_ms)
 
   ret = nxsem_tickwait_uninterruptible(sem, MSEC2TICK(timeout_ms));
   return ret < 0 ? ret : 0;
+}
+
+int bk7258_wifi_osal_sem_wait(uintptr_t handle, unsigned int timeout_ms)
+{
+  return bk7258_wifi_osal_sem_wait_raw((FAR sem_t *)handle, timeout_ms);
 }
 
 int bk7258_wifi_osal_sem_post(uintptr_t handle)

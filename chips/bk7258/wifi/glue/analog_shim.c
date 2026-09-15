@@ -90,14 +90,15 @@
  * Upstream lives in its SARADC driver; owned here since that driver is absent.
  */
 
-UINT8 g_saradc_flag = 0x0;
-
 /* The vendor temperature daemon is asynchronous: it samples immediately,
  * then every second for thirty samples, then every fifteen seconds. Keep the
  * SARADC work and the PHY temperature-compensation callback out of ISR context
  * on LPWORK: it may wait for an ADC conversion and must not consume the
  * high-priority HISR/timer bottom-half worker. Serialize its lifecycle with a
  * single BK7258-owned state object. */
+#if 0 /* Moved to chips/bk7258/{saradc,temp_detect}; retained as fallback. */
+UINT8 g_saradc_flag = 0x0;
+
 struct bk7258_tempd_state
 {
   struct work_s work;
@@ -113,6 +114,8 @@ static struct bk7258_tempd_state g_tempd =
 };
 
 static void bk7258_tempd_worker(void *arg);
+
+#endif /* moved SARADC/temperature state fallback */
 
 /****************************************************************************
  * sys_ll analog register accessors
@@ -165,30 +168,44 @@ uint32_t sys_drv_cali_dpll(uint32_t param)
   return hp_sys_drv_cali_dpll(param);
 }
 
+/* These four were log-only stubs returning 0 / BK_FAIL (2026-09-09).  That
+ * was wrong in a way the log made look handled: bk_phy_adapter.c:651-654
+ * binds all four into the PHY function table with no CONFIG_SOC_BK7256XX
+ * guard (unlike ._bk_efuse_read_byte, which that guard does exclude on
+ * BK7258), so libbk_phy.a really calls them -- the bandgap trim and the
+ * core-voltage read/write silently did nothing.  The claim in the old
+ * comment, that the latched analog-register layer was not ported, no longer
+ * holds: the generated authority LL header is imported verbatim and is
+ * byte-identical to the reference tree, so all four upstream bodies port
+ * straight across in hal_port/.  Forwarded the same way sys_drv_cali_dpll
+ * above already forwards. */
+
 uint32_t sys_drv_get_bgcalm(void)
 {
-  ANALOG_UNPORTED("sys_drv_get_bgcalm");
-  return 0;
+  extern uint32_t hp_sys_drv_get_bgcalm(void);
+
+  return hp_sys_drv_get_bgcalm();
 }
 
 uint32_t sys_drv_set_bgcalm(uint32_t param)
 {
-  (void)param;
-  ANALOG_UNPORTED("sys_drv_set_bgcalm");
-  return (uint32_t)BK_FAIL;
+  extern uint32_t hp_sys_drv_set_bgcalm(uint32_t param);
+
+  return hp_sys_drv_set_bgcalm(param);
 }
 
 uint32_t sys_drv_get_vdd_value(void)
 {
-  ANALOG_UNPORTED("sys_drv_get_vdd_value");
-  return 0;
+  extern uint32_t hp_sys_drv_get_vdd_value(void);
+
+  return hp_sys_drv_get_vdd_value();
 }
 
 uint32_t sys_drv_set_vdd_value(uint32_t param)
 {
-  (void)param;
-  ANALOG_UNPORTED("sys_drv_set_vdd_value");
-  return (uint32_t)BK_FAIL;
+  extern uint32_t hp_sys_drv_set_vdd_value(uint32_t param);
+
+  return hp_sys_drv_set_vdd_value(param);
 }
 
 void sys_drv_set_ana_cb_cal_manu(uint32_t value)
@@ -226,20 +243,64 @@ void sys_drv_set_ana_reg12_dpfms(uint32_t value)
 void sys_drv_module_power_ctrl(power_module_name_t module,
                                power_module_state_t power_state)
 {
-  (void)module;
-  (void)power_state;
-  ANALOG_UNPORTED("sys_drv_module_power_ctrl");
+  bool enable;
+
+  /* This is the raw system-driver callback in Armino's RF function table;
+   * its PM-vote callback is a separate table slot.  Do not fold the two
+   * layers together: a PHY library raw transition must not change PM's
+   * PHY_WIFI reference/initial-calibration state machine.
+   *
+   * Armino's BK7258 sys_drv_module_power_ctrl() enters a critical section
+   * then dispatches to sys_hal_module_power_ctrl().  The three Wi-Fi-domain
+   * cases below are the locally supported equivalent gates; each gate does
+   * the register RMW and readback under the same critical-section contract.
+   */
+
+  if (power_state == POWER_MODULE_STATE_ON)
+    {
+      enable = true;
+    }
+  else if (power_state == POWER_MODULE_STATE_OFF)
+    {
+      enable = false;
+    }
+  else
+    {
+      ANALOG_UNPORTED("sys_drv_module_power_ctrl invalid state");
+      return;
+    }
+
+  switch (module)
+    {
+      case POWER_MODULE_NAME_WIFIP_MAC:
+        (void)bk7258_mac_power(enable);
+        break;
+
+      case POWER_MODULE_NAME_WIFI_PHY:
+        (void)bk7258_phy_power(enable);
+        break;
+
+      case POWER_MODULE_NAME_OFDM:
+        (void)bk7258_ofdm_power(enable);
+        break;
+
+      default:
+        /* The RF table exposes the complete system-driver ABI, but this
+         * target port only has verified raw gates for the Wi-Fi domains.
+         * Retain an observable failure instead of silently voting a PM
+         * module or pretending an unrelated domain was controlled. */
+        ANALOG_UNPORTED("sys_drv_module_power_ctrl unsupported module");
+        break;
+    }
 }
 
-void sys_hal_enter_low_analog(void)
-{
-  ANALOG_UNPORTED("sys_hal_enter_low_analog");
-}
-
-void sys_hal_exit_low_analog(void)
-{
-  ANALOG_UNPORTED("sys_hal_exit_low_analog");
-}
+/* sys_hal_enter_low_analog()/sys_hal_exit_low_analog() are no longer defined
+ * here (2026-09-09).  They were stubs, then briefly forwarders to a local
+ * hand-port; both are superseded by the imported authority definitions in
+ * pm/authority/middleware/soc/bk7258/hal/sys_pm_hal.c:1281,1294.  The RF
+ * table (bk_rf_adapter.c:88-91) and the Wi-Fi funcs table
+ * (bk7258_wifi_adapter.c) now reach that single definition.
+ */
 
 /****************************************************************************
  * Legacy driver-model control -- UNPORTED
@@ -262,6 +323,7 @@ UINT32 ddev_control(DD_HANDLE handle, UINT32 cmd, void *param)
  * SARADC conversion
  ****************************************************************************/
 
+#if 0 /* Moved to chips/bk7258/{saradc,temp_detect}; retained as fallback. */
 float saradc_calculate(UINT16 adc_val)
 {
   /* The PHY receives the per-device AON ADC/bias trim directly through its
@@ -521,3 +583,4 @@ int volt_single_get_current_voltage(UINT32 *volt_value)
   ANALOG_UNPORTED("volt_single_get_current_voltage");
   return -1;
 }
+#endif /* moved SARADC/temperature fallback */

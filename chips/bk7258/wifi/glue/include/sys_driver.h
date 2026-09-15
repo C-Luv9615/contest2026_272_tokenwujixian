@@ -26,6 +26,18 @@ int32_t sys_drv_int_enable(uint32_t param);
 int32_t sys_drv_int_group2_disable(uint32_t param);
 int32_t sys_drv_int_group2_enable(uint32_t param);
 
+/* Reached by the imported authority AON RTC driver's super-deep-sleep enter
+ * callback (bk_rtc_ana_register_wakeup_source, CONFIG_RTC_ANA_WAKEUP_SUPPORT).
+ * Implemented in aon_rtc/nuttx_port/aon_rtc_nuttx_port.c, which reproduces the
+ * authority sys_pm_hal.c:1127 analog-SPI sequence. */
+void sys_drv_rtc_ana_wakeup_enable(uint32_t period);
+
+void sys_drv_sadc_int_enable(void);
+void sys_drv_sadc_int_disable(void);
+void sys_drv_sadc_pwr_up(void);
+void sys_drv_sadc_pwr_down(void);
+void sys_drv_en_tempdet(uint32_t value);
+
 uint32_t sys_drv_modem_bus_clk_ctrl(bool clk_en);
 uint32_t sys_drv_modem_clk_ctrl(bool clk_en);
 

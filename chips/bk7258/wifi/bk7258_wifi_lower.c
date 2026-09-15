@@ -24,6 +24,7 @@
 #include <errno.h>
 #include <net/if_arp.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 #include <stdatomic.h>
 
@@ -43,11 +44,17 @@
 
 #if CONFIG_BK7258_WIFI_VENDOR_RUNTIME
 #include <components/event.h>
+#include <components/sensor.h>
 #include <modules/wifi.h>
 #include <modules/wifi_types.h>
 #include "bk_phy_adapter.h"
 #include "bk_rf_adapter.h"
 #include <syslog.h>
+
+/* bk_aon_rtc_driver_init()/bk_aon_rtc_get_current_tick() and AON_RTC_ID_1, from
+ * the authority AON RTC module imported under chips/bk7258/aon_rtc/. */
+
+#include <driver/aon_rtc.h>
 
 /* ke_l2_packet_tx() and struct ke_sk_params, the supplicant-side entry. */
 
@@ -270,6 +277,33 @@ static int bk7258_wifi_ifdown(FAR struct netdev_lowerhalf_s *lower)
   return OK;
 }
 
+/* Hand a filled vendor pbuf to the vendor TX queue and release our reference.
+ *
+ * Split out so the netdev data path and the bring-up TX probe share the one
+ * piece with non-obvious semantics: bmsg_tx_sender() takes its own reference
+ * and drops it again if the queue push fails, so the reference from
+ * pbuf_alloc() is ours to release on every path.  The two callers differ only
+ * in where the bytes come from, which is why the allocation stays with them.
+ */
+
+static int bk7258_wifi_tx_pbuf(FAR struct bk7258_wifi_s *priv,
+                               struct pbuf *p)
+{
+  int ret = bmsg_tx_sender(p, priv->vif_idx);
+
+  pbuf_free(p);
+
+  if (ret != BK_OK)
+    {
+      /* The low-heap early return in bmsg_tx_sender() is the one case that is
+       * not a transport failure, and the upper half retries on -ENOMEM. */
+
+      return ret == BK_ERR_NO_MEM ? -ENOMEM : -EIO;
+    }
+
+  return OK;
+}
+
 static int bk7258_wifi_transmit(FAR struct netdev_lowerhalf_s *lower,
                                 FAR netpkt_t *pkt)
 {
@@ -297,13 +331,10 @@ static int bk7258_wifi_transmit(FAR struct netdev_lowerhalf_s *lower,
       return ret;
     }
 
-  ret = bmsg_tx_sender(p, priv->vif_idx);
-  /* bmsg_tx_sender takes and later releases its queue reference. The caller
-   * retains the original pbuf reference and must release it in both paths. */
-  pbuf_free(p);
-  if (ret != BK_OK)
+  ret = bk7258_wifi_tx_pbuf(priv, p);
+  if (ret < 0)
     {
-      return -EIO;
+      return ret;
     }
 
   netpkt_free(lower, pkt, NETPKT_TX);
@@ -818,11 +849,42 @@ static bk_err_t bk7258_wifi_scan_done(void *arg, event_module_t module,
                                   (uint32_t)result.ap_num : 0);
   bk7258_scan_diag_snapshot(&diag);
   {
-    /* Hardware observations that discriminate the three scan-probe failure
-     * hypotheses in one trace: NX MAC master FSM (0x49100000+0x500/0x504,
-     * base as read by libwifi.a scan.c), the channel context pointer that
-     * mcc.c chan_is_on_channel() requires to be non-NULL, and the TXL halt
-     * flag set inside txl_reset.  No frame content is captured. */
+    /* EVERY MODEM-DOMAIN REGISTER READ IN THIS CALLBACK WAS REMOVED
+     * (2026-09-08), for the same reason the parity banner's snapshot was:
+     * NXMAC (0x49100000/0x49108000), the modem clock (0x49000000) and CRM
+     * (0x49850000) all sit behind the MAC's clock gate, and with
+     * CONFIG_PM_V2 && CONFIG_STA_PS compiled in the MAC is put into doze by
+     * rwnxl_sleep() at the tail of rwnx_intf_init() (rw_task.c:1245) and is
+     * re-woken only inside the core thread, by mac_wakeup_and_pwr_update()
+     * (rw_task.c:821), for the duration of the work it dequeued.  A read of
+     * a gated register stalls the AHB load forever: the CPU never retires
+     * the instruction, so nothing faults (CONFIG_DEBUG_BUSFAULT reports bus
+     * ERRORS, not stalls) and no other thread runs to print a clue.  The
+     * banner version of this hang looked exactly like a silent console with
+     * no nsh prompt and zero bytes of UART response.
+     *
+     * This callback runs on the event/app thread, NOT on the core thread, so
+     * it has no wake guarantee at all -- the MAC may re-enter doze between
+     * the scan completing and this callback being dispatched.  The removed
+     * reads were written when rwnxl_sleep() was not compiled and the MAC
+     * stayed awake for the whole session, which is why they used to work.
+     *
+     * The authority's own scan-done path reads no MAC register, so deleting
+     * these converges on it rather than diverging.
+     *
+     * If MAC state has to be sampled again, sample it from a context that
+     * owns a wake: inside the core thread while it is handling a BMSG (i.e.
+     * after mac_wakeup_and_pwr_update() for that message), or from a
+     * library callback that already runs with the MAC active.  Do NOT guard
+     * such a read by reading a MAC register first -- that probe is itself
+     * the stall.  The only safe status sources are the always-on SYS domain
+     * (0x44010000, e.g. BK7258_SYS_POWER_WAKEUP below), libwifi's own RAM
+     * (ke_state_get(), the ps_env flags) and AON PMU.
+     *
+     * Kept below: reads that cannot stall.  chan_env/txl_cntrl_env are SRAM
+     * symbols resolved at link time; the OFDM/wakeup word is SYS-domain;
+     * the ISR counters, the MM task state and the sd1..sd5 counters are all
+     * plain memory. */
     extern uint8_t chan_env[];
     extern uint8_t txl_cntrl_env[];
 
@@ -831,39 +893,18 @@ static bk_err_t bk7258_wifi_scan_done(void *arg, event_module_t module,
      * consecutive boards lost fields to this (vcorehsel twice, the whole
      * MMSTART post line once), which is why these are split. */
 
-    syslog(LOG_INFO, "[BK7258-WIFI] d2a fsm=%08lx/%08lx r38=%08lx\n",
-           (unsigned long)getreg32(0x49100500),
-           (unsigned long)getreg32(0x49100504),
-           (unsigned long)getreg32(0x49100038));
     syslog(LOG_INFO, "[BK7258-WIFI] d2b chan=%08lx txhalt=%04x\n",
            (unsigned long)*(volatile uint32_t *)(chan_env + 0x28),
            (unsigned int)*(volatile uint16_t *)(txl_cntrl_env + 0x16e));
-    /* Discriminate the crm_mdm_reset path, split into short lines so a
-     * 115200 console cannot truncate the fields.  All reads only. */
-    syslog(LOG_INFO, "[BK7258-WIFI] d3a ofdm=%lu pwak=%08lx crm14=%08lx\n",
-           (unsigned long)bk7258_wifi_pwd_ofdm_get_override(),
-           (unsigned long)getreg32(BK7258_SYS_POWER_WAKEUP),
-           (unsigned long)getreg32(0x49850014));
-    /* GEN interrupt triple at scan end: enable/status/ack of the 0x49108000
-     * block.  status!=0 means the MAC raised interrupts nobody consumed
-     * (host routing problem); status==0 means the MAC never raised one
-     * (upstream of the interrupt controller). */
-    /* NXMAC free-running counter (0x49100120), read by hal_machw_time().
-     * Two spaced samples: a difference of 0 means the machw tick is dead --
-     * every timer/timeout in the firmware (chan once-switch, hal_machw_reset
-     * park loop) is time-based on this counter. */
-    {
-      uint32_t t1 = getreg32(0x49100120);
-      uint32_t clk1 = getreg32(0x49850008);
-      uint32_t t2 = getreg32(0x49100120);
 
-      syslog(LOG_INFO,
-             "[BK7258-WIFI] d3b mt=%lu->%lu d=%lu c08=%08lx m38=%08lx\n",
-             (unsigned long)t1, (unsigned long)t2,
-             (unsigned long)(t2 - t1),
-             (unsigned long)clk1,
-             (unsigned long)getreg32(0x49100038));
-    }
+    /* SYS domain only (0x44010000 is never gated): the OFDM power-down vote
+     * the library reads back through crm_mdm_reset, and the raw wakeup
+     * word it lives in.  The `crm14=` field that used to close this line
+     * read 0x49850014 and went with the rest. */
+
+    syslog(LOG_INFO, "[BK7258-WIFI] d3a ofdm=%lu pwak=%08lx\n",
+           (unsigned long)bk7258_wifi_pwd_ofdm_get_override(),
+           (unsigned long)getreg32(BK7258_SYS_POWER_WAKEUP));
   }
   {
     extern volatile uint32_t bk7258_wifi_isr_count[64];
@@ -936,25 +977,26 @@ static bk_err_t bk7258_wifi_scan_done(void *arg, event_module_t module,
      * are not.  Remaining offenders of this kind, kept only because they at
      * least report what they claim: the 0x2807bdb1/0x2807bdb8 doze bytes
      * above and the chan_env/txl_cntrl_env externs in scan diag2. */
-    /* Milestone M1 (alignment checklist): 0x49108050 is the interrupt
-     * control register hal_machw_init programs last; ==1 means
-     * hal_machw_init ran to its interrupt-enable step. */
-    syslog(LOG_INFO,
-           "[BK7258-WIFI] M1: 49108050=%08x\n",
-           (unsigned long)getreg32(0x49108050));
+    /* The "M1: 49108050" line was REMOVED with the rest of the modem-domain
+     * reads (2026-09-08).  0x49108050 is in the MAC interrupt block and is
+     * gated with the MAC, so reading it here stalls exactly like the others.
+     * What it reported -- that hal_machw_init() reached its interrupt-enable
+     * step -- is already implied by the scan producing results at all, and
+     * by the isr counters printed above (a nonzero count for source 33/34/36
+     * cannot happen unless the MAC's interrupt enable was programmed). */
   }
-  /* NXMAC register-window dump (0x49100000-0x7F, 32 words = 8 short
-   * lines).  Diff against the authoritative board's identical dump to
-   * expose every divergent NXMAC register in one pass. */
-  for (int wi = 0; wi < 44; wi += 4)
-    {
-      syslog(LOG_INFO, "[NXWIN] %02x:%08x %08x %08x %08x\n",
-             wi * 4,
-             (unsigned long)getreg32(0x49100000 + wi * 4),
-             (unsigned long)getreg32(0x49100000 + wi * 4 + 4),
-             (unsigned long)getreg32(0x49100000 + wi * 4 + 8),
-             (unsigned long)getreg32(0x49100000 + wi * 4 + 12));
-    }
+  /* The [NXWIN] register-window dump was REMOVED (2026-09-08): 44 words of
+   * getreg32(0x49100000 + n) is the single largest concentration of gated
+   * NXMAC reads in the tree, and the first iteration is enough to wedge the
+   * CPU on a doze'd MAC.
+   *
+   * It was a parity tool, not a runtime diagnostic -- its whole purpose was
+   * to be diffed against the same dump taken on the authority board.  If
+   * that comparison is needed again, take it from a context that holds a
+   * wake (see the note at the head of this callback), or better, take it on
+   * both boards with STA_PS off in a throwaway image whose only job is the
+   * dump; do not carry it in the normal scan path.
+   */
   /* The `d3f` probe that used to sit here is DELETED (2026-09-01).
    *
    * It sampled 0x49100010 twice across a 200 us delay and printed it as
@@ -1073,6 +1115,83 @@ void bk7258_wifi_lower_tx_done(struct bk7258_wifi_s *priv)
   netdev_lower_txdone(PRIV2LOWER(priv));
 }
 
+#if CONFIG_BK7258_WIFI_VENDOR_RUNTIME
+
+/* Both of the following are runtime-gated for the same reason the EAPOL split
+ * in ethernetif_input() is: bk_wifi_sta_get_mac() comes from <modules/wifi.h>,
+ * and BK7258_ETH_HDR_LEN and <syslog.h> are equally only in scope under this
+ * symbol (see the include block at the top of the file).  The CP image builds
+ * with the vendor runtime disabled and must not reference any of them. */
+
+int bk7258_wifi_sta_own_mac(FAR uint8_t *mac)
+{
+  if (mac == NULL)
+    {
+      return -EINVAL;
+    }
+
+  /* The same accessor the EAPOL RX split uses above, deliberately: it is what
+   * the vendor bridge treats as the vif's address, so a frame built with it
+   * carries the source the closed library expects.  bk7258_wifi_board_get_mac()
+   * is NOT equivalent -- it is a raw partition read, and bk_get_mac() applies
+   * validation and per-type handling on top of it (hal_port_mac.c:100,126). */
+
+  if (bk_wifi_sta_get_mac(mac) != BK_OK)
+    {
+      return -EIO;
+    }
+
+  return OK;
+}
+
+int bk7258_wifi_lower_tx_inject(FAR const uint8_t *frame, uint16_t len)
+{
+  FAR struct bk7258_wifi_s *priv = &g_bk7258_wifi;
+  struct pbuf *p;
+
+  if (frame == NULL)
+    {
+      return -EINVAL;
+    }
+
+  /* Strictly greater than the header: the vendor descriptor describes the
+   * payload as (p->payload + sizeof(ETH_HDR_T), len - sizeof(ETH_HDR_T))
+   * (rwnx_tx.c:753), so a 14-byte frame would claim a zero-length payload. */
+
+  if (len <= BK7258_ETH_HDR_LEN || len > BK7258_WIFI_FRAME_MAX)
+    {
+      return -EMSGSIZE;
+    }
+
+  if (!priv->registered)
+    {
+      return -ENODEV;
+    }
+
+  p = pbuf_alloc(PBUF_RAW_TX, len, PBUF_RAM);
+  if (p == NULL)
+    {
+      return -ENOMEM;
+    }
+
+  memcpy(p->payload, frame, len);
+
+  /* priv->vif_idx is never assigned anywhere in the tree, so it is the zero
+   * from static initialisation.  Zero happens to be the right STA vif -- the
+   * reference TX descriptors log vif=0 -- but by coincidence, not by design;
+   * it has to be filled from the association event before the data plane is
+   * integrated.  Printed here because bmsg_tx_handler() returns without
+   * freeing when vif_idx == INVALID_VIF_IDX (rw_task.c:178), which from the
+   * outside looks identical to "the frame was never submitted". */
+
+  syslog(LOG_WARNING, "[BK7258] txinject len=%u vif=%u\n",
+         (unsigned)len, (unsigned)priv->vif_idx);
+
+  return bk7258_wifi_tx_pbuf(priv, p);
+}
+
+#endif /* CONFIG_BK7258_WIFI_VENDOR_RUNTIME */
+
 void bk7258_wifi_lower_rx_submit(struct bk7258_wifi_s *priv,
                                  struct bk7258_vpkt *vpkt)
 {
@@ -1163,27 +1282,32 @@ static void bk7258_wifi_parity_banner(void)
   syslog(LOG_INFO,
          "[BK7258-WIFI] parity: null-vs-authoritative: %s\n",
          nulls[0] != '\0' ? nulls : "(none)");
-  {
-    uint32_t mt1 = getreg32(0x49100120);
-    uint32_t mt2 = getreg32(0x49100120);
 
-    /* Split from one 137-char line.  That single line is what made a reader
-     * misread `fsm=8`: on an 80-column console the payload was cut right
-     * after "fsm=" and the surviving trailing character was crm10's last
-     * digit ('8' from 0x00003108), so the init-time FSM value was never
-     * actually printed.  Each field now gets a line it fits in. */
-
-    syslog(LOG_INFO, "[BK7258-WIFI] p1 pwak=%08lx clken=%08lx\n",
-           (unsigned long)getreg32(BK7258_SYS_POWER_WAKEUP),
-           (unsigned long)getreg32(BK7258_SYS_DEV_CLK_EN));
-    syslog(LOG_INFO, "[BK7258-WIFI] p2 id=%08lx fsm=%08lx r38=%08lx\n",
-           (unsigned long)getreg32(0x49100000),
-           (unsigned long)getreg32(0x49100504),
-           (unsigned long)getreg32(0x49100038));
-    syslog(LOG_INFO, "[BK7258-WIFI] p3 crm10=%08lx mt=%lu->%lu\n",
-           (unsigned long)getreg32(0x49850010),
-           (unsigned long)mt1, (unsigned long)mt2);
-  }
+  /* The NXMAC/CRM register snapshot that used to follow this line was
+   * removed (2026-09-08).  It read 0x49100120 twice, then 0x49100000,
+   * 0x49100504, 0x49100038 and 0x49850010, which is no longer a legal
+   * access point.
+   *
+   * With CONFIG_PM_V2 && CONFIG_STA_PS compiled in, rwnx_intf_init() ends in
+   * rwnxl_sleep() (rw_task.c:1245), so the MAC is deliberately in doze by the
+   * time this banner runs.  Reading a clock-gated NXMAC stalls the AHB load
+   * indefinitely: the CPU never retires the instruction, so no fault is
+   * raised (CONFIG_DEBUG_BUSFAULT cannot report a stall, only an error) and
+   * no other thread ever runs to print anything.
+   *
+   * That is precisely the hang this banner caused.  The [initseq] boundary
+   * trace showed every init step completing normally -- including
+   * rwnxl_sleep() itself and bk_wifi_init() returning with
+   * "wifi inited(1) ret(0)" -- and then the syslog above was the last output
+   * on the console, with no nsh prompt for the rest of the capture.
+   *
+   * The snapshot had also stopped measuring what it was written for.  It
+   * dates from the scan era, when rwnxl_sleep() was not compiled and the MAC
+   * stayed awake, so an active FSM value here carried information.  After the
+   * sleep call it can only ever show doze.  Sample the MAC while it is known
+   * to be awake (the scan and assoc paths already do) rather than
+   * reinstating these reads at init completion.
+   */
 }
 #endif
 
@@ -1259,9 +1383,16 @@ int bk7258_wifi_sta_connect(FAR const char *ssid, FAR const char *psk)
       return -EINVAL;
     }
 
-  if (psk_len < BK7258_WIFI_PSK_MIN_LEN || psk_len >= sizeof(config.password))
+  /* psk_len == 0 selects an open (no-password) network: config.password
+   * stays zeroed after the memset below, and the vendor supplicant
+   * auto-detects security from scan results.  A non-empty PSK must still
+   * satisfy the 8..63 / 64-hex rules. */
+  if (psk_len > 0u &&
+      (psk_len < BK7258_WIFI_PSK_MIN_LEN ||
+       psk_len >= sizeof(config.password)))
     {
-      syslog(LOG_ERR, "[BK7258-WIFI] connect: psk length %u, need %u..%u\n",
+      syslog(LOG_ERR, "[BK7258-WIFI] connect: psk length %u, need %u..%u "
+             "or 0 for open\n",
              (unsigned)psk_len, (unsigned)BK7258_WIFI_PSK_MIN_LEN,
              (unsigned)(sizeof(config.password) - 1u));
       return -EINVAL;
@@ -1285,8 +1416,16 @@ int bk7258_wifi_sta_connect(FAR const char *ssid, FAR const char *psk)
   /* SSID and lengths only.  The passphrase itself is never logged, here or
    * in the status path. */
 
-  syslog(LOG_INFO, "[BK7258-WIFI] connect: ssid=\"%s\" (%u), psk %u chars\n",
-         config.ssid, (unsigned)ssid_len, (unsigned)psk_len);
+  if (psk_len == 0u)
+    {
+      syslog(LOG_INFO, "[BK7258-WIFI] connect: ssid=\"%s\" (%u), open\n",
+             config.ssid, (unsigned)ssid_len);
+    }
+  else
+    {
+      syslog(LOG_INFO, "[BK7258-WIFI] connect: ssid=\"%s\" (%u), psk %u chars\n",
+             config.ssid, (unsigned)ssid_len, (unsigned)psk_len);
+    }
 
   /* set_config before start, as in the original.  set_config is also what
    * populates g_sta_param_ptr->ssid/key, which is what wpa_psk_request()
@@ -1520,6 +1659,133 @@ int bk7258_wifi_initialize(void)
     }
 
 #if CONFIG_BK7258_WIFI_VENDOR_RUNTIME
+  {
+    /* Armino runs bk_trng_driver_init() from driver_early_init()
+     * (cp/middleware/driver/common/driver.c:275-277, CONFIG_TRNG_SUPPORT=y in
+     * projects/app/cp/config/bk7258/config), i.e. before every driver_init()
+     * peripheral including SARADC.  Keep that relative order here: this call
+     * goes ahead of bk_adc_driver_init() for the same reason the AON RTC call
+     * below deliberately goes after it.
+     *
+     * BK7258 needs no clock or power gate for this block -- authority only
+     * touches sys_drv_trng_disckg_set() under CONFIG_SOC_BK7256XX, which is 0
+     * in this profile (glue/include/common/sys_config.h:23), and bk_trng_start()
+     * itself bypasses the block's clock gate (trng_ll.h:59). */
+
+    extern void sys_hal_low_power_hardware_init(void);
+    extern bk_err_t bk_trng_driver_init(void);
+    extern int hp_bandgap_init(void);
+    extern int bk_rand(void);
+    extern bk_err_t bk_adc_driver_init(void);
+
+    /* Armino pm_hardware_init() (components/bk_pm/pm.c:213) ->
+     * sys_drv_low_power_hardware_init() (sys_ps_driver.c:191) ->
+     * sys_hal_low_power_hardware_init() (sys_pm_hal.c:1508), imported whole
+     * under pm/authority.  Upstream reaches it from CPU0 startup
+     * (startup_cpu0.c:402), i.e. ahead of driver_early_init(), so it goes
+     * first in this block.
+     *
+     * This is the step that establishes the analog and low-power state the
+     * rest of the PM code reads back.  Most of all it runs
+     * sys_hal_enable_buck(), which is the only writer of ana_reg11.aldosel --
+     * the bit sys_hal_exit_low_analog() branches on to decide whether to
+     * restore vanaldosel to 0x5 (LDO) or 4 (buck).  Without it that read
+     * returned whatever reset left behind, so porting exit_low_analog() alone
+     * aligned a leaf while leaving the code that establishes its input
+     * unaligned.
+     *
+     * Ordering against the manual R41.lpo_config write further down is safe in
+     * both directions: sys_hal_config_32k_source_default() inside this call
+     * selects ROSC as well (bk_clk_32k_customer_config_get() falls through to
+     * PM_LPO_SRC_ROSC here, see the divergence note below), and it touches
+     * R41.wakeup_ena, a different field from lpo_config bits[1:0].  The AON
+     * RTC init still runs after the lpo_config write, keeping the constraint
+     * that the counter is only enabled once its clock source is settled.
+     *
+     * DELIBERATE DIVERGENCE: CONFIG_LPO_MP_A_FORCE_USE_EXT32K is set in the
+     * authority BK7258 CP config but is left undefined here.  With it set,
+     * bk_clk_32k_customer_config_get() returns PM_LPO_SRC_X32K on MP_A silicon
+     * and config_32k_source_default() would switch the 32 kHz source to the
+     * external crystal, powering up the XTAL and repointing the buck clock.
+     * This board is verified running on ROSC, and an X32K source also shifts
+     * the rwnxl_sleep threshold; switching it blind on the same change that is
+     * meant to fix the analog state would confound both.  Revisit once the die
+     * ID is read back and an external 32 kHz crystal is confirmed present. */
+
+    sys_hal_low_power_hardware_init();
+
+    ret = bk_trng_driver_init();
+    if (ret != BK_OK)
+      {
+        syslog(LOG_ERR, "[BK7258-WIFI] runtime: TRNG init failed=%d\n", ret);
+        bk7258_wifi_hw_deinit();
+        return -ENODEV;
+      }
+
+    /* Armino bandgap_init() (components_init.c:250), ported verbatim in
+     * hal_port/hal_port_bandgap.c.  Order is upstream's: components_init()
+     * runs driver_early_init() -> pm_init() -> bandgap_init() ->
+     * random_init(), so this sits between the TRNG init above (the
+     * driver_early_init step) and the srand() below (the random_init step).
+     * pm_init() is empty in this profile -- CONFIG_DEEP_PS is not set -- so
+     * nothing is skipped between them.
+     *
+     * It reads the per-die VDDDIG bandgap trim out of OTP and programs it,
+     * which this port has never done: sys_drv_set_bgcalm() was a log-only
+     * stub until 2026-09-09, so the trim kept its reset value and the PHY's
+     * own bandgap writes went nowhere either.  Now that the accessor is real,
+     * running this makes the analog reference start from its calibrated
+     * value instead of from reset -- otherwise the PHY would be adjusting a
+     * trim whose baseline is wrong.
+     *
+     * Never fails in a way that should stop bring-up: both OTP-read failure
+     * paths fall through to the default_bandgap branch and it returns BK_OK
+     * regardless, so the return value is logged rather than acted on. */
+
+    ret = hp_bandgap_init();
+    syslog(LOG_INFO, "[BK7258-WIFI] runtime: bandgap trim ret=%d\n", ret);
+
+    /* Armino random_init() (components_init.c:251, one line: srand(bk_rand())).
+     * Without it rand() behaves as srand(1) per C99 7.20.2.2, so every boot
+     * produces the identical sequence -- and wpa_supplicant draws the SNonce
+     * and every other nonce straight from it (os_none.c:266 os_get_random(),
+     * :283 os_random()).  Authority runs this after bandgap_init(); nothing
+     * between the two consumes rand(), and bandgap_init() will slot in ahead
+     * of this call when it is imported.
+     *
+     * Placement is load-bearing in a way it is not on FreeRTOS: NuttX keeps the
+     * PRNG seed in task_info_s (lib_srand.c:250-259 ta_randint*), which hangs
+     * off task_group_s.tg_info (sched.h:611) -- per task group, shared by the
+     * pthreads in it, NOT global.  bk7258_wifi_osal_thread_create() uses
+     * pthread_create(), so the vendor core/kmsg/wpas threads join this task's
+     * group and observe this seed.  Seeding from a different task (a kthread,
+     * or a later NSH invocation) would leave those threads on the default
+     * seed while appearing to succeed. */
+
+    srand((unsigned int)bk_rand());
+
+    ret = bk_adc_driver_init();
+    if (ret != BK_OK)
+      {
+        syslog(LOG_ERR, "[BK7258-WIFI] runtime: SARADC init failed=%d\n", ret);
+        bk7258_wifi_hw_deinit();
+        return -ENODEV;
+      }
+  }
+
+  /* Armino components_init() creates the sensor cache after driver_init()
+   * and before PHY users run.  This port owns SARADC initialization here, so
+   * keep the same ordering locally: libbk_phy.a's manual calibration code
+   * updates temperature/voltage through the sensor setters during its first
+   * calibration pass and must not see an uninitialized cache. */
+  ret = bk_sensor_init();
+  if (ret != BK_OK)
+    {
+      syslog(LOG_ERR, "[BK7258-WIFI] runtime: sensor init failed=%d\n", ret);
+      bk7258_wifi_hw_deinit();
+      return -ENODEV;
+    }
+
   ret = bk_event_init();
   if (ret != BK_OK)
     {
@@ -1551,6 +1817,76 @@ int bk7258_wifi_initialize(void)
     syslog(LOG_INFO,
            "[BK7258-WIFI] pmq: lpo_src set to ROSC (pre-adapter) r41=0x%08lx\n",
            (unsigned long)getreg32(BK7258_AON_PMU_R41));
+  }
+
+  /* AON RTC counter start.
+   *
+   * Armino runs bk_aon_rtc_driver_init() from driver_init()
+   * (cp/middleware/driver/common/driver.c:380), i.e. after bk_adc_driver_init()
+   * and well before app_wifi_init().  This port took over driver_init()'s
+   * responsibilities above, so the SARADC-then-AON-RTC relative order is
+   * preserved -- but the call is placed HERE rather than next to
+   * bk_adc_driver_init() on purpose.
+   *
+   * The AON RTC counter is clocked from AON PMU R41.lpo_config.  The authority
+   * board carries CONFIG_DEFAULT_LPO_SRC=2 as a BUILD-TIME setting, so R41
+   * already selects ROSC before any authority code runs and its AON RTC init
+   * always observes the final clock source.  This port programs R41 at runtime,
+   * in the block immediately above.  Starting the counter before that write
+   * would enable it against a source that is still about to change, which is a
+   * plausible way to reproduce the very stalled-counter symptom this import
+   * fixes.
+   *
+   * This is still far ahead of every consumer.  bk_wifi_init() below reaches
+   * rwnx_intf_init() -> rwnxl_sleep(), which polls a MAC status bit and
+   * compares two 64-bit tick reads to build a 200 ms timeout; with a counter
+   * that never advances, that comparison keeps the loop on its fast path and
+   * the timeout is never evaluated.
+   */
+
+  {
+    /* TEMPORARY DIAGNOSTIC -- REMOVE once the AON RTC tick question is settled.
+     * Reads the counter twice before and twice after init, so one boot log
+     * answers both "was the tick frozen before?" and "does it advance after?".
+     * To remove: delete this comment, the four uint64_t locals, the two
+     * up_udelay() calls and the two "[aonrtc]" syslog lines, keeping the
+     * bk_aon_rtc_driver_init() call and its error check.
+     *
+     * Reading before init is safe and non-mutating: the authority
+     * aon_rtc_hal_get_counter_val() recomputes hal->hw from the unit id on
+     * entry, so the still-zeroed s_aon_rtc[] state addresses the real counter
+     * registers, and the accessor only reads them.
+     */
+
+    uint64_t pre_a;
+    uint64_t pre_b;
+    uint64_t post_a;
+    uint64_t post_b;
+
+    pre_a = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+    up_udelay(2000);
+    pre_b = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+
+    /* 2 ms of a 32 kHz LPO is ~64 ticks, so the verdict is unambiguous:
+     * two equal pre-init values mean the counter was never started. */
+
+    syslog(LOG_INFO, "[aonrtc] pre-init tick=%llu -> %llu\n",
+           (unsigned long long)pre_a, (unsigned long long)pre_b);
+
+    ret = bk_aon_rtc_driver_init();
+    if (ret != BK_OK)
+      {
+        syslog(LOG_ERR, "[BK7258-WIFI] runtime: AON RTC init failed=%d\n", ret);
+        bk7258_wifi_hw_deinit();
+        return -ENODEV;
+      }
+
+    post_a = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+    up_udelay(2000);
+    post_b = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+
+    syslog(LOG_INFO, "[aonrtc] post-init tick=%llu -> %llu\n",
+           (unsigned long long)post_a, (unsigned long long)post_b);
   }
 
   syslog(LOG_INFO, "[BK7258-WIFI] runtime: bind adapters\n");

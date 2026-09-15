@@ -127,17 +127,14 @@ int rw_msg_send(const void *msg_params, int reqcfm, uint16_t reqid, void *cfm)
 		goto failed_or_timeout;
 	} else if (reqcfm) {
 		ret = rtos_get_semaphore(&tx_msg->semaphore, 5 * MICROSECONDS);
-		if (0 != ret) {
+			if (0 != ret) {
 			/* Timeout already maps to RWNX_ERR_TIMEOUT below; a hard panic
 			 * here also wedges the ke task mid-request during bring-up
 			 * (observed once with the functional clock finally running and
 			 * hal_machw_reset's park loop stalling), so downgrade to the
 			 * error return the surrounding code already handles. */
 			RWNX_LOGE("%s timeout for %d\n", __FUNCTION__, reqid);
-			GLOBAL_INT_DISABLE();
-			co_list_extract(&rw_msg_tx_head, &tx_msg->hdr);
-			GLOBAL_INT_RESTORE();
-			err = RWNX_ERR_TIMEOUT;
+				err = RWNX_ERR_TIMEOUT;
 
 			goto failed_or_timeout;
 		}
@@ -151,7 +148,15 @@ int rw_msg_send(const void *msg_params, int reqcfm, uint16_t reqid, void *cfm)
 	return BK_OK;
 
 failed_or_timeout:
-	if (reqcfm) {
+	if (tx_msg) {
+		/* The confirmation worker and timeout path share ownership through
+		 * rw_msg_tx_head.  Do not free a node RX already extracted until RX
+		 * has completed its locked CFM copy and semaphore post. */
+		GLOBAL_INT_DISABLE();
+		if (co_list_find(&rw_msg_tx_head, &tx_msg->hdr))
+			co_list_extract(&rw_msg_tx_head, &tx_msg->hdr);
+		GLOBAL_INT_RESTORE();
+
 		ret = rtos_deinit_semaphore(&tx_msg->semaphore);
 		BK_ASSERT(0 == ret); /* ASSERT VERIFIED */
 		os_free(tx_msg);
@@ -1502,13 +1507,37 @@ int rw_msg_send_sm_connect_req(CONNECT_PARAM_T *sme, void *cfm)
 	if (req->bcn_len)
 		os_memcpy((UINT8 *)req->bcn_buf, (UINT8 *)sme->bcn_buf, req->bcn_len);
 
+#if 1 /* auth/assoc LMAC command boundary probe; remove after comparison */
+	{
+		static uint32_t connect_cmd_seq;
+		uint32_t n = connect_cmd_seq++;
+
+		if (n < 16 || (n & 0x1f) == 0)
+			RWNX_LOGW("lmac_connect_req seq=%u vif=%u band=%u freq=%u "
+					  "txpwr=%u flags=%08x auth=%u ctrl=%04x ie_len=%u "
+					  "bcn_len=%u bssid="MACSTR"\n",
+					  n, req->vif_idx, req->chan.band, req->chan.freq,
+					  req->chan.tx_power, (unsigned)req->flags,
+					  req->auth_type, req->ctrl_port_ethertype,
+					  req->ie_len, req->bcn_len,
+					  MAC2STR((uint8_t *)(uintptr_t)req->bssid.array));
+	}
+#endif
 
 #if NX_VERSION > NX_VERSION_PACK(6, 22, 0, 0)
 	rwnx_connecting_handler(req->vif_idx); // FIXME: move to right place
 #endif
 
 	/* Send the SM_CONNECT_REQ message to LMAC FW */
-	return rw_msg_send(req, 1, SM_CONNECT_CFM, cfm);
+	{
+		int ret = rw_msg_send(req, 1, SM_CONNECT_CFM, cfm);
+#if 1
+		if (cfm != NULL)
+			RWNX_LOGW("lmac_connect_cfm ret=%d status=%u\n", ret,
+					  ((struct sm_connect_cfm *)cfm)->status);
+#endif
+		return ret;
+	}
 }
 
 #ifdef CONFIG_IEEE80211R

@@ -1,3 +1,7 @@
+/* Direct authority BK7258 generated LL import. */
+#include "../../aon_pmu/authority/middleware/soc/bk7258/soc/aon_pmu_ll.h"
+
+#if 0
 #ifndef __HP_AON_PMU_LL_H_GUARD
 #define __HP_AON_PMU_LL_H_GUARD
 #include <stdint.h>
@@ -846,3 +850,4 @@ static inline uint32_t aon_pmu_ll_get_r7e_h2(void) {
 #endif // CONFIG_TFM_AON_PMU_LL_NSC
 
 #endif /* __HP_AON_PMU_LL_H_GUARD */
+#endif /* retained legacy copy */

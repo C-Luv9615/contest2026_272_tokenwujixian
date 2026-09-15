@@ -6,6 +6,7 @@
 int bk7258_mac_power(bool enable);
 int bk7258_phy_power(bool enable);
 int bk7258_ofdm_power(bool enable);
+int bk7258_bakp_power(bool enable);
 
 /* Armino leaves both BK7258 reset operations unimplemented.  Callers must
  * handle -ENOTSUP; clock or power control is not a reset substitute. */

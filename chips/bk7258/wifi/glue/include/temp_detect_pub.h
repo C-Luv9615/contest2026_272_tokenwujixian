@@ -33,6 +33,8 @@ int  temp_detect_deinit(void);
 bool temp_detect_is_init(void);
 int  temp_detect_get_temperature(uint32_t *temperature);
 int  volt_single_get_current_voltage(UINT32 *volt_value);
+int  volt_detect_start(void);
+int  volt_detect_stop(void);
 
 /* Pinned libbk_phy.a calibration ABI. This is the exact declaration used by
  * the BK7258 Armino temperature daemon. It is intentionally not a shim or a
@@ -41,6 +43,7 @@ int  volt_single_get_current_voltage(UINT32 *volt_value);
 
 void rwnx_cal_do_temp_detect(uint16_t cur_val, uint16_t threshold,
                              uint16_t *last);
+void rwnx_cal_do_volt_detect(uint16_t volt_adc);
 
 #ifdef __cplusplus
 }

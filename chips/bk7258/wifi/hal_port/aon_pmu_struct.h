@@ -1,3 +1,7 @@
+/* Direct authority BK7258 generated register-structure import. */
+#include "../../aon_pmu/authority/middleware/soc/bk7258/soc/aon_pmu_struct.h"
+
+#if 0
 #ifndef __HP_AON_PMU_STRUCT_H_GUARD
 #define __HP_AON_PMU_STRUCT_H_GUARD
 #include <stdint.h>
@@ -258,3 +262,4 @@ typedef volatile struct {
 #endif
 
 #endif /* __HP_AON_PMU_STRUCT_H_GUARD */
+#endif /* retained legacy copy */

@@ -92,6 +92,23 @@ bk_err_t bk_int_isr_register(icu_int_src_t src, int_group_isr_t callback,
   return bk7258_icu_enable(src) == OK ? BK_OK : BK_FAIL;
 }
 
+bk_err_t bk_int_isr_unregister(icu_int_src_t src)
+{
+  if (src >= 64)
+    {
+      return BK_ERR_PARAM;
+    }
+
+  if (g_wifi_isr[src].callback == NULL)
+    {
+      return BK_OK;
+    }
+
+  return bk7258_icu_vendor_unregister(src) == OK ?
+         (g_wifi_isr[src].callback = NULL, g_wifi_isr[src].arg = NULL, BK_OK) :
+         BK_FAIL;
+}
+
 /* Ported to hal_port/hal_port_sys_int_power.c, which drives each of the
  * seven authoritative per-interrupt enables into ITS OWN bank.  The mask
  * built here previously went to sys_drv_int_enable(), which writes only the
@@ -102,80 +119,6 @@ extern bk_err_t hp_bk_wifi_interrupt_init(void);
 bk_err_t bk_wifi_interrupt_init(void)
 {
   return hp_bk_wifi_interrupt_init();
-}
-
-/* These are read-only AON values whose register locations are owned by the
- * chip layer.  Keep the vendor-facing names here so the PHY adapter can use
- * the proven chip accessors without inventing an ADC calibration value. */
-uint32_t aon_pmu_drv_get_adc_cal(void)
-{
-  uint32_t value;
-  static bool reported;
-
-  if (bk7258_pmu_get_adc_cal(&value) != OK)
-    {
-      return 0;
-    }
-
-  if (!reported)
-    {
-      reported = true;
-      syslog(LOG_INFO, "[BK7258-WIFI] AON ADC trim=%lu\n",
-             (unsigned long)value);
-    }
-
-  return value;
-}
-
-uint32_t aon_pmu_drv_bias_cal_get(void)
-{
-  uint32_t value;
-  static bool reported;
-
-  if (bk7258_pmu_get_bgcal(&value) != OK)
-    {
-      return 0;
-    }
-
-  if (!reported)
-    {
-      reported = true;
-      syslog(LOG_INFO, "[BK7258-WIFI] AON bias trim=%lu (PMU R7E.cbcal)\n",
-             (unsigned long)value);
-    }
-
-  return value;
-}
-
-uint32_t aon_pmu_hal_reg_get(pmu_reg_e reg)
-{
-  unsigned int address;
-  uint32_t value;
-
-  switch (reg)
-    {
-      case PMU_REG0:   address = 0x00; break;
-      case PMU_REG1:   address = 0x01; break;
-      case PMU_REG2:   address = 0x02; break;
-      case PMU_REG3:   address = 0x03; break;
-      case PMU_REG0x25: address = 0x25; break;
-      case PMU_REG0x40: address = 0x40; break;
-      case PMU_REG0x41: address = 0x41; break;
-      case PMU_REG0x42: address = 0x42; break;
-      case PMU_REG0x43: address = 0x43; break;
-      case PMU_REG0x70: address = 0x70; break;
-      case PMU_REG0x71: address = 0x71; break;
-      case PMU_REG0x7c: address = 0x7c; break;
-      default: return 0;
-    }
-
-  return bk7258_pmu_read(address, &value) == OK ? value : 0;
-}
-
-uint32_t aon_pmu_hal_get_chipid(void)
-{
-  uint32_t value;
-  return bk7258_pmu_get_chipid(&value) == OK ? value : 0;
 }
 
 /****************************************************************************
@@ -351,21 +294,23 @@ uint32_t bk7258_wifi_pwd_ofdm_get_override(void)
 }
 
 /****************************************************************************
- * GPIO device mapping (skeleton no-op)
+ * GPIO device mapping
+ *
+ * gpio_dev_map()/gpio_dev_unmap() used to live here as `return BK_OK`
+ * no-ops (removed 2026-09-09).  They are now the authority implementations
+ * imported verbatim under chips/bk7258/gpio/authority
+ * (cp/middleware/driver/bk7258/gpio_driver.c:65,94), reached through the
+ * authority gpio_driver.h included above.
+ *
+ * The no-ops were not equivalent to upstream even for the RF pins.  On
+ * BK7258 CONFIG_GPIO_DEFAULT_SET_SUPPORT is set, so upstream first looks the
+ * pin up in GPIO_DEFAULT_DEV_CONFIG and returns BK_ERR_GPIO_INVALID_OPERATE
+ * when it is absent -- GPIO_26/TXEN and GPIO_28/RXEN are both absent from
+ * that table, so upstream reports failure there rather than muxing.  A stub
+ * answering BK_OK claimed success for exactly the calls upstream refuses,
+ * and answered nothing for the pins upstream does configure.  Both halves
+ * are now upstream's.
  ****************************************************************************/
-
-bk_err_t gpio_dev_map(gpio_id_t gpio_id, gpio_dev_t dev)
-{
-  (void)gpio_id;
-  (void)dev;
-  return BK_OK;
-}
-
-bk_err_t gpio_dev_unmap(gpio_id_t gpio_id)
-{
-  (void)gpio_id;
-  return BK_OK;
-}
 
 /****************************************************************************
  * CKMN (skeleton)
@@ -387,15 +332,11 @@ bk_err_t bk_ckmn_driver_get_rc32k_ppm(void)
 }
 
 /****************************************************************************
- * AON RTC (skeleton)
+ * AON RTC
+ *
+ * bk_aon_rtc_driver_init()/bk_aon_rtc_driver_deinit() used to be no-op success
+ * stubs here.  They never enabled the AON RTC 32k clock (ctrl bit6) nor
+ * released the counter (ctrl bit1 cnt_stop), so the counter never advanced.
+ * The authority AON RTC module imported under chips/bk7258/aon_rtc/ now owns
+ * both entry points (authority/middleware/driver/rtc/aon_rtc_driver_64bit.c).
  ****************************************************************************/
-
-bk_err_t bk_aon_rtc_driver_init(void)
-{
-  return BK_OK;
-}
-
-bk_err_t bk_aon_rtc_driver_deinit(void)
-{
-  return BK_OK;
-}

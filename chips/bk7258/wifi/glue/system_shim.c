@@ -157,6 +157,12 @@ void bk_set_printf_sync(uint8_t enable)
   (void)enable;
 }
 
+int bk_get_printf_sync(void)
+{
+  /* Matches the authority fallback when CONFIG_SHELL_ASYNCLOG is disabled. */
+  return 1;
+}
+
 void bk_set_printf_port(uint8_t port_num)
 {
   (void)port_num;

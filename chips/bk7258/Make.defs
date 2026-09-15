@@ -19,6 +19,23 @@ ifeq ($(CONFIG_BK7258_MAILBOX),y)
 CHIP_CSRCS += bk7258_mailbox.c
 endif
 
+ifeq ($(CONFIG_BK7258_MB_IPC_RPMSG),y)
+VPATH += :mb_ipc
+ifeq ($(CONFIG_BK7258_COMPONENT_CP),y)
+CFLAGS += -I$(CHIP_DIR)$(DELIM)mb_ipc$(DELIM)authority$(DELIM)include
+CFLAGS += -I$(CHIP_DIR)$(DELIM)mb_ipc$(DELIM)authority$(DELIM)middleware$(DELIM)driver$(DELIM)mailbox
+CHIP_CSRCS += authority_cp_mailbox_channel.c authority_cp_mb_chnl_buff.c authority_cp_mb_ipc.c
+else
+CFLAGS += -I$(CHIP_DIR)$(DELIM)mb_ipc$(DELIM)authority_ap$(DELIM)include
+CFLAGS += -I$(CHIP_DIR)$(DELIM)mb_ipc$(DELIM)authority_ap$(DELIM)middleware$(DELIM)driver$(DELIM)mailbox
+CHIP_CSRCS += authority_ap_mailbox_channel.c authority_ap_mb_chnl_buff.c authority_ap_mb_ipc.c bk_mailbox_rpmsg_ap_rtos.c
+endif
+DEPPATH += --dep-path mb_ipc
+CFLAGS += -I$(CHIP_DIR)$(DELIM)wifi$(DELIM)glue$(DELIM)include
+CFLAGS += -I$(CHIP_DIR)$(DELIM)mb_ipc$(DELIM)include
+CHIP_CSRCS += bk_mailbox_rpmsg.c
+endif
+
 ifeq ($(CONFIG_BK7258_GDMA),y)
 CHIP_CSRCS += bk7258_dma.c
 endif
@@ -32,6 +49,69 @@ CHIP_CSRCS += bk7258_uart.c
 ifeq ($(CONFIG_BK7258_PSRAM),y)
 CHIP_CSRCS += bk7258_psram.c
 endif
+endif
+
+ifeq ($(CONFIG_BK7258_WIFI),y)
+VPATH += :saradc:temp_detect:saradc/middleware/driver/saradc
+VPATH += :saradc/nuttx_port:saradc/middleware/soc/common/hal:saradc/middleware/soc/bk7258/hal
+VPATH += :otp/authority/middleware/driver/otp:otp/authority/middleware/soc/common/hal
+VPATH += :aon_rtc:aon_rtc/nuttx_port
+VPATH += :trng/authority/middleware/driver/trng
+VPATH += :trng/authority/middleware/soc/common/hal:trng/authority/middleware/soc/bk7258/hal
+DEPPATH += --dep-path trng/authority/middleware/driver/trng
+DEPPATH += --dep-path trng/authority/middleware/soc/common/hal
+DEPPATH += --dep-path trng/authority/middleware/soc/bk7258/hal
+VPATH += :gpio/nuttx_port:gpio/authority/middleware/driver/bk7258
+VPATH += :gpio/authority/middleware/soc/common/hal
+DEPPATH += --dep-path gpio/nuttx_port
+DEPPATH += --dep-path gpio/authority/middleware/driver/bk7258
+DEPPATH += --dep-path gpio/authority/middleware/soc/common/hal
+DEPPATH += --dep-path aon_rtc --dep-path aon_rtc/nuttx_port
+DEPPATH += --dep-path saradc --dep-path temp_detect
+DEPPATH += --dep-path saradc/middleware/driver/saradc
+DEPPATH += --dep-path saradc/nuttx_port --dep-path saradc/middleware/soc/common/hal
+DEPPATH += --dep-path saradc/middleware/soc/bk7258/hal
+DEPPATH += --dep-path otp/authority/middleware/driver/otp
+DEPPATH += --dep-path otp/authority/middleware/soc/common/hal
+CFLAGS += -I$(CHIP_DIR)$(DELIM)wifi$(DELIM)glue$(DELIM)include
+CFLAGS += -I$(CHIP_DIR)$(DELIM)aon_pmu$(DELIM)nuttx_port$(DELIM)include
+CFLAGS += -I$(CHIP_DIR)$(DELIM)saradc$(DELIM)nuttx_port$(DELIM)include
+CFLAGS += -I$(CHIP_DIR)$(DELIM)saradc$(DELIM)middleware$(DELIM)soc$(DELIM)common$(DELIM)hal$(DELIM)include
+CFLAGS += -I$(CHIP_DIR)$(DELIM)saradc$(DELIM)middleware$(DELIM)soc$(DELIM)common$(DELIM)soc$(DELIM)include
+CFLAGS += -I$(CHIP_DIR)$(DELIM)saradc$(DELIM)middleware$(DELIM)soc$(DELIM)bk7258$(DELIM)hal
+CFLAGS += -I$(CHIP_DIR)$(DELIM)saradc$(DELIM)middleware$(DELIM)soc$(DELIM)bk7258$(DELIM)soc
+CFLAGS += -I$(CHIP_DIR)$(DELIM)saradc$(DELIM)middleware$(DELIM)driver$(DELIM)saradc
+CFLAGS += -I$(CHIP_DIR)$(DELIM)otp$(DELIM)authority$(DELIM)include
+CFLAGS += -I$(CHIP_DIR)$(DELIM)otp$(DELIM)authority$(DELIM)middleware$(DELIM)driver$(DELIM)otp
+CFLAGS += -I$(CHIP_DIR)$(DELIM)otp$(DELIM)authority$(DELIM)middleware$(DELIM)soc$(DELIM)common$(DELIM)hal$(DELIM)include
+CFLAGS += -I$(CHIP_DIR)$(DELIM)otp$(DELIM)authority$(DELIM)middleware$(DELIM)soc$(DELIM)bk7258$(DELIM)hal
+CFLAGS += -I$(CHIP_DIR)$(DELIM)otp$(DELIM)authority$(DELIM)middleware$(DELIM)soc$(DELIM)bk7258$(DELIM)soc
+CFLAGS += -I$(CHIP_DIR)$(DELIM)aon_rtc$(DELIM)authority$(DELIM)include
+CFLAGS += -I$(CHIP_DIR)$(DELIM)aon_rtc$(DELIM)authority$(DELIM)middleware$(DELIM)driver$(DELIM)rtc
+CFLAGS += -I$(CHIP_DIR)$(DELIM)aon_rtc$(DELIM)authority$(DELIM)middleware$(DELIM)soc$(DELIM)common$(DELIM)hal$(DELIM)include
+CFLAGS += -I$(CHIP_DIR)$(DELIM)aon_rtc$(DELIM)authority$(DELIM)middleware$(DELIM)soc$(DELIM)common$(DELIM)soc$(DELIM)include
+CFLAGS += -I$(CHIP_DIR)$(DELIM)aon_rtc$(DELIM)authority$(DELIM)middleware$(DELIM)soc$(DELIM)bk7258$(DELIM)hal
+CFLAGS += -I$(CHIP_DIR)$(DELIM)aon_rtc$(DELIM)authority$(DELIM)middleware$(DELIM)soc$(DELIM)bk7258$(DELIM)soc
+CFLAGS += -I$(CHIP_DIR)$(DELIM)trng$(DELIM)authority$(DELIM)include
+CFLAGS += -I$(CHIP_DIR)$(DELIM)trng$(DELIM)authority$(DELIM)include$(DELIM)driver
+CFLAGS += -I$(CHIP_DIR)$(DELIM)trng$(DELIM)authority$(DELIM)middleware$(DELIM)driver$(DELIM)trng
+CFLAGS += -I$(CHIP_DIR)$(DELIM)trng$(DELIM)authority$(DELIM)middleware$(DELIM)soc$(DELIM)common$(DELIM)hal$(DELIM)include
+CFLAGS += -I$(CHIP_DIR)$(DELIM)trng$(DELIM)authority$(DELIM)middleware$(DELIM)soc$(DELIM)common$(DELIM)soc$(DELIM)include
+CFLAGS += -I$(CHIP_DIR)$(DELIM)trng$(DELIM)authority$(DELIM)middleware$(DELIM)soc$(DELIM)bk7258$(DELIM)hal
+CFLAGS += -I$(CHIP_DIR)$(DELIM)trng$(DELIM)authority$(DELIM)middleware$(DELIM)soc$(DELIM)bk7258$(DELIM)soc
+CHIP_CSRCS += nuttx_port.c adc_hal.c adc_ll.c adc_driver.c adc_statis.c bk7258_temp_detect.c otp_driver_v1_1.c otp_hal.c
+CHIP_CSRCS += aon_rtc_authority_hal.c aon_rtc_authority_driver.c aon_rtc_nuttx_port.c
+CHIP_CSRCS += trng_driver.c trng_hal.c trng_ll.c
+CFLAGS += -I$(CHIP_DIR)$(DELIM)gpio$(DELIM)authority$(DELIM)include
+CFLAGS += -I$(CHIP_DIR)$(DELIM)gpio$(DELIM)authority$(DELIM)include$(DELIM)driver
+CFLAGS += -I$(CHIP_DIR)$(DELIM)gpio$(DELIM)authority$(DELIM)middleware$(DELIM)driver$(DELIM)gpio
+CFLAGS += -I$(CHIP_DIR)$(DELIM)gpio$(DELIM)authority$(DELIM)middleware$(DELIM)driver$(DELIM)bk7258
+CFLAGS += -I$(CHIP_DIR)$(DELIM)gpio$(DELIM)authority$(DELIM)middleware$(DELIM)driver$(DELIM)include$(DELIM)bk_private
+CFLAGS += -I$(CHIP_DIR)$(DELIM)gpio$(DELIM)authority$(DELIM)middleware$(DELIM)soc$(DELIM)common$(DELIM)hal$(DELIM)include
+CFLAGS += -I$(CHIP_DIR)$(DELIM)gpio$(DELIM)authority$(DELIM)middleware$(DELIM)soc$(DELIM)common$(DELIM)soc$(DELIM)include
+CFLAGS += -I$(CHIP_DIR)$(DELIM)gpio$(DELIM)authority$(DELIM)middleware$(DELIM)soc$(DELIM)bk7258$(DELIM)hal
+CFLAGS += -I$(CHIP_DIR)$(DELIM)gpio$(DELIM)authority$(DELIM)middleware$(DELIM)soc$(DELIM)bk7258$(DELIM)soc
+CHIP_CSRCS += gpio_hal.c gpio_driver.c gpio_nuttx_port.c
 endif
 
 ifeq ($(CONFIG_AUDIO_BK7258),y)

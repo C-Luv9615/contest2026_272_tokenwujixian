@@ -274,6 +274,13 @@ int bk7258_ofdm_power(bool enable)
   return bk7258_power_gate(BK7258_SYS_OFDM_POWERDOWN, enable);
 }
 
+int bk7258_bakp_power(bool enable)
+{
+  /* BK7258 SYS CPU_POWER_SLEEP_WAKEUP.pwd_bakp is bit 4.  The gate is
+   * low-active, exactly like MAC/PHY/OFDM above. */
+  return bk7258_power_gate(UINT32_C(1) << 4, enable);
+}
+
 int bk7258_phy_power(bool enable)
 {
   return bk7258_power_gate(BK7258_SYS_WIFI_PHY_POWERDOWN, enable);

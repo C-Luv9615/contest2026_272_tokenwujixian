@@ -13,6 +13,7 @@
 #include "arm_internal.h"
 #include "nvic.h"
 #include "bk7258_internal.h"
+#include "include/bk7258_memorymap.h"
 
 extern const void *const _vectors[];
 
@@ -25,13 +26,51 @@ extern const void *const _vectors[];
  * boot HardFault prints the real fault dump instead of a silent hang.
  * up_irqinitialize() later re-attaches the same handlers (harmless).
  */
-extern int arm_hardfault(int irq, void *context, void *arg);
 extern int arm_memfault(int irq, void *context, void *arg);
 extern int arm_busfault(int irq, void *context, void *arg);
 extern int arm_usagefault(int irq, void *context, void *arg);
-#ifdef CONFIG_ARMV8M_SECUREFAULT
-extern int arm_securefault(int irq, void *context, void *arg);
-#endif
+
+static void bk7258_start_puthex(uint32_t value)
+{
+  static const char hex[] = "0123456789abcdef";
+  int shift;
+
+  for (shift = 28; shift >= 0; shift -= 4)
+    {
+      bk7258_lowputc(hex[(value >> shift) & 0xf]);
+    }
+}
+
+static void bk7258_report_reset_context_early(void)
+{
+  uint32_t r0 = getreg32(BK7258_AON_PMU_R0);
+
+  /* This is a read-only snapshot.  PMU R0 is retained reset-classification
+   * state consumed by ROM/BL2; never clear or rewrite it while diagnosing a
+   * post-TPC restart. */
+
+  bk7258_lowputc('!');
+  bk7258_lowputc('R');
+  bk7258_lowputc('S');
+  bk7258_lowputc('T');
+  bk7258_lowputc(' ');
+  bk7258_lowputc('r');
+  bk7258_lowputc('0');
+  bk7258_lowputc('=');
+  bk7258_start_puthex(r0);
+  bk7258_lowputc(' ');
+  bk7258_lowputc('c');
+  bk7258_lowputc('p');
+  bk7258_lowputc('=');
+  bk7258_start_puthex((r0 >> 4) & UINT32_C(0xff));
+  bk7258_lowputc(' ');
+  bk7258_lowputc('a');
+  bk7258_lowputc('p');
+  bk7258_lowputc('=');
+  bk7258_start_puthex((r0 >> 24) & UINT32_C(0x7f));
+  bk7258_lowputc('\r');
+  bk7258_lowputc('\n');
+}
 
 void __start(void)
 {
@@ -85,13 +124,11 @@ void __start(void)
    * instead of falling through to the default irq_unexpected_isr "irq: 3".
    * up_irqinitialize() later re-attaches the same handlers (harmless).
    */
-  irq_attach(NVIC_IRQ_HARDFAULT, arm_hardfault, NULL);
-  irq_attach(NVIC_IRQ_MEMFAULT, arm_memfault, NULL);
-  irq_attach(NVIC_IRQ_BUSFAULT, arm_busfault, NULL);
-  irq_attach(NVIC_IRQ_USAGEFAULT, arm_usagefault, NULL);
-#ifdef CONFIG_ARMV8M_SECUREFAULT
-  irq_attach(NVIC_IRQ_SECUREFAULT, arm_securefault, NULL);
-#endif
+  irq_attach(NVIC_IRQ_HARDFAULT, bk7258_hardfault, NULL);
+  irq_attach(NVIC_IRQ_MEMFAULT, bk7258_memfault, NULL);
+  irq_attach(NVIC_IRQ_BUSFAULT, bk7258_busfault, NULL);
+  irq_attach(NVIC_IRQ_USAGEFAULT, bk7258_usagefault, NULL);
+  irq_attach(NVIC_IRQ_SECUREFAULT, bk7258_securefault, NULL);
 
   /* A hard-float image can use the VFP calling convention before nx_start()
    * enters the generic initialization path.  Configure CP10/CP11 and the
@@ -104,6 +141,8 @@ void __start(void)
 #endif
 
   bk7258_lowsetup();
+  bk7258_report_reset_context_early();
+  bk7258_fault_report_early();
   bk7258_lowputc('B');
   bk7258_lowputc('K');
   bk7258_lowputc('\r');

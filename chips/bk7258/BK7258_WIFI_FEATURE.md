@@ -22,9 +22,18 @@ BK7258 SARADC 生命周期和 vendor source/build 接入。当前目标严格是
 功能链：扫描、建立 WPA/EAPOL 状态机、连接、断开和后续 DHCP；SoftAP、P2P、
 WPS、monitor 与 STA+AP 并发不属于本阶段。
 
-默认 CP 镜像保持 `CONFIG_BK7258_WIFI_VENDOR_RUNTIME=n`。独立
-`runtime-probe` 仅用于 runtime-on 编译/链接收敛，当前已通过主要 WPA 源码
-编译但尚未完成最终链接，也没有烧录或实板联网证据。
+CP 与 `runtime-probe` 两个配置均已启用
+`CONFIG_BK7258_WIFI_VENDOR_RUNTIME=y` 与 `CONFIG_BK7258_WIFI_RUNTIME_APP=y`，
+两者最终链接均已收敛（未解析符号 0）。Wi-Fi 仍不会开机自启：
+`bk7258_wifi_initialize()` 的唯一调用点在 `bk7258_wifi_runtime` 应用内，
+board bring-up 不含任何调用点，必须由 NSH 手动调用。
+
+`runtime-probe` 镜像已烧录并取得实板日志（2026-09-03）：扫描、ASSOCIATED、
+4WAY_HANDSHAKE、收到 M1 并导出 PTK、构建并发出 M2。连接尚未建成——M2 始终
+未被确认（`l2tx cfm status=00000001 acked=0 done=1`，重试 3 次后本地放弃，
+`locally_generated=1`），且被 `wpas_notify_psk_mismatch` 误报为 WRONG_KEY，
+实际并非密码错误。CONNECTED 状态与 DHCP 仍无证据，未解问题是 TX 确认路径。
+CP 配置本身尚未打包烧录。
 
 ## [S2] Design
 
