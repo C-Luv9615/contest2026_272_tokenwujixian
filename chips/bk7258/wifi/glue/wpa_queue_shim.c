@@ -55,80 +55,16 @@
 
 beken_queue_t wpah_queue = NULL;
 
-/* Event-post probe: names the LMAC->supplicant events crossing this queue.
- *
- * Added to bisect one specific failure: the board associates at the LMAC layer
- * (mm_set_vif_state ... is_active=1, aid=0x1) but wpa_supplicant never leaves
- * ASSOCIATING, so it never starts the 4-way handshake and the AP eventually
- * disassociates us with reason 15 (4WAY_HANDSHAKE_TIMEOUT).  The suspect hop is
- * SM_CONNECT_IND (rw_msg_rx.c:1570) -> mhdr_connect_ind (:464) ->
- * wpa_ctrl_event_copy -> THIS QUEUE -> wpas thread -> ctrl_iface.c:2176 ->
- * EVENT_ASSOC -> ASSOCIATED.
- *
- * The bisection: CONNECT_IND printed here means the hop up to the queue works
- * and the gap is downstream; never printed means it is upstream, i.e. the
- * library did not raise SM_CONNECT_IND, the dispatch never reached
- * mhdr_connect_ind, or wpa_ctrl_event_copy's os_malloc(800) failed -- that
- * path returns -1 before queueing anything (ctrl_iface.c:157-165).
- *
- * SCAN_STARTED/SCAN_RESULTS act as the positive control: scan demonstrably
- * works, so seeing them while CONNECT_IND is absent proves the queue itself is
- * healthy rather than dead.
- *
- * Remove once the association path is closed; it is diagnostics, not contract.
- */
-
-static const char *bk7258_wpa_event_name(uint16_t cmd)
-{
-  switch (cmd)
-    {
-      case WPA_CTRL_EVENT_SCAN_STARTED:       return "SCAN_STARTED";
-      case WPA_CTRL_EVENT_SCAN_RESULTS:       return "SCAN_RESULTS";
-      case WPA_CTRL_EVENT_AUTH_IND:           return "AUTH_IND";
-      case WPA_CTRL_EVENT_EXTERNAL_AUTH_IND:  return "EXTERNAL_AUTH_IND";
-      case WPA_CTRL_EVENT_FT_AUTH_IND:        return "FT_AUTH_IND";
-      case WPA_CTRL_EVENT_ASSOC_IND:          return "ASSOC_IND";
-      case WPA_CTRL_EVENT_CONNECT_IND:        return "CONNECT_IND";
-      case WPA_CTRL_EVENT_DISCONNECT_IND:     return "DISCONNECT_IND";
-      case WPA_CTRL_EVENT_MGMT_IND:           return "MGMT_IND";
-      case WPA_CTRL_EVENT_RX_MGMT_FRAME:      return "RX_MGMT_FRAME";
-      case WPA_CTRL_EVENT_FRAME_TX_STATUS:    return "FRAME_TX_STATUS";
-      default:                                return "event";
-    }
-}
-
 int wpa_hostapd_queue_command(wpah_msg_t *msg)
 {
   int ret;
-  bool probe;
-
-  /* Event-class posts only.  Commands below WPA_CTRL_CMD_SOCKET are
-   * synchronous control requests, and WPA_CTRL_CMD_SOCKET itself is the poll
-   * kick wpa_hostapd_queue_poll() sends after every MLME TX -- printing that
-   * one would flood the port and risk perturbing the very timing this probe is
-   * here to observe. */
-
-  probe = msg != NULL && msg->cmd >= WPA_CTRL_CMD_RW_EVT_START;
 
   if (wpah_queue == NULL)
     {
-      if (probe)
-        {
-          BK_LOGI(BK7258_WPA_QUEUE_TAG, "evtq %s(%u) DROPPED: no queue\r\n",
-                  bk7258_wpa_event_name(msg->cmd), (unsigned)msg->cmd);
-        }
-
       return WPA_ERR_WPAH_QUEUE_INIT;
     }
 
   ret = rtos_push_to_queue(&wpah_queue, msg, BEKEN_NO_WAIT);
-
-  if (probe)
-    {
-      BK_LOGI(BK7258_WPA_QUEUE_TAG, "evtq %s(%u) ret=%d\r\n",
-              bk7258_wpa_event_name(msg->cmd), (unsigned)msg->cmd, ret);
-    }
-
   if (ret != kNoErr)
     {
       /* Non-fatal: the caller maps a failed post onto its own error path. */
