@@ -20,8 +20,6 @@
 #include <arm_internal.h>
 
 #include <nuttx/spinlock.h>
-#include <nuttx/sched.h>
-#include <sched.h>
 #include <bk7258_memorymap.h>
 #include <arch/chip/bk7258_sysctrl.h>
 
@@ -58,59 +56,8 @@ static int bk7258_wifi_isr_trampoline(int irq, void *context, void *arg)
     {
       unsigned idx = (unsigned)(slot - g_wifi_isr);
 
-      /* TEMPORARY preemption-lock probe (2026-09-15) -- remove once the
-       * sched_unlock assert is attributed.
-       *
-       * Two asserts have fired from sched_unlock()'s
-       * DEBUGASSERT(lockcount > 0), which expands at the call site and so
-       * reports whichever caller happened to run first: serial.c:2064 during
-       * ping and ifconfig output, and task_exithook.c:479 while renew exited.
-       * Both carried xPSR bit pattern 11, SVCall, meaning the assert landed
-       * inside a context switch.
-       *
-       * This probe answers the one question measurable entirely from our side:
-       * does a vendor ISR callback leave the preemption count different from
-       * how it found it?  If it never does, our adapter is balanced and the
-       * imbalance originates elsewhere; if it does, the offending source id
-       * points straight at the callback to audit.
-       *
-       * Both halves are recorded because sched_lockcount() reads
-       * this_task()->lockcount and this_task() is g_readytorun.head on a
-       * non-SMP build (sched.h:257).  A callback that wakes a task reorders
-       * that queue, so the two reads can land on different TCBs -- printing
-       * the tcb pointer separates "the count was corrupted" from "the head
-       * changed underneath the read", which the count alone cannot.
-       *
-       * Bounded to 12 records: this shares the UART with the console, and an
-       * unbounded record here would perturb the timing it measures. */
-
-      int lock_before = sched_lockcount();
-      FAR void *tcb_before = nxsched_self();
-
       bk7258_wifi_isr_count[idx]++;
       slot->callback(slot->arg);
-
-      {
-        int lock_after = sched_lockcount();
-        FAR void *tcb_after = nxsched_self();
-        static unsigned int lockprobe_count;
-
-        /* Triggering on the count alone, not on the tcb.  A callback that wakes
-         * a task legitimately reorders g_readytorun, so a changed head is
-         * normal and would exhaust the budget before an imbalance appeared.
-         * The tcb pointers are still printed: count changed with the same tcb
-         * is a genuine imbalance, count changed across different tcbs means the
-         * two reads addressed different tasks and says nothing by itself. */
-
-        if (lock_before != lock_after && lockprobe_count < 12u)
-          {
-            lockprobe_count++;
-            syslog(LOG_WARNING,
-                   "[BK7258-WIFI] lockbal#%u src=%u lock=%d->%d tcb=%p->%p\n",
-                   lockprobe_count, idx, lock_before, lock_after,
-                   tcb_before, tcb_after);
-          }
-      }
     }
   return OK;
 }
