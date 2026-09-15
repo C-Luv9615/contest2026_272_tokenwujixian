@@ -98,6 +98,61 @@ static void bk7258_psram_power_clock_enable(void)
   bk7258_psram_delay(20000);
   BK7258_BOOT_MARK('d');
 
+  /* Power the AHBP domain, which owns the PSRAM controller.
+   *
+   * This step was missing.  The authority's psram_hal_power_clk_enable()
+   * (cp/middleware/soc/common/hal/psram_hal.c) is:
+   *
+   *   sys_drv_psram_ldo_enable(1);
+   *   bk_delay_us(1000);
+   *   bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AHBP_PSRAM, ON);
+   *   sys_drv_psram_psram_disckg(1);
+   *   psram_hal_set_clk(PSRAM_80M);
+   *   sys_drv_dev_clk_pwr_up(CLK_PWR_ID_PSRAM, CLK_PWR_CTRL_PWR_UP);
+   *
+   * and this port had the LDO, the clock source and the peripheral clock but
+   * neither the power-domain vote nor the disckg.  It worked only because the
+   * domain happens to come out of reset powered: nothing here re-established
+   * it, so once the PM init switched AHBP off the PSRAM controller went with
+   * it -- and with PSRAM being 16 MiB of the heap, that is what corrupted the
+   * heap (see the note in bk7258_start.c).  Restoring these two lines makes
+   * PSRAM's claim on the domain explicit, the way upstream has it.
+   *
+   * sys_hal_module_power_ctrl() rather than bk_pm_module_vote_power_ctrl():
+   * the vote function in this port is glue/platform_shim.c:188, which handles
+   * only WIFIP_MAC, the BAKP submodules and the PHY submodules and answers
+   * BK_ERR_NOT_SUPPORT for everything else -- an AHBP vote there would be a
+   * no-op today.  It also lives under if(CONFIG_BK7258_WIFI), and this file is
+   * core boot code that must not depend on the Wi-Fi build.  The HAL entry is
+   * authority code in pm/ and compiles unconditionally.
+   *
+   * The reference counting the vote layer would add is not needed here: PSRAM
+   * is a permanent heap region from arm_addregion() onwards, so its claim never
+   * drops.  When platform_shim's vote layer is replaced by the authority's
+   * pm.c, this becomes the AHBP_PSRAM submodule vote and the call site is the
+   * only line that changes.
+   *
+   * Declared locally for the same reason as in bk7258_start.c: including
+   * sys_hal.h would pull the PM module's SoC headers into this file. */
+
+  {
+    extern void sys_hal_module_power_ctrl(int module, int power_state);
+    extern void sys_hal_psram_psram_disckg(uint32_t value);
+
+    /* POWER_MODULE_NAME_AHBP == 5, POWER_MODULE_STATE_ON == 0
+     * (aon_pmu/.../sys_types.h:325 and :417).  Passed as int because the
+     * enum types are in the header this file deliberately does not include;
+     * both parameters are plain enums with values well inside int range. */
+
+    sys_hal_module_power_ctrl(5 /* AHBP */, 0 /* STATE_ON */);
+
+    /* Bus clock always open, as upstream does immediately after the vote. */
+
+    sys_hal_psram_psram_disckg(1);
+  }
+
+  BK7258_BOOT_MARK('P');
+
   /* 80 MHz: select the 320 MHz source and divide by four. */
 
   modifyreg32(BK7258_SYS_CLKDIV2, BK7258_SYS_CLKDIV2_PSRAM_SEL,

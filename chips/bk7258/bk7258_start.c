@@ -161,6 +161,58 @@ void __start(void)
 
   bk7258_lowputc('2');
 
+  /* Power-manager hardware init, at the authority's position in the boot.
+   *
+   * Upstream calls this one line ahead of the RTOS entry point:
+   *
+   *   pm_hardware_init();                     <- startup_cpu0.c:402
+   *   bk_pm_cp1_auto_power_down_state_set(PM_CP1_AUTO_CTRL_DISABLE);
+   *   bk_pm_mem_auto_power_down_state_set(PM_MEM_AUTO_CTRL_DISABLE);
+   *   entry_main();                           <- startup_cpu0.c:407
+   *
+   * and pm_hardware_init() (pm.c:213) reaches sys_hal_low_power_hardware_init()
+   * through sys_drv_low_power_hardware_init() (sys_ps_driver.c:191).  nx_start()
+   * is our entry_main(), so this is the equivalent slot.
+   *
+   * Why the position is load-bearing rather than cosmetic.  The function powers
+   * the AHBP domain OFF, and PSRAM is one of that domain's sub-modules
+   * (POWER_SUB_MODULE_NAME_AHBP_PSRAM, sys_types.h:407).  PSRAM is also 16 MiB
+   * of our heap -- 99.5% of it -- added by arm_addregion() ->
+   * bk7258_psram_initialize() -> kumm_addregion() (bk7258_allocateheap.c:116).
+   * arm_addregion() runs from up_initialize() (arm_initialize.c:65), i.e. INSIDE
+   * nx_start(), so calling this before nx_start() means the domain is switched
+   * off while PSRAM is still nobody's memory, and bk7258_psram_initialize()
+   * powers it back on immediately afterwards -- the same order upstream has
+   * (startup switches AHBP off, bk_psram_init() votes AHBP_PSRAM back on).
+   *
+   * It used to be called from bk7258_wifi_initialize() instead, which is after
+   * PSRAM has been in the heap for the whole boot.  That is what corrupted the
+   * heap: switching the domain off took the contents of ~16 MiB of live heap
+   * with it, so mm_foreach() then asserted on the first inconsistent node
+   * (nuttx/mm/mm_heap/mm_foreach.c:120) while the ALLOCATOR's accounting still
+   * looked perfect -- free= was byte-identical across every probe.  Established
+   * by two board experiments: with the whole call skipped the heap survived 40
+   * walks (/tmp/0910-vela-9.log), and with the call restored but only the AHBP
+   * line disabled it survived 76 (/tmp/0910-vela-10.log).
+   *
+   * Safe this early: every callee is a sys_ll_ or aon_pmu_ll_ register write to
+   * the always-on SYS (0x44010000) and AON PMU (0x44000000) domains, and the
+   * only timing dependency is bk_delay_us() -> up_udelay(), a busy loop over
+   * the compile-time CONFIG_BOARD_LOOPSPERMSEC (arm_udelay.c:57) that needs
+   * neither a timer nor the scheduler.  AHBP being off is separately known to
+   * be survivable here -- the board kept running and kept printing with it off
+   * in /tmp/0910-vela-8.log.
+   *
+   * Declared locally rather than by including sys_hal.h: that header pulls in
+   * the PM module's SoC headers, and this file deliberately includes nothing
+   * but NuttX and the chip's own memory map. */
+
+  {
+    extern void sys_hal_low_power_hardware_init(void);
+
+    sys_hal_low_power_hardware_init();
+  }
+
   /* Trace marker: boot reached nx_start. */
   bk7258_lowputc('S');
   bk7258_lowputc('>');
