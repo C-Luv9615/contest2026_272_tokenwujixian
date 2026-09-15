@@ -2,18 +2,18 @@
 
 ## 现在到哪了
 
-关联、ARP、ICMP、DHCP 四层都在板上跑通过。最后一轮干净固件(无探针、无 `DEBUG_NET_INFO`)的结果:
+扫描、关联、四次握手、ARP、ICMP、DHCP、DNS 都在板上跑通过,能 ping 通公网。
 
-```
-CTRL-EVENT-CONNECTED, add hw key x2
-dhcpc_request: Got IP address 192.168.190.248
-ifconfig: inet addr:192.168.190.248 DRaddr:192.168.190.241 Mask:255.255.255.0
-ping -c 4 192.168.190.241: 4 packets transmitted, 4 received, 0% packet loss
-```
+两份证据日志,PSK 都已脱敏:
 
-证据在 `evidence-20260915/bk7258-dhcp-ping-clean.log`,PSK 已脱敏。
+| 日志 | 内容 |
+|---|---|
+| `evidence-20260915/bk7258-dhcp-ping-clean.log` | 干净固件(无探针、无 `DEBUG_NET_INFO`)ping 网关 `4 packets transmitted, 4 received, 0% packet loss` |
+| `evidence-20260915/bk7258-dns-public-ping.log` | `inet addr:192.168.1.8 DRaddr:192.168.1.1`,域名解析后 ping 百度 `10 packets transmitted, 10 received`,RTT 29 到 56 ms |
 
-还有三个已知问题没解决,列在最后一节。其中扫描失败率约 30%,会让任何一次板上验证有三成概率白跑,重敲一次 connect 即可。
+`dhcpc_request: Got IP address` 那行只在 0915-3 出现过,当时开着 `DEBUG_NET_INFO`。删掉那个配置之后它不再打印,所以现在 DHCP 成功看 `ifconfig` 的 `inet addr`。
+
+最后一节列了六个未解决项。其中扫描失败率约 30%,会让任何一次板上验证有三成概率白跑,重敲一次 connect 即可。
 
 ## 根因清单
 
@@ -143,9 +143,21 @@ ping -c 4 192.168.190.241: 4 packets transmitted, 4 received, 0% packet loss
 
 同一条规则在 `bk7258_wifi_osal_queue_send_common()` 里已经写过,这个文件漏了。
 
+**14. UART ISR 不按使能位分发**(`5766e76`)
+
+症状:上面那个 `serial.c:2064` 的 assert 更容易被撞上。
+
+根因:ISR 只用 `0xff` 掩 INT_STATUS,从不查 `priv->ie`。TX_READY 报告的是 FIFO 有写空间,所以它几乎一直置位,包括 `bk7258_uart_txint(dev, false)` 已经把它从 `priv->ie` 和 INT_ENABLE 里清掉很久之后。于是每次 RX 中断都额外跑一次 `uart_xmitchars()`,而发送缓冲是空的。
+
+这次白跑有代价:`uart_xmitchars()` 进门就 `uart_spinlock(dev, true)`,也就是 spin_lock 加 sched_lock,配对的解锁在计数回到 0 时会走 `nxsched_unlock()` 到 `nxsched_merge_pending()`,可能从中断上下文里切任务。让它在每个 RX 中断都跑,而不是只在真有待发数据时跑,把那条路径的窗口拉宽了。
+
+修法:清除仍用未掩码的 `raw`,否则未使能的位会 latch 在 INT_STATUS 里永久重触发中断线;分发只看 `raw & priv->ie`。树内驱动都这么做,`stm32_serial.c` 每个分支都同时判 `priv->ie` 和状态位,这个驱动是异类。
+
+边界:修掉了一处确定的偏离,但没关掉那个 assert。合法的 TX 中断照样会调 `uart_xmitchars()`,危险路径还在,这只是不再无谓地走它。
+
 ### 启动与内存
 
-**14. PM 初始化关掉了 PSRAM 所在的电源域**(`51a3aef`)
+**15. PM 初始化关掉了 PSRAM 所在的电源域**(`51a3aef`)
 
 症状:`mm_foreach()` assert,而分配器自己的记账看起来完好,`free=` 每次探测都逐字节相同。
 
@@ -153,7 +165,7 @@ ping -c 4 192.168.190.241: 4 packets transmitted, 4 received, 0% packet loss
 
 修法:PM 硬件初始化移到 `nx_start()` 之前。
 
-**15. 链接脚本的孤儿段没被初始化**(`e74d83e`)
+**16. 链接脚本的孤儿段没被初始化**(`e74d83e`)
 
 症状:`mb_chnl_open()` 读到 `log_chnl == 0`,无任何诊断。
 
@@ -161,13 +173,13 @@ ping -c 4 192.168.190.241: 4 packets transmitted, 4 received, 0% packet loss
 
 修法:把 `.dtcm_sec_data` 折进 `.data`。
 
-**16. 释放从核前检查了不该检查的位**(`a8321d6`)
+**17. 释放从核前检查了不该检查的位**(`a8321d6`)
 
 根因:`sys_hal_power_config_default()` 通过置 halt 和 pwr_dw 把两个从核关掉,所以 `board_start_cpu()` 运行时 halt 本就是置位的,而释放流程要求它已清零。这个检查在 PM 初始化前移之后才第一次被真正执行到。
 
 ### 时序余量
 
-**17. AP 双核 SMP 让 PBKDF2 超出 BSS 有效期**(`7d7436c`,workaround)
+**18. AP 双核 SMP 让 PBKDF2 超出 BSS 有效期**(`7d7436c`,workaround)
 
 症状:关联必失败,扫到的 BSS 在关联工作项执行前就被回收。
 
@@ -179,11 +191,11 @@ ping -c 4 192.168.190.241: 4 packets transmitted, 4 received, 0% packet loss
 
 这三条不是 bug,但没有它们前面的排查都做不了。
 
-**18. NSH 网络工具没编进去**(`bf6fb3f`):`ifconfig`/`ifup`/`renew`/`ping` 全部不可用,关联通了也没法配地址或造流量。DHCP 客户端还需要 `NET_BROADCAST` 和 `NET_SOCKOPTS` 同时开(`dhcpc.c` 用 `SO_RCVTIMEO`、`SO_BINDTODEVICE`、`INADDR_BROADCAST`,而 `udp_input.c` 的广播接收要求两者都在)。
+**19. NSH 网络工具没编进去**(`bf6fb3f`):`ifconfig`/`ifup`/`renew`/`ping` 全部不可用,关联通了也没法配地址或造流量。DHCP 客户端还需要 `NET_BROADCAST` 和 `NET_SOCKOPTS` 同时开(`dhcpc.c` 用 `SO_RCVTIMEO`、`SO_BINDTODEVICE`、`INADDR_BROADCAST`,而 `udp_input.c` 的广播接收要求两者都在)。
 
-**19. 日志噪声淹没证据**(`e7f563a`):SARADC 采样器每秒一轮,每轮无条件打四条 LOG_INFO。一次抓包里约 7% 是这些行,把 wpa_supplicant 的关联轨迹挤出了可见窗口。
+**20. 日志噪声淹没证据**(`e7f563a`):SARADC 采样器每秒一轮,每轮无条件打四条 LOG_INFO。一次抓包里约 7% 是这些行,把 wpa_supplicant 的关联轨迹挤出了可见窗口。
 
-**20. 收帧计数与 ARP 表不可见**(`02526fd`)
+**21. 收帧计数与 ARP 表不可见**(`02526fd`)
 
 关联成功完全不能证明数据路径通。EAPOL 在 `rx_submit()` 之前就被分流走了(见第 9 条),而 M1/M3 在 802.11 层不加密,所以四次握手跑完也说不出有没有一个普通数据帧到过协议栈。这个 commit 是补仪表,它自己没修任何失败。
 
@@ -196,6 +208,21 @@ ping -c 4 192.168.190.241: 4 packets transmitted, 4 received, 0% packet loss
 - `bk7258_wifi_reclaim()` 保持空实现,但注释写清了为什么。它不是 stub:`netpkt_free()` 自己归还配额(`netdev_upperhalf.c` 里对 `quota_ptr` 的 `atomic_add`),而 `transmit()` 在返回前就释放了 netpkt,所以配额在消耗它的同一个调用栈上就还掉了,这个驱动从不会在 transmit 之后继续持有 netpkt。这个 op 仍然注册,因为不注册的话 `netdev_upper_can_tx()` 没有恢复路径,任何一次配额丢失会从"损失一个轮询周期"变成永久致命。
 
 这个 commit 还撤回了两个关于 `ENETUNREACH` 的假设,没让它们悬着:`ifconfig` 配地址不会把接口拉下来(`SIOCSIFADDR` 在 `netdev_ioctl.c:1162` 只做比较、赋值、通知 netlink,从不碰 `IFF_UP`);TX 配额也没有泄漏,理由就是上面那条 `netpkt_free()` 的读法。
+
+**22. DNS 客户端没编进去**(`87e6927`)
+
+症状:任何域名都解析不了,失败在发包之前。
+
+```
+nsh> ping www.baidu.com
+ERROR: ping_gethostip(www.baidu.com) failed
+```
+
+根因:`CONFIG_NETDB_DNSCLIENT` 没开,于是 `netlib_obtainipv4addr.c:81-91` 整段被编掉,DHCP 已经拿回来的 nameserver 被静默丢弃。租约里本来就带着它,0915-3 那轮打过 `Got DNS server 192.168.190.241`。
+
+修法一行。`NETDB_DNSCLIENT` 自己会 select `LIBC_NETDB` 和 `NET_SOCKOPTS`,依赖的 `NET` 和 `NET_UDP` 都已经在了。`DEFAULT_SMALL` 是关的,解析缓存保持默认 8 条。
+
+判据:`ping www.baidu.com` 解析出 `110.242.74.102` 并 10 发 10 收。路由不需要另外配,`CONFIG_NET_ROUTE` 保持关闭对单网卡是对的,`arp_send()` 在目的地址不在本子网时会退回用 `dev->d_draddr`,而那是 DHCP 设好的。
 
 ## 方法上的教训
 
@@ -231,7 +258,15 @@ strings nuttx.elf | grep -E "dhcp#%u dport|Received OFFER from"
 
 **跨 IOB 链丢包的机制。** 手算 `iob_copyout()` 对这个帧是正确的:偏移 28,第一个 IOB 拷 154,第二个拷 156,合计 310,正是 DHCP 报文长度。所以读代码解释不了这个失败,而三轮都是同一图形。`chain#` 探针测的是 `rx_submit` 时刻,链在那里是对的;从那里到 `udp_recvfrom` 之间还有 `netdev_iob_replace`、`eth_input`、`ipv4_input`、`udp_input`,没有测过。当前配置下这段是死代码,谁把 `NET_ETH_PKTSIZE` 提到 626 以上会再撞上。
 
-**`uart_spinunlock` 的 assert。** 一轮 ping 中途 assert 在 `serial.c:2064`,用户栈是 ping 自己的 `printf`。`CONFIG_SPINLOCK` 和 `CONFIG_SMP` 都是关的,所以是单核下 `lock->count` 或 `sched_unlock()` 的配平问题。那一轮开着 `DEBUG_NET_INFO` 和三个探针,日志量比正常大一个数量级;删掉后没复现,但只有一轮,只能说未回归。
+**`sched_unlock` 的 assert。** 出现过两次,都来自 `sched_unlock()` 的 `DEBUGASSERT(lockcount > 0)`。那个宏在调用点展开,所以报的是先执行到的调用者,不是弄坏计数的人:0915-6 报 `serial.c:2064`,在 ping 的 `printf` 路上;0915-12 报 `task_exithook.c:479`,renew 退出时。含义是解锁那一刻计数已经为 0。
+
+我们这侧查过的三条路径都清白。ISR 回调用 `lockbal` 探针测了四轮(0915-13、15、16、17),零输出,而同期 MAC 中断很忙,单 0915-13 就有 16 次 `bmsg_rx_handler` 和 10 条 `txcfm`,它们只能经我们的 trampoline 进来。临界区 shim 在 `CONFIG_SMP=n` 下等于 `up_irq_save()`,不碰计数。崩溃栈上的 `nxsem_post` 也不碰,`sem_post.c:185` 的 `sched_lock()` 被 `PRIORITY_INHERITANCE` 和 `PRIORITY_PROTECT` 双关编掉了。
+
+一个推断在这里作废。我曾把 `xPSR` 低 9 位等于 11(SVCall)读作"assert 落在上下文切换里",但 `_assert()` 自己就是经 `SYS_assert_handler` 进来的(`syscall.h:503`、`arm_svcall.c:299`),所以这个 build 里每个 assert 都会报 SVCall。那个字段对原始现场零信息量,建立在它上面的推理一并撤回。
+
+之后四轮没再现,基线 2/26,不构成修好的证据。下一条待查线索:`task_exithook.c:469/479` 那对 `sched_lock`/`sched_unlock` 是两个独立的宏,各自调一次 `this_task()`,而 `task_exit.c:100-107` 的注释写着此时"就绪队列头与正在运行的线程不对应",它因此在 `:109` 直接 `rtcb->lockcount++` 而不调 `sched_lock()`。`nxtask_exithook` 是否落在那个窗口里,没有验证。
+
+顺带一处适配层的审查结论,查完保持原样:把 `bk7258_wifi_enter_critical_cb` 同时注册进 `_rtos_enter_critical` 和 `_rtos_disable_int` 与权威一致,权威的 `rtos_disable_int_wrapper()` 同样返回 `rtos_enter_critical()`(`third_party/.../bk_wifi_adapter.c:829`),用真正 `rtos_disable_int()` 的是 PHY adapter。
 
 **扫描约 30% 失败。** 24 轮统计:`chan_survey` 打满 14 个信道则关联 15/18 成功;中途停则 0/6,`lmac_connect_req` 根本不发。失败的 6 轮里有 4 轮发生在 RX 路径改动之前,是既有问题。`iob_trimhead` 与扫描失败的相关性(见另一份文档)是同一现象的早期观察,当时也没找到机制。
 
@@ -246,13 +281,19 @@ strings nuttx.elf | grep -E "dhcp#%u dport|Received OFFER from"
 板上,按顺序:
 
 ```
-bk7258_wifi_runtime connect Luv <psk>
+bk7258_wifi_runtime connect <ssid> <psk>
 ifup wlan0
 renew wlan0
-ping -c 4 192.168.190.241
+ifconfig
+ping -c 4 <网关>
+ping -c 4 www.baidu.com
 ```
 
 `connect` 约有三成概率因扫描失败而超时,看不到 `CTRL-EVENT-CONNECTED` 就重敲一次。
+
+`ifconfig` 要单独敲一次:`Got IP address` 那行是 ninfo,`DEBUG_NET_INFO` 删掉之后不再打印,现在判断 DHCP 成功只能看 `inet addr`。
+
+先确认 AP 自己能上网。`Xiaomi_6C87` 那台路由器连续两轮 DHCP 失败,后来发现它本身就不通网,DHCP 服务大概一起坏着。三个 DISCOVER 都拿到了 802.11 ACK,失败在 3 次重试用尽。已经验证过的 AP 是两个手机热点,`Luv` 给 192.168.190.x,`FoggySpot` 给 192.168.1.x。
 
 构建与烧录走 `.claude/skills/bk7258-worktree-build`:
 
