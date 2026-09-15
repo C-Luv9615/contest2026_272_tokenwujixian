@@ -195,6 +195,41 @@ static int bk7258_wifi_runtime_scan(FAR const char *ssid)
   return 1;
 }
 
+/* Runs the association request on its own thread.
+ *
+ * The vendor connect chain (bk_wifi_sta_start -> wlan_sta_set ->
+ * wpa_psk_request -> bk_wifi_sta_connect) nests about as deeply as init does,
+ * and this NSH application only gets the 4 KiB stack its CMakeLists asks for,
+ * so the request cannot be issued from main() -- same reasoning the scan
+ * command already documents for the init sequence below.
+ *
+ * ssid and psk arrive through argv because NuttX copies the argument strings
+ * onto the new task's stack (nxtask_setup_stackargs), so they stay valid after
+ * main() moves on, and they are gone once this thread exits -- no module-level
+ * variable holds the passphrase for the lifetime of the process.
+ */
+
+static int bk7258_wifi_connect_worker(int argc, char *argv[])
+{
+  int ret;
+
+  /* argv[0] is the task name; the two credentials follow it. */
+
+  if (argc < 3 || argv[1] == NULL || argv[2] == NULL)
+    {
+      syslog(LOG_ERR, "[BK7258] connect worker: missing arguments\n");
+      return -EINVAL;
+    }
+
+  ret = bk7258_wifi_sta_connect(argv[1], argv[2]);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "[BK7258] connect request rejected: %d\n", ret);
+    }
+
+  return ret;
+}
+
 static int bk7258_wifi_runtime_worker(int argc, char *argv[])
 {
   int ret;
@@ -232,51 +267,152 @@ static int bk7258_wifi_runtime_init(void)
   return 0;
 }
 
-int main(int argc, char **argv)
+/* Bring the vendor stack up unless it already is, and wait for it.
+ *
+ * Extracted from the scan command, which needed exactly this and now shares
+ * it with connect: the team hw_init (power gates + clocks) and bk_wifi_init()
+ * only run inside bk7258_wifi_initialize(), and a bare scan or connect must
+ * not run against an unpowered MAC/PHY domain.  That sequence needs its own
+ * large stack (the vendor init chain nests deeply), so it goes on the same
+ * kthread the init command uses rather than on this NSH thread.
+ */
+
+static bool bk7258_wifi_runtime_ensure_ready(FAR const char *what)
 {
-  if (argc < 2 || argc > 3)
+  int pid;
+  int i;
+
+  if (bk7258_wifi_is_ready())
     {
-      printf("usage: bk7258_wifi_runtime init|scan [ssid]\n");
+      return true;
+    }
+
+  pid = kthread_create("bk7258-wifi", BK7258_WIFI_APP_PRIORITY,
+                       BK7258_WIFI_APP_STACKSIZE,
+                       bk7258_wifi_runtime_worker, NULL);
+  if (pid < 0)
+    {
+      printf("[bk7258_wifi_runtime] %s: init thread failed: %d\n", what, pid);
+      return false;
+    }
+
+  for (i = 0; i < 300 && !bk7258_wifi_is_ready(); i++)
+    {
+      usleep(100 * 1000);
+    }
+
+  if (!bk7258_wifi_is_ready())
+    {
+      printf("[bk7258_wifi_runtime] %s: init did not complete; "
+             "see syslog above\n", what);
+      return false;
+    }
+
+  return true;
+}
+
+/* Association takes a while: the vendor first runs a directed scan, then
+ * authenticates, associates and completes the 4-way handshake.  The reference
+ * run on the authoritative board spends ~1.7 s in the scan alone, so poll well
+ * past that before giving up. */
+
+#define BK7258_WIFI_CONNECT_POLL_MS     100
+#define BK7258_WIFI_CONNECT_POLL_COUNT  300   /* 30 s total */
+
+static int bk7258_wifi_runtime_connect(FAR const char *ssid,
+                                       FAR const char *psk)
+{
+  FAR char *args[3];
+  int last_state = -1;
+  int state;
+  int reason;
+  int pid;
+  int i;
+
+  /* The credentials reach the worker through argv, which NuttX copies onto
+   * the new task's stack, so they stay valid after this function returns and
+   * disappear with the worker.  Only the SSID and the passphrase LENGTH are
+   * ever printed -- never the passphrase itself. */
+
+  args[0] = (FAR char *)ssid;
+  args[1] = (FAR char *)psk;
+  args[2] = NULL;
+
+  printf("[bk7258_wifi_runtime] connect: ssid=\"%s\", psk %u chars\n",
+         ssid, (unsigned)strlen(psk));
+
+  pid = kthread_create("bk7258-connect", BK7258_WIFI_APP_PRIORITY,
+                       BK7258_WIFI_APP_STACKSIZE,
+                       bk7258_wifi_connect_worker, args);
+  if (pid < 0)
+    {
+      printf("[bk7258_wifi_runtime] connect: thread failed: %d\n", pid);
       return 1;
     }
 
-  if (strcmp(argv[1], "init") == 0)
+  /* Report every state change as it happens, so a failure shows WHERE it
+   * stopped rather than just that it never connected.  There is deliberately
+   * no early exit on a failure state: the vendor reports DISCONNECTED both
+   * before the attempt starts and after it fails, so bailing on it would
+   * often abort a connection still in progress.  A genuine failure is read
+   * from the reason code in the final line below. */
+
+  for (i = 0; i < BK7258_WIFI_CONNECT_POLL_COUNT; i++)
+    {
+      if (bk7258_wifi_sta_connect_status(&state, &reason) == 0 &&
+          state != last_state)
+        {
+          printf("  state=%s(%d) reason=%s(%d)\n",
+                 bk7258_wifi_sta_state_str(state), state,
+                 bk7258_wifi_sta_reason_str(reason), reason);
+          last_state = state;
+        }
+
+      if (bk7258_wifi_sta_is_connected())
+        {
+          printf("[bk7258_wifi_runtime] connect: CONNECTED\n");
+          return 0;
+        }
+
+      usleep(BK7258_WIFI_CONNECT_POLL_MS * 1000);
+    }
+
+  state = -1;
+  reason = -1;
+  bk7258_wifi_sta_connect_status(&state, &reason);
+  printf("[bk7258_wifi_runtime] connect: not connected after %d s; "
+         "final state=%s(%d) reason=%s(%d)\n",
+         (BK7258_WIFI_CONNECT_POLL_MS * BK7258_WIFI_CONNECT_POLL_COUNT) / 1000,
+         bk7258_wifi_sta_state_str(state), state,
+         bk7258_wifi_sta_reason_str(reason), reason);
+  return 1;
+}
+
+static void bk7258_wifi_runtime_usage(void)
+{
+  printf("usage: bk7258_wifi_runtime init\n"
+         "       bk7258_wifi_runtime scan [ssid]\n"
+         "       bk7258_wifi_runtime connect <ssid> <psk>\n");
+}
+
+int main(int argc, char **argv)
+{
+  if (argc < 2)
+    {
+      bk7258_wifi_runtime_usage();
+      return 1;
+    }
+
+  if (strcmp(argv[1], "init") == 0 && argc == 2)
     {
       return bk7258_wifi_runtime_init();
     }
 
-  if (strcmp(argv[1], "scan") == 0)
+  if (strcmp(argv[1], "scan") == 0 && argc <= 3)
     {
-      /* A bare scan must not run against an unpowered MAC/PHY domain: the
-       * team hw_init (power gates + clocks) and bk_wifi_init() only run
-       * inside bk7258_wifi_initialize().  That sequence needs its own large
-       * stack (the vendor init chain nests deeply), so reuse the exact
-       * kthread path the init command uses and wait for completion here
-       * instead of running it on this NSH thread. */
-      if (!bk7258_wifi_is_ready())
+      if (!bk7258_wifi_runtime_ensure_ready("scan"))
         {
-          int pid = kthread_create("bk7258-wifi", BK7258_WIFI_APP_PRIORITY,
-                                   BK7258_WIFI_APP_STACKSIZE,
-                                   bk7258_wifi_runtime_worker, NULL);
-
-          if (pid < 0)
-            {
-              printf("[bk7258_wifi_runtime] scan: init thread failed: %d\n",
-                     pid);
-              return 1;
-            }
-
-          for (int i = 0; i < 300 && !bk7258_wifi_is_ready(); i++)
-            {
-              usleep(100 * 1000);
-            }
-
-          if (!bk7258_wifi_is_ready())
-            {
-              printf("[bk7258_wifi_runtime] scan: init did not complete; "
-                     "see syslog above\n");
-              return 1;
-            }
+          return 1;
         }
 
       /* `scan` alone stays a broadcast scan; `scan <ssid>` runs the directed
@@ -285,6 +421,26 @@ int main(int argc, char **argv)
       return bk7258_wifi_runtime_scan(argc == 3 ? argv[2] : NULL);
     }
 
-  printf("usage: bk7258_wifi_runtime init|scan [ssid]\n");
+  if (strcmp(argv[1], "connect") == 0)
+    {
+      /* Credentials are command-line only, by design: nothing here writes the
+       * passphrase to a file, a defconfig or a compiled-in default. */
+
+      if (argc != 4)
+        {
+          printf("[bk7258_wifi_runtime] connect needs an SSID and a PSK\n");
+          bk7258_wifi_runtime_usage();
+          return 1;
+        }
+
+      if (!bk7258_wifi_runtime_ensure_ready("connect"))
+        {
+          return 1;
+        }
+
+      return bk7258_wifi_runtime_connect(argv[2], argv[3]);
+    }
+
+  bk7258_wifi_runtime_usage();
   return 1;
 }

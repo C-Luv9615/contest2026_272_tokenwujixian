@@ -48,6 +48,32 @@
 #include "bk_phy_adapter.h"
 #include "bk_rf_adapter.h"
 #include <syslog.h>
+
+/* ke_l2_packet_tx() and struct ke_sk_params, the supplicant-side entry. */
+
+#include <wpa_compat/sk_intf.h>
+
+/* Ethernet header layout for the EAPOL split in ethernetif_input().
+ *
+ * Spelled out locally instead of including "lwip/prot/ethernet.h": that header
+ * pulls in lwip/prot/ieee.h, which declares ETHTYPE_* as enum members, while
+ * NuttX's nuttx/net/ethernet.h:55-56 defines ETHTYPE_ARP and ETHTYPE_IP as
+ * macros -- and that header is already in scope here through
+ * nuttx/net/netdev.h.  The macros then expand inside the enum
+ * ("ETHERTYPE_ARP = 0x0806u") and the whole enum fails to parse.  The vendored
+ * glue can use the lwIP header only because it never includes NuttX net
+ * headers.
+ *
+ * Reading the two ethertype bytes by hand also keeps the comparison in network
+ * byte order, so no htons() and no <arpa/inet.h> are needed, and it does not
+ * assume the payload is 2-byte aligned.  ETH_PAD_SIZE is 0 in this port, so the
+ * 802.3 header is exactly dest[6] + src[6] + type[2].
+ */
+
+#define BK7258_ETH_HDR_LEN      14u
+#define BK7258_ETH_SRC_OFFSET    6u
+#define BK7258_ETH_TYPE_OFFSET  12u
+#define BK7258_ETHTYPE_EAPOL    0x888eu
 #endif
 
 extern int bmsg_tx_sender(struct pbuf *p, uint32_t vif_idx);
@@ -97,7 +123,11 @@ static int bk7258_wifi_rx_enqueue(struct bk7258_wifi_s *priv,
 }
 
 /* Armino's connector callback for an Ethernet frame. The vendor pbuf is
- * copied into the NuttX queue and released only after the copy completes. */
+ * copied into the NuttX queue and released only after the copy completes.
+ *
+ * EAPOL is split off before that copy, see the block below.
+ */
+
 void ethernetif_input(int iface, struct pbuf *p, uint8_t dst_idx)
 {
   struct bk7258_vpkt *vpkt;
@@ -114,6 +144,86 @@ void ethernetif_input(int iface, struct pbuf *p, uint8_t dst_idx)
         }
       return;
     }
+
+#if CONFIG_BK7258_WIFI_VENDOR_RUNTIME
+  /* Hand EAPOL to wpa_supplicant instead of to the NuttX stack.
+   *
+   * Transcribed from the vendor's own bridge, ethernetif_input() in
+   * cp/components/lwip_intf_v2_1/lwip-2.1.2/port/wlanif.c:331 -- there the
+   * EAPOL test is likewise the first thing done to a frame, ahead of the netif
+   * lookup, with this comment: "EAPOL must reach wpa_supplicant even when lwip
+   * netif is not registered yet".
+   *
+   * Why it has to be here: the 4-way handshake is carried in 802.3 frames with
+   * ethertype 0x888E, and every 802.3 frame arrives through this one function
+   * (rwnx_rx.c:728, the tail of rwm_upload_data(), which is registered as
+   * g_rwnx_connector.data_outbound_func in rw_ieee80211.c).  Without this
+   * split, M1 was copied into the NuttX RX queue, where the network stack has
+   * no consumer for 0x888E and drops it: wpa_supplicant reached ASSOCIATED,
+   * armed its 10 s auth timeout, never saw M1, and the AP disassociated us
+   * with reason 15 (4WAY_HANDSHAKE_TIMEOUT) about four seconds later.  Board-
+   * verified three times per run in the sta-hwioctlfix image.
+   *
+   * Management frames were never affected, which is why auth/assoc/beacon all
+   * worked: those take the separate rwnx_rx_mgmt_any() path.
+   *
+   * This gap was known and recorded, not newly discovered:
+   * glue/include/wpa_compat/sk_intf.h:20-22 states that "EAPOL/WAI (0x888e)
+   * demux to the WPA entity is the network bridge's job (plan 11.4.2), not this
+   * header's" -- the bridge is this function, and the work was never done.
+   *
+   * The self-echo filter is the vendor's too: our own transmitted EAPOL can be
+   * looped back by the MAC, and feeding it to the supplicant would corrupt the
+   * handshake state machine.  Frames whose source is our own address are
+   * dropped rather than forwarded.
+   *
+   * Runtime-gated because ke_l2_packet_tx() lives in sk_intf.c, which is only
+   * compiled under CONFIG_BK7258_WIFI_VENDOR_RUNTIME (CMakeLists.txt:158); the
+   * runtime-disabled CP image must not reference it.
+   */
+
+  if (p->len > BK7258_ETH_HDR_LEN)
+    {
+      FAR const uint8_t *eth = (FAR const uint8_t *)p->payload;
+      uint16_t ethtype = ((uint16_t)eth[BK7258_ETH_TYPE_OFFSET] << 8) |
+                          (uint16_t)eth[BK7258_ETH_TYPE_OFFSET + 1u];
+
+      if (ethtype == BK7258_ETHTYPE_EAPOL)
+        {
+          struct ke_sk_params params;
+          uint8_t own_mac[6];
+
+          /* The vendor bridge compares the frame's source against the vif's
+           * in-RAM MAC (wlanif.c: wifi_netif_vif_to_mac(vif)).  Our equivalent
+           * is the vendor's own accessor: it resolves to bk_get_mac(), which
+           * caches the address in RAM after one flash read at first use
+           * (hal_port_mac.c:126-137) -- so this stays cheap on the RX path.
+           * bk7258_wifi_board_get_mac() was rejected for exactly that reason:
+           * it re-reads the flash partition on every call, here inside the
+           * core thread during the 4-way window. */
+
+          if (bk_wifi_sta_get_mac(own_mac) == BK_OK &&
+              memcmp(own_mac, eth + BK7258_ETH_SRC_OFFSET,
+                     sizeof(own_mac)) == 0)
+            {
+              pbuf_free(p);
+              return;
+            }
+
+          /* buf/len describe the whole 802.3 frame, header included, exactly
+           * as the vendor bridge passes it. */
+
+          params.buf  = (unsigned char *)p->payload;
+          params.len  = p->len;
+          params.flag = iface;
+          params.freq = 0;
+
+          ke_l2_packet_tx(&params);
+          pbuf_free(p);
+          return;
+        }
+    }
+#endif /* CONFIG_BK7258_WIFI_VENDOR_RUNTIME */
 
   vpkt = bk7258_vpkt_alloc(p->tot_len, true);
   if (vpkt == NULL)
@@ -1081,6 +1191,284 @@ bool bk7258_wifi_is_ready(void)
 {
   return g_bk7258_wifi.registered;
 }
+
+/****************************************************************************
+ * STA association
+ *
+ * Transcribed from the authority's own caller, demo_sta_app_init()
+ * (cp/components/bk_wifi/src/wifi_api.c:185-210), which is the variant that
+ * takes just an SSID and a passphrase -- no BSSID, no hard-coded channel.
+ * That file also sits in our tree byte-identical to the authority copy (it is
+ * simply not compiled), so the sequence below can be checked against it line
+ * by line.  The two callees are byte-identical to the authority as well: our
+ * wifi_v2.c differs from cp/components/bk_wifi/src/wifi_v2.c in only four
+ * places (include depth, one #if/#ifdef, the g_wifi_funcs/g_wifi_vars
+ * definition that belongs to funcs_fill.c here, and a trailing newline) --
+ * none of them inside a function body.
+ *
+ * Guarded like bk7258_wifi_scan(): bk_wifi_sta_start() reaches
+ * wpa_psk_request() and wlan_sta_enable(), whose providers
+ * (wpa_psk_cache.c, wpa_ctrl_iface.c, sa_station.c) are inside the
+ * CONFIG_BK7258_WIFI_VENDOR_RUNTIME block of CMakeLists.txt, so the
+ * runtime-disabled CP image must not reference them.
+ ****************************************************************************/
+
+#if CONFIG_BK7258_WIFI_VENDOR_RUNTIME
+
+/* Both vendor buffers are NUL-terminated (wifi_types.h:63 and :67):
+ * WIFI_SSID_STR_LEN == 32+1, WIFI_PASSWORD_LEN == 64+1.  A WPA2 passphrase is
+ * 8..63 characters, or exactly 64 hex digits when a raw PMK is supplied. */
+
+#define BK7258_WIFI_PSK_MIN_LEN  8u
+
+int bk7258_wifi_sta_connect(FAR const char *ssid, FAR const char *psk)
+{
+  wifi_sta_config_t config;
+  size_t ssid_len;
+  size_t psk_len;
+  bk_err_t ret;
+
+  if (ssid == NULL || psk == NULL)
+    {
+      return -EINVAL;
+    }
+
+  /* The vendor call chain asserts on an uninitialized stack: bk_wifi_init()
+   * must have run so that cfg_param_init() has allocated g_sta_param_ptr,
+   * which bk_wifi_sta_set_config() dereferences without a NULL check. */
+
+  if (!bk7258_wifi_is_ready())
+    {
+      return -ENODEV;
+    }
+
+  ssid_len = strlen(ssid);
+  psk_len = strlen(psk);
+
+  /* DELIBERATE DEVIATION from the transcribed original, which uses
+   * os_strcpy() for both fields and length-checks only the SSID
+   * (wifi_api.c:191-204).  That is safe there because its arguments are
+   * compile-time constants; ours arrive from a command line, so an
+   * over-long argument would run off a 33- or 65-byte struct member.  The
+   * copies below are bounded and both lengths are rejected up front. */
+
+  if (ssid_len == 0u || ssid_len >= sizeof(config.ssid))
+    {
+      syslog(LOG_ERR, "[BK7258-WIFI] connect: ssid length %u, need 1..%u\n",
+             (unsigned)ssid_len, (unsigned)(sizeof(config.ssid) - 1u));
+      return -EINVAL;
+    }
+
+  if (psk_len < BK7258_WIFI_PSK_MIN_LEN || psk_len >= sizeof(config.password))
+    {
+      syslog(LOG_ERR, "[BK7258-WIFI] connect: psk length %u, need %u..%u\n",
+             (unsigned)psk_len, (unsigned)BK7258_WIFI_PSK_MIN_LEN,
+             (unsigned)(sizeof(config.password) - 1u));
+      return -EINVAL;
+    }
+
+  /* Zeroed exactly as the original does with `= {0}`.  Two consequences are
+   * load-bearing rather than incidental:
+   *   - reserved[32] must be all zero or wifi_sta_validate_config() rejects
+   *     the config outright (wifi_v2.c:2669, WIFI_RESERVED_BYTE_VALUE == 0);
+   *   - is_user_fast_connect must stay 0, otherwise validate_config takes the
+   *     g_fci overwrite branch at wifi_v2.c:2672.
+   * security is left 0 (== WIFI_SECURITY_NONE) because the original leaves it
+   * so; the STA path never reads it -- wifi_sta_set_global_config()
+   * (wifi_v2.c:2732) copies ssid and password but not security.
+   */
+
+  memset(&config, 0, sizeof(config));
+  memcpy(config.ssid, ssid, ssid_len);
+  memcpy(config.password, psk, psk_len);
+
+  /* SSID and lengths only.  The passphrase itself is never logged, here or
+   * in the status path. */
+
+  syslog(LOG_INFO, "[BK7258-WIFI] connect: ssid=\"%s\" (%u), psk %u chars\n",
+         config.ssid, (unsigned)ssid_len, (unsigned)psk_len);
+
+  /* set_config before start, as in the original.  set_config is also what
+   * populates g_sta_param_ptr->ssid/key, which is what wpa_psk_request()
+   * reads inside bk_wifi_sta_start() (wifi_v2.c:2477); calling start alone
+   * would derive a PSK from an empty SSID and key.  If a link is already up,
+   * set_config disconnects first and re-connects on its own
+   * (wifi_v2.c:2983-3010). */
+
+  ret = bk_wifi_sta_set_config(&config);
+  if (ret != BK_OK)
+    {
+      syslog(LOG_ERR, "[BK7258-WIFI] connect: set_config failed=%d\n",
+             (int)ret);
+      return -EIO;
+    }
+
+  ret = bk_wifi_sta_start();
+  if (ret != BK_OK)
+    {
+      syslog(LOG_ERR, "[BK7258-WIFI] connect: sta_start failed=%d\n",
+             (int)ret);
+      return -EIO;
+    }
+
+  /* Association and the 4-way handshake run asynchronously from here; the
+   * caller polls bk7258_wifi_sta_connect_status(). */
+
+  syslog(LOG_INFO, "[BK7258-WIFI] connect: request accepted\n");
+  return OK;
+}
+
+int bk7258_wifi_sta_connect_status(FAR int *state, FAR int *reason)
+{
+  wifi_linkstate_reason_t info;
+  bk_err_t ret;
+
+  if (!bk7258_wifi_is_ready())
+    {
+      return -ENODEV;
+    }
+
+  /* bk_wifi_sta_get_linkstate_with_reason(), not bk_wifi_sta_get_link_status():
+   * the latter returns early with a bare DISCONNECTED once
+   * wifi_sta_is_connected() is false (wifi_v2.c:3078-3082), which discards the
+   * reason code precisely when a failure needs explaining.  This one reads
+   * mhdr_get_station_status() directly and keeps both fields. */
+
+  memset(&info, 0, sizeof(info));
+  ret = bk_wifi_sta_get_linkstate_with_reason(&info);
+  if (ret != BK_OK)
+    {
+      return -EIO;
+    }
+
+  if (state != NULL)
+    {
+      *state = (int)info.state;
+    }
+
+  if (reason != NULL)
+    {
+      *reason = (int)info.reason_code;
+    }
+
+  return OK;
+}
+
+bool bk7258_wifi_sta_is_connected(void)
+{
+  int state;
+
+  /* Same test as the vendor's own wifi_netif_sta_is_connected()
+   * (cp/components/bk_wifi/src/wifi_netif.c:157-160): compare the link state
+   * against CONNECTED exactly.  Note the comparison is strict, so a link that
+   * has advanced to GOT_IP would read as not-connected -- the vendor keeps a
+   * separate wifi_netif_sta_is_got_ip() for that.  That cannot happen here:
+   * CONFIG_LWIP is unset in this profile, so nothing runs a DHCP client and
+   * CONNECTED is the terminal state of the association path we implement. */
+
+  if (bk7258_wifi_sta_connect_status(&state, NULL) < 0)
+    {
+      return false;
+    }
+
+  return state == WIFI_LINKSTATE_STA_CONNECTED;
+}
+
+FAR const char *bk7258_wifi_sta_state_str(int state)
+{
+  switch (state)
+    {
+      case WIFI_LINKSTATE_STA_IDLE:           return "IDLE";
+      case WIFI_LINKSTATE_STA_CONNECTING:     return "CONNECTING";
+      case WIFI_LINKSTATE_STA_DISCONNECTED:   return "DISCONNECTED";
+      case WIFI_LINKSTATE_STA_CONNECTED:      return "CONNECTED";
+      case WIFI_LINKSTATE_STA_CONNECT_FAILED: return "CONNECT_FAILED";
+      case WIFI_LINKSTATE_STA_GOT_IP:         return "GOT_IP";
+      case WIFI_LINKSTATE_STA_SCAN_DONE:      return "SCAN_DONE";
+      default:                                return "unknown";
+    }
+}
+
+FAR const char *bk7258_wifi_sta_reason_str(int reason)
+{
+  /* Only the codes that plausibly end a WPA2-PSK association attempt are
+   * named; the caller prints the raw number too, so an unnamed code is still
+   * traceable to wifi_types.h.  WIFI_REASON_MAX is the vendor's "connected
+   * successfully" sentinel, not an error (wifi_types.h:246). */
+
+  switch (reason)
+    {
+      case WIFI_REASON_MAX:
+        return "SUCCESS";
+      case WIFI_REASON_RESERVED:
+        return "none";
+      case WIFI_REASON_UNSPECIFIED:
+        return "UNSPECIFIED";
+      case WIFI_REASON_PREV_AUTH_NOT_VALID:
+        return "PREV_AUTH_NOT_VALID";
+      case WIFI_REASON_DEAUTH_LEAVING:
+        return "DEAUTH_LEAVING";
+      case WIFI_REASON_MICHAEL_MIC_FAILURE:
+        return "MICHAEL_MIC_FAILURE";
+      case WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT:
+        return "4WAY_HANDSHAKE_TIMEOUT";
+      case WIFI_REASON_GROUP_KEY_UPDATE_TIMEOUT:
+        return "GROUP_KEY_UPDATE_TIMEOUT";
+      case WIFI_REASON_IE_IN_4WAY_DIFFERS:
+        return "IE_IN_4WAY_DIFFERS";
+      case WIFI_REASON_GROUP_CIPHER_NOT_VALID:
+        return "GROUP_CIPHER_NOT_VALID";
+      case WIFI_REASON_PAIRWISE_CIPHER_NOT_VALID:
+        return "PAIRWISE_CIPHER_NOT_VALID";
+      case WIFI_REASON_AKMP_NOT_VALID:
+        return "AKMP_NOT_VALID";
+      case WIFI_REASON_IEEE_802_1X_AUTH_FAILED:
+        return "IEEE_802_1X_AUTH_FAILED";
+      case WIFI_REASON_CIPHER_SUITE_REJECTED:
+        return "CIPHER_SUITE_REJECTED";
+      case WIFI_REASON_BEACON_LOST:
+        return "BEACON_LOST";
+      case WIFI_REASON_NO_AP_FOUND:
+        return "NO_AP_FOUND";
+      case WIFI_REASON_WRONG_PASSWORD:
+        return "WRONG_PASSWORD";
+      case WIFI_REASON_DISCONNECT_BY_APP:
+        return "DISCONNECT_BY_APP";
+      case WIFI_REASON_DHCP_TIMEOUT:
+        return "DHCP_TIMEOUT";
+      default:
+        return "unknown";
+    }
+}
+
+#else /* CONFIG_BK7258_WIFI_VENDOR_RUNTIME */
+
+int bk7258_wifi_sta_connect(FAR const char *ssid, FAR const char *psk)
+{
+  return -ENOSYS;
+}
+
+int bk7258_wifi_sta_connect_status(FAR int *state, FAR int *reason)
+{
+  return -ENOSYS;
+}
+
+bool bk7258_wifi_sta_is_connected(void)
+{
+  return false;
+}
+
+FAR const char *bk7258_wifi_sta_state_str(int state)
+{
+  return "unsupported";
+}
+
+FAR const char *bk7258_wifi_sta_reason_str(int reason)
+{
+  return "unsupported";
+}
+
+#endif /* CONFIG_BK7258_WIFI_VENDOR_RUNTIME */
 
 int bk7258_wifi_initialize(void)
 {

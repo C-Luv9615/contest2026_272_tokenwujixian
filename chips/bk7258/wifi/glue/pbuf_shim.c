@@ -78,24 +78,57 @@ void pbuf_ref(struct pbuf *p)
 
 u8_t pbuf_free(struct pbuf *p)
 {
-  u8_t freed = 0;
+  u8_t count = 0;
+
+  /* Refcount walk, aligned with lwIP's pbuf_free() (lwip-2.1.2
+   * src/core/pbuf.c:767-830), which is what Armino actually links: its
+   * bk_wifi/src/pbuf.c fallback is dead code here because that file is entirely
+   * inside `#if (CONFIG_FULLY_HOSTED || CONFIG_SEMI_HOSTED)` and both builds are
+   * CONFIG_NO_HOSTED=1.
+   *
+   * Two divergences were fixed, both only observable on CHAINED pbufs (single
+   * pbufs behaved identically, which is why the EAPOL M2 path never showed it):
+   *
+   *   1. Stop the walk when the reference count does not reach zero.  lwIP only
+   *      descends into p->next after freeing p, because a pbuf owns one
+   *      reference on its successor.  The old loop kept walking and decremented
+   *      every following pbuf's ref, so freeing a chain head that another owner
+   *      still held could free the tail underneath them.
+   *
+   *   2. Never touch p->next unless p is actually freed.  The old code cleared
+   *      it unconditionally, truncating a chain that the remaining owner still
+   *      referenced -- its tot_len then described data no longer reachable.
+   *
+   * Entry with ref == 0 means a double free somewhere else.  lwIP asserts in
+   * debug and, with assertions compiled out, wraps the counter and leaks.  We
+   * stop instead: leaking one pbuf keeps the heap intact and leaves the real bug
+   * findable, whereas the old code fell through to kmm_free() and corrupted it.
+   */
 
   while (p != NULL)
     {
-      struct pbuf *next = p->next;
-      p->next = NULL;
-      if (p->ref > 0)
-        {
-          p->ref--;
-        }
+      struct pbuf *next;
+
       if (p->ref == 0)
         {
-          kmm_free(p);
-          freed++;
+          break;
         }
+
+      if (--p->ref != 0)
+        {
+          /* Still referenced: the rest of the chain stays owned by whoever
+           * holds that reference. */
+
+          break;
+        }
+
+      next = p->next;
+      kmm_free(p);
+      count++;
       p = next;
     }
-  return freed;
+
+  return count;
 }
 
 u8_t pbuf_header(struct pbuf *p, s16_t header_size)
