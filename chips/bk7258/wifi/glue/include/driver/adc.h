@@ -42,6 +42,7 @@ bk_err_t bk_adc_start(void);
 bk_err_t bk_adc_stop(void);
 bk_err_t bk_adc_read_raw(uint16_t *read_buf, uint32_t size, uint32_t timeout);
 bk_err_t bk_adc_enable_bypass_clalibration(void);
+bk_err_t bk_adc_set_config(adc_config_t *config);
 bk_err_t bk_adc_set_phy_cali_config(adc_config_t *config);
 
 #ifdef __cplusplus

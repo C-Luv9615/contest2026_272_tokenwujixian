@@ -45,11 +45,46 @@ static size_t pbuf_headroom(pbuf_layer layer)
          headroom : (size_t)PBUF_LINK_ENCAPSULATION_HLEN;
 }
 
+/* Payload alignment.
+ *
+ * The authority sets MEM_ALIGNMENT 4 (cp/components/lwip_intf_v2_1/
+ * lwip-2.1.2/port/lwipopts.h:160) and upstream pbuf_alloc() runs every
+ * payload pointer through LWIP_MEM_ALIGN, so a payload there is always a
+ * multiple of 4.  This shim replaces that allocator and had no equivalent:
+ * the offset was sizeof(struct pbuf) + reserve, with nothing keeping either
+ * term aligned.
+ *
+ * This is NOT the cause of the MAC reading a 2 mod 4 address.  That comes
+ * from CPU2HW(p->payload + sizeof(ETH_HDR_T)) and 14 mod 4 == 2, and it is
+ * identical on the authority, which also has ETH_PAD_SIZE 0 (its opt.h:692,
+ * our prot/ethernet.h:30) -- ETH_PAD_SIZE is the knob that exists to absorb
+ * those two bytes and neither side turns it on.
+ *
+ * What this removes is a silent trap.  With sizeof(struct pbuf) == 16 and
+ * the reserve at 108 + 600 == 708, the two layers that have callers land on
+ * 724, aligned by coincidence rather than by construction; PBUF_LINK,
+ * PBUF_IP and PBUF_TRANSPORT already compute to 2 mod 4 and would hand the
+ * DMA an odd address the moment they gained one.  Changing either
+ * MSDU_RESV_*_LENGTH by an odd amount would do the same to the TX path
+ * itself, with no diagnostic anywhere -- the descriptor probe in rwnx_tx.c
+ * would just start printing aligned=0 for a different reason.
+ *
+ * Aligning up only ever grows the headroom, so the sk_buff and TX
+ * descriptor that rwnx_start_xmit() embeds at `p + sizeof(struct pbuf)`
+ * keep at least the room they have today.
+ */
+
+#define PBUF_MEM_ALIGNMENT 4u
+#define PBUF_ALIGN_UP(n) \
+  (((size_t)(n) + (PBUF_MEM_ALIGNMENT - 1u)) & \
+   ~((size_t)PBUF_MEM_ALIGNMENT - 1u))
+
 struct pbuf *pbuf_alloc(pbuf_layer layer, u16_t length, pbuf_type type)
 {
   struct pbuf *p;
   size_t reserve = pbuf_headroom(layer);
-  size_t total = sizeof(*p) + reserve + length;
+  size_t offset = PBUF_ALIGN_UP(sizeof(*p) + reserve);
+  size_t total = offset + length;
 
   p = kmm_zalloc(total);
   if (p == NULL)
@@ -58,7 +93,7 @@ struct pbuf *pbuf_alloc(pbuf_layer layer, u16_t length, pbuf_type type)
     }
 
   p->next = NULL;
-  p->payload = (uint8_t *)p + sizeof(*p) + reserve;
+  p->payload = (uint8_t *)p + offset;
   p->tot_len = length;
   p->len = length;
   p->type_internal = (u8_t)type;

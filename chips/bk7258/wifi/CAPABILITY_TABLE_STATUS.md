@@ -9,11 +9,15 @@ implementation is allowed to enter `bk_wifi_init()`.
 
 - The capability owner is `bk7258_wifi_adapter.c`; the generated ABI layout is
   preserved and the OSAL/packet entries are populated.
-- The default CP configuration remains
-  `CONFIG_BK7258_WIFI_VENDOR_RUNTIME=n`; it must not auto-start Wi-Fi.
-- A separate `runtime-probe` configuration enables the vendor runtime for
-  init-path link-closure testing only. It is not a flash or
-  hardware-acceptance image.
+- Both the CP and `runtime-probe` configurations now set
+  `CONFIG_BK7258_WIFI_VENDOR_RUNTIME=y` and
+  `CONFIG_BK7258_WIFI_RUNTIME_APP=y`. Wi-Fi still must not auto-start, and
+  does not: the only caller of `bk7258_wifi_initialize()` is the
+  `bk7258_wifi_runtime` application, invoked by hand from NSH. Board
+  bring-up contains no call site.
+- `CONFIG_BK7258_WIFI_RUNTIME_APP` gates the application in its CMakeLists
+  and defaults to `n`, so every configuration that wants the command must
+  set it explicitly; enabling `VENDOR_RUNTIME` alone is not sufficient.
 - The functional target is STA only: scan, WPA/EAPOL association, connected
   state, disconnect, and later NuttX DHCP. SoftAP, P2P, WPS, monitor, and
   STA+AP concurrency are disabled and out of this milestone.

@@ -21,6 +21,15 @@
 
 #include <stdint.h>
 
+/* Authority BK7258 driver/hal/hal_adc_types.h defines this unconditionally.
+ * It controls the public-to-hardware saturation mapping in adc_hal.c. */
+
+#define ADC_ACURACY_12_BIT 1
+#define ADC_SRC_DCO_CLK    120000000u
+#define ADC_SRC_DPLL_CLK   240000000u
+#define ADC_SRC_26M_CLK    26000000u
+#define ADC_SRC_32M_CLK    32000000u
+
 #ifdef __cplusplus
 extern "C" {
 #endif

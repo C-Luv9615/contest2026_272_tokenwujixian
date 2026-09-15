@@ -115,8 +115,7 @@
 #  ifdef CONFIG_BK7258_WIFI_WPA_TASK_PRIORITY
 #    define CONFIG_TASK_WPAS_PRIO CONFIG_BK7258_WIFI_WPA_TASK_PRIORITY
 #  else
-     /* The runtime probe defconfig pins this provider priority to 100. */
-#    define CONFIG_TASK_WPAS_PRIO 100
+#    define CONFIG_TASK_WPAS_PRIO 5
 #  endif
 #endif
 

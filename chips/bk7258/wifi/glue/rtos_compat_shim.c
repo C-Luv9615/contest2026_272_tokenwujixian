@@ -12,14 +12,34 @@
 #include "bk7258_wifi_internal.h"
 #include "os/os.h"
 
+/* TEMPORARY BRING-UP DIAGNOSTIC -- see glue/include/bk7258_initseq.h for the
+ * rationale and the removal recipe.  The markers below stand in for the Armino
+ * FreeRTOS OSAL's "os:D(100):create <name>" lines, which this port never
+ * produced because it replaced that layer with NuttX pthreads.  Their absence
+ * from earlier captures was therefore not evidence about thread creation.
+ *
+ * Instrumenting the shim rather than the authority call sites keeps the
+ * byte-identical vendored sources untouched while still bracketing every OSAL
+ * call reached from rwnx_intf_init(): mutex, semaphore, queue and thread.
+ */
+
+#include <bk7258_initseq.h>
+
 static size_t g_heap_sampled_minimum = SIZE_MAX;
 
 bk_err_t rtos_init_queue(beken_queue_t *queue, const char *name,
                          uint32_t msg_size, uint32_t count)
 {
+  int ret;
+
   (void)name;
-  return bk7258_wifi_osal_queue_create((uintptr_t *)queue, name, msg_size,
-                                       count) < 0 ? BK_FAIL : BK_OK;
+
+  BK7258_INITSEQ_NAMED("osal queue-init enter", name);
+  ret = bk7258_wifi_osal_queue_create((uintptr_t *)queue, name, msg_size,
+                                      count);
+  BK7258_INITSEQ_NAMED_RET("osal queue-init leave", name, ret);
+
+  return ret < 0 ? BK_FAIL : BK_OK;
 }
 
 bk_err_t rtos_deinit_queue(beken_queue_t *queue)
@@ -65,15 +85,33 @@ bk_err_t rtos_push_to_queue_front(beken_queue_t *queue, void *msg,
 
 bk_err_t rtos_init_semaphore(beken_semaphore_t *sem, int max_count)
 {
-  return bk7258_wifi_osal_sem_create((uintptr_t *)sem, max_count) < 0 ?
-         BK_FAIL : BK_OK;
+  int ret;
+
+  /* TEMPORARY DIAGNOSTIC (bk7258_initseq.h).  Semaphores carry no name, so the
+   * marker reports max_count instead; the only semaphore created on the
+   * bk_wifi_init() path is app_sema with max_count 1 (rw_task.c:1219).
+   */
+
+  BK7258_INITSEQ_RET("osal sem-init enter max_count", max_count);
+  ret = bk7258_wifi_osal_sem_create((uintptr_t *)sem, max_count);
+  BK7258_INITSEQ_RET("osal sem-init leave", ret);
+
+  return ret < 0 ? BK_FAIL : BK_OK;
 }
 
 bk_err_t rtos_deinit_semaphore(beken_semaphore_t *sem)
 {
-  return sem != NULL && *sem != NULL &&
-         bk7258_wifi_osal_sem_delete((uintptr_t)*sem) == 0 ?
-         (*sem = NULL, BK_OK) : BK_FAIL;
+  if (sem != NULL)
+    {
+      if (*sem != NULL)
+        {
+          (void)bk7258_wifi_osal_sem_delete((uintptr_t)*sem);
+        }
+
+      *sem = NULL;
+    }
+
+  return BK_OK;
 }
 
 bk_err_t rtos_get_semaphore(beken_semaphore_t *sem, uint32_t timeout_ms)
@@ -89,8 +127,18 @@ bk_err_t rtos_set_semaphore(beken_semaphore_t *sem)
 
 bk_err_t rtos_init_mutex(beken_mutex_t *mutex)
 {
-  return bk7258_wifi_osal_mutex_create((uintptr_t *)mutex) < 0 ?
-         BK_FAIL : BK_OK;
+  int ret;
+
+  /* TEMPORARY DIAGNOSTIC (bk7258_initseq.h).  Mutexes carry no name; the only
+   * one created on the bk_wifi_init() path is sr_mutex (rw_task.c:1218), the
+   * first blocking candidate after cfg_param_init().
+   */
+
+  BK7258_INITSEQ("osal mutex-init enter");
+  ret = bk7258_wifi_osal_mutex_create((uintptr_t *)mutex);
+  BK7258_INITSEQ_RET("osal mutex-init leave", ret);
+
+  return ret < 0 ? BK_FAIL : BK_OK;
 }
 
 bk_err_t rtos_deinit_mutex(beken_mutex_t *mutex)
@@ -119,9 +167,25 @@ bk_err_t rtos_create_sram_thread(beken_thread_t *thread, uint8_t priority,
                                  beken_thread_function_t function,
                                  uint32_t stack_size, beken_thread_arg_t arg)
 {
-  return bk7258_wifi_osal_thread_create((uintptr_t *)thread, priority, name,
-                                        function, arg, stack_size) < 0 ?
-         BK_FAIL : BK_OK;
+  int ret;
+
+  /* TEMPORARY DIAGNOSTIC (bk7258_initseq.h).  This is the stand-in for the
+   * Armino OSAL's "os:D(100):create <name>" lines.  Two threads are created on
+   * the bk_wifi_init() path: 'kmsgbk' (rw_task.c:1222) and 'core_thread'
+   * (rw_task.c:1177, from core_thread_init()).  A third, the wpa_supplicant
+   * thread, is created later from wpas_thread_start().
+   *
+   * The "enter" marker is what distinguishes "creation blocked" from "creation
+   * never attempted": a hang inside the created thread body cannot stop
+   * bk_wifi_init() from returning, but a hang in pthread_create() can.
+   */
+
+  BK7258_INITSEQ_NAMED("osal thread-create enter", name);
+  ret = bk7258_wifi_osal_thread_create((uintptr_t *)thread, priority, name,
+                                       function, arg, stack_size);
+  BK7258_INITSEQ_NAMED_RET("osal thread-create leave", name, ret);
+
+  return ret < 0 ? BK_FAIL : BK_OK;
 }
 
 bk_err_t rtos_create_thread(beken_thread_t *thread, uint8_t priority,
@@ -133,12 +197,34 @@ bk_err_t rtos_create_thread(beken_thread_t *thread, uint8_t priority,
                                  stack_size, arg);
 }
 
+bk_err_t rtos_thread_set_priority(beken_thread_t *thread, int priority)
+{
+  return thread != NULL && *thread != NULL &&
+         bk7258_wifi_osal_thread_set_priority((uintptr_t)*thread, priority) == 0 ?
+         BK_OK : BK_FAIL;
+}
+
 bk_err_t rtos_delete_thread(beken_thread_t *thread)
 {
-  if (thread != NULL)
+  if (thread == NULL)
     {
+      /* Beken maps NULL to vTaskDelete(NULL): terminate the calling task.
+       * Every current caller is a detached pthread created by this OSAL, so
+       * pthread_exit() is the matching NuttX ownership and cleanup path. */
+
+      pthread_exit(NULL);
+    }
+
+  if (*thread != NULL)
+    {
+      if (bk7258_wifi_osal_thread_delete((uintptr_t)*thread) != 0)
+        {
+          return BK_FAIL;
+        }
+
       *thread = NULL;
     }
+
   return BK_OK;
 }
 

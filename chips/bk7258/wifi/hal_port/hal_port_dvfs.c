@@ -146,6 +146,47 @@ static uint32_t hp_sys_hal_vdddig_h_vol_get(void)
 }
 
 /* ------------------------------------------------------------------ */
+/* VDD core-voltage accessors on the PHY function table                */
+/*   cp/middleware/soc/bk7258/hal/sys_hal.c:1687  sys_hal_set_vdd_value */
+/*   cp/middleware/soc/bk7258/hal/sys_hal.c:1692  sys_hal_get_vdd_value */
+/*   cp/middleware/driver/sys_ctrl/sys_wifi_driver.c:549 sys_drv_set_   */
+/*   cp/middleware/driver/sys_ctrl/sys_wifi_driver.c:559 sys_drv_get_   */
+/*                                                                     */
+/* bk_phy_adapter.c:653-654 binds ._sys_drv_set_vdd_value /            */
+/* ._sys_drv_get_vdd_value with no CONFIG_SOC_BK7256XX guard, so these  */
+/* are live calls from libbk_phy.a.  They previously resolved to        */
+/* log-only stubs in glue/analog_shim.c (return 0 / BK_FAIL, no         */
+/* hardware access).  Upstream set_vdd_value is exactly a call to       */
+/* sys_hal_ctrl_vdddig_h_vol(), which this file already ports verbatim  */
+/* and which is hardware-verified: the post-init readback reports       */
+/* vcore=0xb, the value written for the 60M tier.                       */
+/* ------------------------------------------------------------------ */
+
+uint32_t hp_sys_drv_get_vdd_value(void)
+{
+  irqstate_t flags = enter_critical_section();
+  uint32_t ret;
+
+  ret = hp_sys_hal_vdddig_h_vol_get();
+
+  leave_critical_section(flags);
+  return ret;
+}
+
+uint32_t hp_sys_drv_set_vdd_value(uint32_t param)
+{
+  irqstate_t flags = enter_critical_section();
+
+  hp_sys_hal_ctrl_vdddig_h_vol(param);
+
+  leave_critical_section(flags);
+
+  /* Upstream returns SYS_DRV_SUCCESS (sys_driver.h:28) == 0 == BK_OK. */
+
+  return BK_OK;
+}
+
+/* ------------------------------------------------------------------ */
 /* sys_hal_core_bus_clock_ctrl (sys_hal.c:430)                         */
 /* ------------------------------------------------------------------ */
 
@@ -502,17 +543,17 @@ bk_err_t hp_pm_module_vote_cpu_freq(pm_dev_id_e module,
       return BK_OK;
     }
 
-  /* pm.c votes vdddig high state for 320M/480M through the PM framework.
-   * Those tiers are not on our boot path (we vote 120M) and the vdddig
-   * voting framework is not ported, so the tier is applied by the HAL
-   * ladder alone.  Guard rather than silently mis-program. */
+  /* The authority permits 320M/480M votes. Its PM bookkeeping records the
+   * CPU-frequency VDDDIG vote before calling sys_drv_switch_cpu_bus_freq();
+   * the BK7258 ladder below then raises VDDDIG before each high-frequency
+   * clock step. This port already carries that ladder, so rejecting the vote
+   * here caused the closed Wi-Fi path's live freq=5 request to fail without
+   * ever reaching the authoritative voltage/clock transition. */
   if (freq_max == PM_CPU_FRQ_480M || freq_max == PM_CPU_FRQ_320M)
     {
-      leave_critical_section(flags);
-      syslog(LOG_WARNING,
-             "[BK7258-WIFI] dvfs: %u tier needs vdddig voting (not "
-             "ported); vote ignored\n", (unsigned)freq_max);
-      return BK_FAIL;
+      syslog(LOG_INFO,
+             "[BK7258-WIFI] dvfs: high-tier VDDDIG/clock vote freq=%u\n",
+             (unsigned)freq_max);
     }
 
   ret = hp_sys_drv_switch_cpu_bus_freq((pm_cpu_freq_e)freq_max);

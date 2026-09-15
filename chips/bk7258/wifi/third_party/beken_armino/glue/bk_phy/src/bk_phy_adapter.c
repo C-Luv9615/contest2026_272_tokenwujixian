@@ -6,8 +6,7 @@
 
 #include "sys_driver.h"
 
-#if (CONFIG_SOC_BK7236XX || CONFIG_SOC_BK7239XX || CONFIG_SOC_BK7286XX || \
-     CONFIG_SOC_BK7258)
+#if (CONFIG_SOC_BK7236XX || CONFIG_SOC_BK7239XX || CONFIG_SOC_BK7286XX)
 #include "sys_ll.h"
 #endif
 
@@ -25,7 +24,6 @@
 
 #include <components/system.h>
 #include <os/mem.h>
-#include <os/os.h>
 #include <os/str.h>
 
 #include <common/bk_assert.h>
@@ -558,13 +556,8 @@ const phy_os_funcs_t g_phy_os_funcs = {
     ._aon_pmu_drv_bias_cal_get         = aon_pmu_drv_bias_cal_get,
     ._aon_pmu_drv_get_adc_cal          = aon_pmu_drv_get_adc_cal,
 
-#if (CONFIG_SOC_BK7236XX) || (CONFIG_SOC_BK7239XX) || \
-    (CONFIG_SOC_BK7286XX) || (CONFIG_SOC_BK7258)
-    ._aon_pmu_hal_get_chipid           = aon_pmu_hal_get_chipid,
-
-#endif
-
 #if (CONFIG_SOC_BK7236XX) || (CONFIG_SOC_BK7239XX) || (CONFIG_SOC_BK7286XX)
+    ._aon_pmu_hal_get_chipid           = aon_pmu_hal_get_chipid,
 
     ._sys_ll_set_ana_reg5_adc_div     = sys_ll_set_ana_reg5_adc_div,
     ._sys_ll_get_ana_reg5_adc_div     = sys_ll_get_ana_reg5_adc_div,
@@ -577,14 +570,6 @@ const phy_os_funcs_t g_phy_os_funcs = {
 
     ._sys_drv_set_ana_ioldo_lp        = sys_drv_set_ana_ioldo_lp,
 
-#endif
-
-#if CONFIG_SOC_BK7258
-    /* With CONFIG_SOC_BK7236XX aligned to the authoritative BK7258 profile
-     * (BK7258 is a BK7236-family part), the block above already binds the
-     * ANA reg5/8/9/10/11/12 set through the locked, latched analog shim and
-     * includes the iobyapssen latch wrapper; no BK7258-specific overrides
-     * remain.  Unverified sys_drv calibration controls stay out. */
 #endif
 
     ._sys_drv_cali_dpll               = sys_drv_cali_dpll,

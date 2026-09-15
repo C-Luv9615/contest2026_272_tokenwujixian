@@ -51,6 +51,17 @@ typedef void (*FUNC_2PARAM_PTR)(void *arg, uint8_t vif_idx);
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 #endif
 
+#ifndef BIT
+#define BIT(i) (UINT32_C(1) << (i))
+#endif
+
+/* bk_generic.h:148 upstream.  Needed by the imported authority GPIO HAL, whose
+ * pin sets are 64-bit (gpio_hal.c:257 uses BIT64 to test a gpios mask across
+ * all SOC_GPIO_NUM=56 pins). */
+#ifndef BIT64
+#define BIT64(i) (1LL << (i))
+#endif
+
 #define __round_mask(x, y) ((__typeof__(x))((y) - 1))
 #define round_up(x, y) ((((x) - 1) | __round_mask(x, y)) + 1)
 #define round_down(x, y) ((x) & ~__round_mask(x, y))

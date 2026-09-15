@@ -37,11 +37,50 @@ extern "C" {
 
 #define DD_HANDLE_MAGIC_WORD    (0xA5A50000)
 
+/* ICU and SCTRL corrected 2026-09-04; see the per-line notes below.
+ *
+ * Root cause of the drift: the enum in authority
+ * cp/middleware/driver/include/bk_private/legacy/drv_model_pub.h carries ~7
+ * `#if` blocks keyed on CONFIG_BLUETOOTH / CONFIG_FFT / CONFIG_GENERAL_DMA /
+ * CONFIG_I2S / CONFIG_QSPI / CONFIG_MAC_PHY_BYPASS / CONFIG_SOC_*, so a member's
+ * ordinal depends on the build configuration.  Walking it as if every member
+ * were present -- which is what produced the old values -- shifts everything
+ * after the first excluded block.  Same mistake as the CMD_SCTRL_* block in
+ * bk_sys_ctrl.h and the OTP ids in driver/otp.h.
+ *
+ * Evidence rule applied here: a value is only changed when BOTH the source walk
+ * (with the authority sdkconfig.h applied) AND the cross-boundary ABI audit
+ * (authority app.elf object bytes, /tmp/other-contract-behavior-audit.tsv)
+ * agree.  That holds for ICU and SCTRL and for nothing else in this list.
+ */
+
 #define DD_DEV_TYPE_NONE        (0x00000000)
+
+/* BLE / FLASH: left alone deliberately.  The ABI audit reports both as already
+ * byte-identical to authority (TSV rows 12 and 15).  A source walk here claimed
+ * they are excluded by `#if` on this configuration, which cannot be right --
+ * bk_phy_adapter.c assigns `._dd_dev_type_ble = DD_DEV_TYPE_BLE`, so authority
+ * would not compile if the enumerator were absent.  Measured bytes beat a
+ * source walk; do not "fix" these without new evidence. */
+
 #define DD_DEV_TYPE_BLE         (0xA5A50001)
-#define DD_DEV_TYPE_ICU         (0xA5A50006)
-#define DD_DEV_TYPE_SCTRL       (0xA5A5000E)
 #define DD_DEV_TYPE_FLASH       (0xA5A50015)
+
+/* ICU / SCTRL: source walk and ABI audit agree on both, and both disagreed with
+ * the old values (0xA5A50006 / 0xA5A5000E). */
+
+#define DD_DEV_TYPE_ICU         (0xA5A50003)
+#define DD_DEV_TYPE_SCTRL       (0xA5A50007)
+
+/* SARADC / RF: UNVERIFIED, left at the original walk results.  phy_os_variable_t
+ * has no slots for these two, so the ABI audit offers no measurement either way,
+ * and the source walk alone has just been shown unreliable for this enum.  They
+ * are consumed only through ddev_control(), which the board logs prove is never
+ * called (glue/analog_shim.c ANALOG_UNPORTED never fires -- zero `[bk_analog]`
+ * lines across 0904-open-1/open-2/wap-2), so a wrong value here has no runtime
+ * effect today.  Re-derive from a disassembly of the authority ddev_open call
+ * sites before relying on them. */
+
 #define DD_DEV_TYPE_SARADC      (0xA5A50021)
 #define DD_DEV_TYPE_RF          (0xA5A50022)
 

@@ -74,24 +74,35 @@ config BK7258_WIFI_VENDOR_LINK
 	depends on BK7258_WIFI
 	help
 		Add the pinned libwifi.a and libbk_phy.a archives to the link.
-		This option does not start the vendor runtime; keep
-		BK7258_WIFI_VENDOR_RUNTIME disabled until the OSAL, hardware, and
-		calibration contracts are validated.
+		This option only brings in the archives; starting the runtime is
+		the separate BK7258_WIFI_VENDOR_RUNTIME switch. Do not enable
+		this one alone: rw_msg_rx.c is compiled unconditionally and calls
+		wpa_clear_scan_results(), which lives in hostapd_intf.c and is
+		only compiled under VENDOR_RUNTIME, so LINK=y with RUNTIME=n
+		fails to link.
 
 config BK7258_WIFI_VENDOR_RUNTIME
 	bool "Start BK7258 vendor Wi-Fi runtime"
 	default n
 	depends on BK7258_WIFI_VENDOR_LINK
 	help
-		Allow the explicit vendor runtime entry point to be enabled later.
-		This is intentionally off for the link-closure stage.
+		Compile the vendor runtime and its WPA/glue closure. The entry
+		point stays explicit: bk7258_wifi_initialize() has exactly one
+		caller, the bk7258_wifi_runtime application, so Wi-Fi never
+		starts at boot. Enable BK7258_WIFI_RUNTIME_APP as well to get
+		that command. Hardware state: scan, association and the start of
+		the 4-way handshake are verified on the board; the connection is
+		not established yet (M2 is transmitted but never acknowledged).
 
 config BK7258_WIFI_WPA_TASK_PRIORITY
 	int "WPA task priority"
-	default 100
+	default 5
 	depends on BK7258_WIFI_VENDOR_RUNTIME
 	help
-		NuttX priority used by the Armino WPA task provider.
+		Armino logical WPA task priority. Its public RTOS API reverses the
+		FreeRTOS-native 0..9 priority range, while NuttX uses increasing
+		numeric priorities directly. The OSAL therefore reverses this
+		logical value while projecting it onto the NuttX scheduler range.
 
 comment "Vendor packet private reserve (beken_genie BK7258 profile)"
 

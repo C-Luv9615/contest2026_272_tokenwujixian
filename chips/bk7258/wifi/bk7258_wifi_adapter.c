@@ -244,7 +244,7 @@ static void bk7258_wifi_exit_critical_cb(uint32_t flags)
 
 static unsigned long bk7258_wifi_ms_to_ticks_cb(unsigned long ms)
 {
-  return (ms * (unsigned long)MSEC_PER_TICK) / 1000UL;
+  return (unsigned long)MSEC2TICK(ms);
 }
 
 static uint32_t bk7258_wifi_ms_per_tick_cb(void)
@@ -646,57 +646,44 @@ static void bk7258_wifi_bt_state_notify_disabled_cb(uint8_t is_active)
  * pinned BK7258 archives' own implementations (libbk_phy.a rf_cntrl.c.obj /
  * bk7236_cal.c.obj) plus the team sysctrl/clock helpers whose register bits
  * were verified against the authoritative mapping (SYS+0x40 bits 9/10,
- * SYS+0xC bits 26/27).  STA-only profile: the PHY clock/open handlers always
- * take RF_BY_WIFI_BIT; there is no BLE coexistence voter here. */
+ * SYS+0xC bits 26/27).  Keep the owner selected by the caller: the authority
+ * routes a zero is_wifi argument to the BLE voter, so collapsing it to Wi-Fi
+ * corrupts the PHY clock-vote ownership bitmap. */
 
 static void bk7258_wifi_mac_phy_power_on_cb(void)
 {
-  /* Armino wifi_mac_phy_power_on_wrapper: three power votes plus two clock
-   * power-ups.  PHY_WIFI submodule voting collapses to the PHY domain
-   * control, which these helpers already cover idempotently.
-   *
-   * Errors are reported rather than discarded (2026-09-01): the slot
-   * signature is void, so a failure cannot be propagated to the closed
-   * library -- it will proceed assuming MAC/PHY/OFDM are powered and clocked.
-   * The previous `(void)` casts made that state silent.  bk7258_wifi_hw_init
-   * checks these same helpers at boot, but this callback is a SECOND entry
-   * the library drives later, and nothing was watching it. */
+  /* Matches the authoritative wifi_mac_phy_power_on_wrapper exactly
+   * (vendored bk_wifi_adapter.c:426-436): three PM power votes then two
+   * clock enables.  The PHY_WIFI submodule vote is NOT redundant -- it
+   * drives the PM submodule refcount and, on first power-on, calls
+   * phy_wakeup_reinit() inside the closed library.  The previous
+   * implementation called bk7258_phy_power() directly, bypassing that
+   * state machine entirely. */
 
-  static const struct
-  {
-    const char *name;
-    int (*fn)(bool);
-  }
-  /* Exactly the authoritative wrapper's set (bk_wifi_adapter.c:426-436):
-   * MAC + PHY + PHY_WIFI power, then MAC + PHY clock.  OFDM is deliberately
-   * absent -- the authority never controls that domain from this callback;
-   * the library drives it through the pwd_ofdm slot instead. */
+  bk_err_t ret;
 
-  steps[] =
-  {
-    { "phy_power",  bk7258_phy_power  },
-    { "mac_power",  bk7258_mac_power  },
-    { "phy_clock",  bk7258_phy_clock  },
-    { "mac_clock",  bk7258_mac_clock  },
-  };
+  ret = bk_pm_module_vote_power_ctrl(PM_POWER_MODULE_NAME_WIFIP_MAC,
+                                      PM_POWER_MODULE_STATE_ON);
+  if (ret != BK_OK)
+    syslog(LOG_ERR, "[BK7258-WIFI] mpo FAIL mac_power ret=%d\n", ret);
 
-  size_t i;
+  ret = bk_pm_module_vote_power_ctrl(PM_POWER_MODULE_NAME_PHY,
+                                      PM_POWER_MODULE_STATE_ON);
+  if (ret != BK_OK)
+    syslog(LOG_ERR, "[BK7258-WIFI] mpo FAIL phy_power ret=%d\n", ret);
 
-  for (i = 0; i < sizeof(steps) / sizeof(steps[0]); i++)
-    {
-      int ret = steps[i].fn(true);
+  ret = bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_PHY_WIFI,
+                                      PM_POWER_MODULE_STATE_ON);
+  if (ret != BK_OK)
+    syslog(LOG_ERR, "[BK7258-WIFI] mpo FAIL phy_wifi ret=%d\n", ret);
 
-      if (ret != OK)
-        {
-          /* Short by design: an 80-column console truncates past ~79 chars,
-           * and this is an error report that must survive to be useful.
-           * The library cannot be told about the failure (void slot), so it
-           * proceeds assuming the domain is powered and clocked. */
+  ret = bk_pm_clock_ctrl(PM_CLK_ID_MAC, PM_CLK_CTRL_PWR_UP);
+  if (ret != BK_OK)
+    syslog(LOG_ERR, "[BK7258-WIFI] mpo FAIL mac_clock ret=%d\n", ret);
 
-          syslog(LOG_ERR, "[BK7258-WIFI] mpo FAIL %s ret=%d\n",
-                 steps[i].name, ret);
-        }
-    }
+  ret = bk_pm_clock_ctrl(PM_CLK_ID_PHY, PM_CLK_CTRL_PWR_UP);
+  if (ret != BK_OK)
+    syslog(LOG_ERR, "[BK7258-WIFI] mpo FAIL phy_clock ret=%d\n", ret);
 }
 
 static void bk7258_wifi_vote_rf_ctrl_cb(uint8_t cmd)
@@ -706,14 +693,26 @@ static void bk7258_wifi_vote_rf_ctrl_cb(uint8_t cmd)
 
 static void bk7258_wifi_phy_clk_open_cb(uint8_t is_wifi)
 {
-  (void)is_wifi;
-  phy_clk_open_handler(RF_BY_WIFI_BIT);
+  if (is_wifi)
+    {
+      phy_clk_open_handler(RF_BY_WIFI_BIT);
+    }
+  else
+    {
+      phy_clk_open_handler(RF_BY_BLE_BIT);
+    }
 }
 
 static void bk7258_wifi_phy_clk_close_cb(uint8_t is_wifi)
 {
-  (void)is_wifi;
-  phy_clk_close_handler(RF_BY_WIFI_BIT);
+  if (is_wifi)
+    {
+      phy_clk_close_handler(RF_BY_WIFI_BIT);
+    }
+  else
+    {
+      phy_clk_close_handler(RF_BY_BLE_BIT);
+    }
 }
 
 /* Blind-spot closure (2026-08-28 full-archive scan): every wifi_os_funcs_t
@@ -728,20 +727,42 @@ static void bk7258_wifi_phy_clk_close_cb(uint8_t is_wifi)
 static void power_save_delay_sleep_check_cb(void) { }
 static void power_save_wake_mac_rf_if_in_sleep_cb(void) { }
 static void power_save_wake_mac_rf_end_clr_flag_cb(void) { }
-static bool power_save_if_ps_rf_dtim_enabled_cb(void) { return false; }
-static void power_save_forbid_trace_cb(void) { }
-static bool ps_need_pre_process_cb(void) { return false; }
-static uint32_t power_save_rf_sleep_check_cb(void) { return 0; }
-static void mac_ps_bcn_callback_cb(void) { }
+static UINT8 power_save_if_ps_rf_dtim_enabled_cb(void) { return 0; }
+static UINT16 power_save_forbid_trace_cb(UINT16 forbid)
+{
+  (void)forbid;
+  return 0;
+}
+static int ps_need_pre_process_cb(UINT32 arg)
+{
+  (void)arg;
+  return 0;
+}
+static bool power_save_rf_sleep_check_cb(void) { return false; }
+static void mac_ps_bcn_callback_cb(uint8_t *data, int len)
+{
+  (void)data;
+  (void)len;
+}
 static UINT8 mac_sleeped_cb(void) { return 0; }
 static bk_err_t bk_ckmn_driver_get_rc32k_ppm_cb(void) { return BK_OK; }
 static UINT32 mcu_ps_machw_cal_cb(void) { return 0; }
-static void mcu_ps_machw_reset_cb(void) { }
-static void mcu_ps_machw_init_cb(void) { }
-static void mcu_ps_bcn_callback_cb(void) { }
+static UINT32 mcu_ps_machw_reset_cb(void) { return 0; }
+static UINT32 mcu_ps_machw_init_cb(void) { return 0; }
+static void mcu_ps_bcn_callback_cb(uint8_t *data, int len)
+{
+  (void)data;
+  (void)len;
+}
 static void dbg_enable_debug_gpio_cb(void) { }
-static void bk7258_wifi_gpio_unmap_cb(uint32_t id) { (void)gpio_dev_unmap((gpio_id_t)id); }
-static void bk7258_wifi_gpio_map_cb(uint32_t id, uint32_t dev) { (void)gpio_dev_map((gpio_id_t)id, (gpio_dev_t)dev); }
+static bk_err_t bk7258_wifi_gpio_unmap_cb(uint32_t id)
+{
+  return gpio_dev_unmap((gpio_id_t)id);
+}
+static bk_err_t bk7258_wifi_gpio_map_cb(uint32_t id, uint32_t dev)
+{
+  return gpio_dev_map((gpio_id_t)id, (gpio_dev_t)dev);
+}
 /* Transcribed from the authority's cache driver semantics
  * (cp/middleware/arch/cm33/cache.c:37-42): flush = Clean + Invalidate over the
  * whole D-cache.  The old body here was an empty no-op from the pre-cache era;
@@ -767,14 +788,14 @@ static uint32_t bk7258_wifi_udp_bc_pkt_cb(u8 random_data)
 }
 extern void bk7258_wifi_pwd_ofdm_override(uint32_t v);
 extern uint32_t bk7258_wifi_pwd_ofdm_get_override(void);
-extern void hp_sys_hal_enter_low_analog(void);
-extern void hp_sys_hal_exit_low_analog(void);
+extern void sys_hal_enter_low_analog(void);
+extern void sys_hal_exit_low_analog(void);
 
 static void bk7258_wifi_enter_low_analog_cb(void)
 {
-  /* HAL-alignment: verbatim port of sys_pm_hal.c enter_low_analog
-   * (ANA bitfield RMW sequence), replacing the former NULL slot. */
-  hp_sys_hal_enter_low_analog();
+  /* Authority sys_pm_hal.c:1281, imported under pm/authority.  Was a local
+   * hp_ hand-port until 2026-09-09. */
+  sys_hal_enter_low_analog();
   return;
 }
 #if 0
@@ -788,7 +809,7 @@ static void bk7258_wifi_enter_low_analog_cb_unused(void)
 
 static void bk7258_wifi_exit_low_analog_cb(void)
 {
-  hp_sys_hal_exit_low_analog();
+  sys_hal_exit_low_analog();
   return;
 }
 #if 0
@@ -937,9 +958,9 @@ wifi_os_funcs_t g_wifi_os_funcs =
   ._rwnx_tpc_get_pwridx_by_rate = rwnx_tpc_get_pwridx_by_rate,
   ._rwnx_is_enable_pwr_change_by_rssi = rwnx_is_enable_pwr_change_by_rssi,
   ._tpc_auto_change_pwr_by_rssi = tpc_auto_change_pwr_by_rssi,
-  /* BK7258's pinned PHY archive exports this exact BK7236-family media-TPC
-   * trio. Probe-request TX reaches _tpc_change_pwr_by_media before a scan
-   * can receive results, so leaving this group NULL causes a PC=0 fault. */
+  /* BK7258 is a BK7236-family part, so Armino's CONFIG_SOC_BK7236XX branch
+   * binds this exact media-TPC trio.  These slots are not optional for the
+   * active authority configuration. */
   ._tpc_change_pwr_by_media = tpc_change_pwr_by_media,
   ._tpc_set_media_pwr_level = tpc_set_media_pwr_level,
   ._tpc_get_media_pwr_level = tpc_get_media_pwr_level,
@@ -1203,7 +1224,7 @@ wifi_os_variable_t g_wifi_os_variable =
   ._pm_cpu_frq_60m = PM_CPU_FRQ_60M,
   ._pm_cpu_frq_80m = PM_CPU_FRQ_80M,
   ._pm_cpu_frq_120m = PM_CPU_FRQ_120M,
-  ._pm_cpu_frq_high = PM_CPU_FRQ_320M,
+  ._pm_cpu_frq_high = PM_CPU_FRQ_480M,
   ._pm_cpu_frq_default = PM_CPU_FRQ_60M,
   ._pm_32k_step_begin = PM_32K_STEP_BEGIN,
   ._pm_32k_step_finish = PM_32K_STEP_FINISH,

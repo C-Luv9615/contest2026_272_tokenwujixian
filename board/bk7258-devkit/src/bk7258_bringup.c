@@ -23,6 +23,7 @@
 #endif
 
 #include <arch/chip/bk7258_ap_boot.h>
+#include <arch/chip/bk7258_mb_ipc.h>
 #include <arch/chip/bk7258_memorymap.h>
 #include <arch/chip/bk7258_timer.h>
 #include <arch/board/board.h>
@@ -112,6 +113,13 @@ void board_late_initialize(void)
   else
     {
       syslog(LOG_INFO, "[AMP] CP RPTUN master initialized (Mailbox IRQ)\n");
+#ifdef CONFIG_BK7258_MB_IPC_RPMSG
+      ret = bk7258_mb_ipc_initialize();
+      if (ret != 0)
+        {
+          syslog(LOG_ERR, "[AMP] CP mailbox IPC init failed: %d\n", ret);
+        }
+#endif
     }
 
   up_putc('M');
@@ -283,6 +291,14 @@ static int bk7258_ap_amp_initialize(int argc, char *argv[])
 
       return ret;
     }
+
+#ifdef CONFIG_BK7258_MB_IPC_RPMSG
+  ret = bk7258_mb_ipc_initialize();
+  if (ret != 0)
+    {
+      return ret;
+    }
+#endif
 
   /* Publish scheduler-running only after the AP-side RPTUN/RPMsg instance is
    * initialized.  CP uses the SWAP generation transition as the trigger to

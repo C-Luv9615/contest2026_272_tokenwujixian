@@ -1,7 +1,8 @@
-#ifndef __HP_SYS_REG_H_GUARD
-#define __HP_SYS_REG_H_GUARD
-#include <stdint.h>
-#include <stdbool.h>
+/* Legacy Wi-Fi include path.  The full generated SYS register definitions
+ * are imported once from the AON authority module. */
+#include "../../aon_pmu/authority/middleware/soc/bk7258/soc/sys_reg.h"
+
+#if 0
 // Copyright 2022-2023 Beken
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -3288,4 +3289,4 @@ extern "C" {
 }
 #endif
 
-#endif /* __HP_SYS_REG_H_GUARD */
+#endif

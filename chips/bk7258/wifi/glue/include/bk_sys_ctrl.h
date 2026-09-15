@@ -49,20 +49,45 @@
 #define PARAM_XTALH_CTUNE_MASK      (0xFF)
 #define PARAM_AUD_DAC_GAIN_MASK     (0x1F)
 
-/* ddev_control command codes, derived by walking the SCTRL enum. */
+/* ddev_control command codes, derived by walking the authority SCTRL enum in
+ * cp/middleware/driver/include/bk_private/bk_sys_ctrl.h.
+ *
+ * THE TRAP (fixed 2026-09-04): that enum carries seven `#if` blocks keyed on
+ * CONFIG_SOC_*, so the ordinal of every member after the first block depends on
+ * the SOC.  Walking it WITHOUT applying the preprocessor yields 115 members;
+ * BK7258 (CONFIG_SOC_BK7258=1, CONFIG_SOC_BK7236XX=1, and BK7271 / BK7231 /
+ * BK7231N / BK7236A / BK7256XX / BK7251 all undefined) activates only 89.
+ *
+ * The four values below used to be the unconditional-walk results, i.e. they
+ * named a DIFFERENT command than the authority does -- +6 for the BLE_RF pair
+ * and +25 for the VDD pair.  These are command IDs handed to the closed
+ * library through phy_os_variable slots 27..30, so a wrong ordinal makes the
+ * library request some other operation entirely.
+ *
+ * The first four are ahead of the first `#if` and were therefore already
+ * correct; they are kept to document that this was verified, not assumed.
+ * The two VDD values are independently corroborated by the cross-boundary ABI
+ * audit (/tmp/other-contract-behavior-audit.tsv rows 29/30, authority
+ * 0x0c123058 / 0x0c123057).
+ *
+ * Re-derive with the preprocessor applied, never by counting lines.
+ */
 
-#define CMD_GET_CHIP_ID             (0x0C123001)
-#define CMD_GET_DEVICE_ID           (0x0C123002)
-#define CMD_SCTRL_BLE_POWERDOWN     (0x0C12301B)
-#define CMD_SCTRL_BLE_POWERUP       (0x0C12301C)
-#define CMD_BLE_RF_BIT_SET          (0x0C123034)
-#define CMD_BLE_RF_BIT_CLR          (0x0C123035)
-#define CMD_SCTRL_SET_VDD_VALUE     (0x0C123070)
-#define CMD_SCTRL_GET_VDD_VALUE     (0x0C123071)
+#define CMD_GET_CHIP_ID             (0x0C123001)  /* magic +1  */
+#define CMD_GET_DEVICE_ID           (0x0C123002)  /* magic +2  */
+#define CMD_SCTRL_BLE_POWERDOWN     (0x0C12301B)  /* magic +27 */
+#define CMD_SCTRL_BLE_POWERUP       (0x0C12301C)  /* magic +28 */
+#define CMD_BLE_RF_BIT_SET          (0x0C12302E)  /* magic +46 */
+#define CMD_BLE_RF_BIT_CLR          (0x0C12302F)  /* magic +47 */
+#define CMD_SCTRL_SET_VDD_VALUE     (0x0C123057)  /* magic +87 */
+#define CMD_SCTRL_GET_VDD_VALUE     (0x0C123058)  /* magic +88 */
 
 #define SYS_DRV_CLK_ON              1
 #define SYS_DRV_CLK_OFF             0
-#define PM_CHIP_ID_MASK             0xFFFFFFFFu
+/* BK7258 authority sys_types.h: low 16 bits are stepping data; PM/PHY
+ * revision comparisons intentionally use only the high product/revision
+ * field.  This value is exported through g_phy_os_variable. */
+#define PM_CHIP_ID_MASK             0xFFFF0000u
 #define PM_CHIP_ID_MPW_V2_3         0x22710010u
 #define PM_CHIP_ID_MPW_V4           0x22C20010u
 #define PM_CHIP_ID_MP_A             0x23640810u

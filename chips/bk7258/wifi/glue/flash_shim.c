@@ -200,6 +200,7 @@ bk_err_t bk_flash_set_protect_type(flash_protect_type_t type)
  * eFuse
  ****************************************************************************/
 
+#if 0 /* Moved to chips/bk7258/otp/bk7258_otp.c; retained as fallback. */
 bk_err_t bk_efuse_read_byte(uint8_t addr, uint8_t *data)
 {
   /* eFuse holds trim/calibration bytes. Failing is the honest answer while the
@@ -258,6 +259,7 @@ bk_err_t bk_otp_ahb_update(otp2_id_t item, uint8_t *buf, uint32_t size)
   (void)size;
   return BK_FAIL;
 }
+#endif /* moved OTP/eFuse fallback */
 
 /****************************************************************************
  * Watchdog

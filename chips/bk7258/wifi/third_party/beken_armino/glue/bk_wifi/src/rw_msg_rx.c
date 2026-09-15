@@ -1843,27 +1843,31 @@ void rwnx_recv_msg(void)
 		tx_node = co_list_pick(&rw_msg_tx_head);
 		while (tx_node) {
 			tx_msg = (MSG_SND_NODE_PTR)tx_node;
-			if (rx_msg->id == tx_msg->reqid) {
-				found = 1;
-				co_list_extract(&rw_msg_tx_head, tx_node);
-				break;
+				if (rx_msg->id == tx_msg->reqid) {
+					int ret;
+
+					found = 1;
+					co_list_extract(&rw_msg_tx_head, tx_node);
+
+					/* RX owns this node until interrupts are restored.  A timed
+					 * sender may otherwise destroy its semaphore after extraction
+					 * but before this CFM copy/post, corrupting NuttX's timed-wait
+					 * bookkeeping. */
+					if (tx_msg->cfm && rx_msg->param_len)
+						os_memcpy(tx_msg->cfm, &rx_msg->param[0], rx_msg->param_len);
+
+					ret = rtos_set_semaphore(&tx_msg->semaphore);
+					BK_ASSERT(0 == ret); /* ASSERT VERIFIED */
+					break;
 			}
 
 			tx_node = co_list_next(tx_node);
 		}
 		GLOBAL_INT_RESTORE();
 
-		if (found) {
-			int ret;
-
-			if (tx_msg->cfm && rx_msg->param_len)
-				os_memcpy(tx_msg->cfm, &rx_msg->param[0], rx_msg->param_len);
-
-			ret = rtos_set_semaphore(&tx_msg->semaphore);
-			BK_ASSERT(0 == ret); /* ASSERT VERIFIED */
-		} else {
-			rwnx_handle_recv_msg(rx_msg);
-		}
+			if (!found) {
+				rwnx_handle_recv_msg(rx_msg);
+			}
 
 		ke_msg_free(rx_msg);
 	}

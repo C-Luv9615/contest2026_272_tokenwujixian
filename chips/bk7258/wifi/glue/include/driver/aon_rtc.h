@@ -1,33 +1,20 @@
 /*
  * chips/bk7258/wifi/glue/include/driver/aon_rtc.h
  *
- * NuttX reimplementation of the Armino AON-RTC driver surface used by the
- * vendored glue. Skeleton: init/deinit are no-op success; period-timer create/
- * destroy return BK_ERR_NOT_SUPPORT until the team aon-rtc driver exists.
+ * Keep this legacy glue include name as a compatibility entry point, but make
+ * the complete Armino BK7258 authority header the one definition source.  The
+ * previous local reimplementation declared a reduced surface (aon_rtc_id_t as a
+ * plain uint32_t, no alarm API) to match init/deinit stubs that never started
+ * the AON RTC counter; the authority driver under chips/bk7258/aon_rtc/ now
+ * provides the real implementation.
+ *
+ * The nested <driver/aon_rtc_types.h> include resolves to the authority header
+ * as well, because no glue-local file of that name exists.
  */
 
 #ifndef __BK7258_WIFI_GLUE_DRIVER_AON_RTC_H
 #define __BK7258_WIFI_GLUE_DRIVER_AON_RTC_H
 
-#include <stdint.h>
-#include <stdbool.h>
-
-#include <common/bk_err.h>
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-typedef uint32_t aon_rtc_id_t;
-typedef uint32_t rtc_tick_t;
-
-bk_err_t bk_aon_rtc_driver_init(void);
-bk_err_t bk_aon_rtc_driver_deinit(void);
-uint64_t bk_aon_rtc_get_current_tick(aon_rtc_id_t id);
-float bk_rtc_get_ms_tick_count(void);
-
-#ifdef __cplusplus
-}
-#endif
+#include "../../../../aon_rtc/authority/include/driver/aon_rtc.h"
 
 #endif /* __BK7258_WIFI_GLUE_DRIVER_AON_RTC_H */

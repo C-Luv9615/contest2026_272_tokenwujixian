@@ -1,3 +1,7 @@
+/* Direct authority BK7258 generated register definitions import. */
+#include "../../aon_pmu/authority/middleware/soc/bk7258/soc/aon_pmu_reg.h"
+
+#if 0
 #ifndef __HP_AON_PMU_REG_H_GUARD
 #define __HP_AON_PMU_REG_H_GUARD
 #include <stdint.h>
@@ -285,3 +289,4 @@ extern "C" {
 #endif
 
 #endif /* __HP_AON_PMU_REG_H_GUARD */
+#endif /* retained legacy copy */
