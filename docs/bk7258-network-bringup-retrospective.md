@@ -19,9 +19,89 @@ ping -c 4 192.168.190.241: 4 packets transmitted, 4 received, 0% packet loss
 
 按失真层分组。每条都是一个独立机制,不能合并。
 
+### 移植期的初始化与链接
+
+**1. vendor 校准链缺 libm,且调用顺序错位**(`ed35cd5`、`8744247`)
+
+症状:两次不同的递归 assert 崩溃,都发生在闭源校准代码里。
+
+根因有两个。`vnd_cal_set_auto_pwr_thred()` 用 `ceil()` 算 TSSI 阈值,而 `CONFIG_LIBM` 没开,调用落到未实现的数学路径。另一处是 `vnd_cal_overlay` 被放在 init 链的头部,早于 osal/phy/rf/SARADC 就绪,`vnd_cal_set_epa_config` 里闭源的浮点日志路径撞上递归 assert。
+
+修法:打开 `CONFIG_LIBM`(Armino 的 newlib 本来就带完整 libm),并按 authority 的顺序 `app_phy_init -> bk_rf_adapter_init -> vnd_cal_overlay -> app_wifi_init` 重排。
+
+**2. authority 模块被手写 stub 和重复定义顶替**(`2a58eac`、`b3d0231`)
+
+根因:TRNG 的 `driver_early_init` 步骤完全缺失,GPIO 的 `gpio_dev_map`/`unmap` 是 `return BK_OK` 空壳,而 `analog_shim.c` 和 `hw_driver_shim.c` 里 14 个手写的 `sys_ll_*` 定义与逐字复制来的 Armino `sys_ll.h` 冲突。
+
+修法:直接导入 authority 的 trng(13 文件)、gpio(16 文件)、pm(32 文件),用 `cmp` 验证与 armino 侧逐字节相同,删掉被取代的手写重复项。
+
+判据:关联恢复,`chan_survey` 14/14。
+
+**3. power_clk_rf_init 移植了但没接进调用链**(`51bf1f0`)
+
+根因:函数已经落在 `hal_port` 里,但 `bk7258_wifi_initialize` 从没调它。缺的是 ROSC 校准(ANA_REG6 序列)、温度检测使能、模拟时钟使能、R41 rosc-to-wifi 路由。
+
+修法:按 Armino 的 `driver_early_init` 顺序,接在 `vnd_cal_overlay` 之后、`bk_wifi_init` 之前。
+
+### adapter 契约与闭源库的隐含假设
+
+这一组的共同点是:编译链接全都干净,只在运行时失败。
+
+**4. 中断屏蔽寄存器的返回值契约反了**(`88299e0`)
+
+症状:每次扫描都以 10 秒主机超时结束,`recv_cnt=0`,init 之后再没有 MAC 中断,ke 事件调度器一整轮跑不到 32 次。
+
+根因:authority 的 `sys_drv_int_*disable` 返回**清位之前的整个使能寄存器**,好让调用者精确恢复它打断的状态(`rw_msg_tx`/`rw_task` 的 `WIFI_INT_DISABLE .. WIFI_INT_RESTORE` 就把这个值直接喂 `enable()`)。这个移植返回 0,于是恢复变成 `enable(0)`,永久屏蔽。症状完全对上:init 期间中断正常,之后再也没有。
+
+那两个宏在树内没有调用者,但四个函数都能从闭源 `libwifi.a` 经 adapter 表进来,配对关系我们看不见。
+
+修法:disable 变体返回改前的使能寄存器,spinlock 下显式 `getreg32`/`putreg32` 做 RMW。
+
+判据:`scanu_confirm status=0 recv_cnt=104 result=32 time=1.67s`,`isr 33=87 34=26 36=27`(之前全是 0),`ke_sched[1..225]`(之前整个 10 秒只有 [1])。
+
+同一版镜像里还落了 60M 的 cpu_freq vote,所以单变量归因不成立,两者都来自 authority,都保留。
+
+**5. 闭源库假设新分配的内存已清零**(`88299e0`)
+
+根因:闭源代码里有先分配后直接假定为零的地方(`sta_info_tab` 已证实)。FreeRTOS 下它的堆是一个 `.bss` 数组所以看不出来,而 NuttX 的堆在 Wi-Fi init 时已经是脏的。
+
+修法:`ke_malloc` 和 `os_malloc_wifi_buffer` 自己清零。这不是在声称 FreeRTOS 保证清零,只是补上闭源库实际依赖的前提。
+
+**6. dcache flush 是空 stub,而 DCACHE 是开的**(`5540f23`)
+
+根因:`_flush_all_dcache` 在 os_funcs 表里是空实现,两侧的 `CONFIG_ARCH_DCACHE` 都是 y。`glue/include/cache.h:12-16` 早就写着这是"MAC 数据路径上的静默数据损坏"。
+
+修法:按 authority 做 Clean+Invalidate。同表还修了 `_pm_low_voltage_delta_wakeup_delay_in_us` 从 0 改成 188(authority 的 `ceil(6*1e6/32000)`),并把 `_delay`、`_rc_drv_set_rf_en`、`_sta_ip_start` 退回 NULL。authority 三个都留空且能跑,说明库会跳过;我们原先给 `_delay` 填了个单位靠猜的毫秒睡眠,一旦库真去调它会卡住 CFM 处理。
+
+**7. pbuf ABI 两处错位**(`88299e0`)
+
+根因:layer 的 switch 差了一位,`BK_PBUF_RAW` 落空成 NULL;`get_rx_pbuf_type` 该返回序数的地方返回了 lwIP 的位域。
+
+### 关联与四次握手
+
+**8. 非 PM_V2 分支缺两个 IOCTL 派发**(`5540f23`)
+
+症状:关联从未被确认。`rw_msg_send timeout for 6173`,`Failed to get BSSID`,然后 wpa_supplicant 在能置 ASSOCIATED 之前就本地 deauth 了。
+
+根因:`rw_task.c` 里非 PM_V2 的 `core_thread_main()` 少了 `BMSG_SOFTWARE_IOCTL_TYPE` 和 `BMSG_HARDWARE_IOCTL_TYPE` 两个 case,于是被 `rw_msg_tx.c:112-118` 路由到硬件发送器的 `ME_GET_BSS_INFO_REQ` 掉进 `default` 被丢弃,CFM 永不返回,5 秒后超时。vendor 默认配置是 `CONFIG_PM_V2=y`,所以上游从不会碰到。
+
+修法:从 PM_V2 的兄弟变体逐字搬过来两个 case。
+
+判据:超时和 `Failed to get BSSID` 消失,ASSOCIATED 先 4/5 后 3/3。
+
+**9. EAPOL 没有分流,四次握手不开始**(`5540f23`)
+
+根因:`ethernetif_input()` 把 EAPOL(0x888E)和其他 802.3 帧一起交给 NuttX 协议栈,在那里被丢弃。这个义务在 `glue/include/wpa_compat/sk_intf.h:20-22` 里已经记着,但没实现。
+
+修法:在 netif 路径之前分流给 `ke_l2_packet_tx()`,连自echo 过滤一起从 vendor 的 bridge(`cp/.../port/wlanif.c:331`)转写过来。
+
+判据:`ASSOCIATED -> 4WAY_HANDSHAKE`,`WPA: RX message 1 of 4-Way Handshake`,PTK/KCK/KEK/TK 推导出来,`Sending EAPOL-Key 2/4`。
+
+这一条也解释了为什么后来需要 `02526fd` 那种仪表:关联成功完全不能证明数据路径通,因为 EAPOL 在 `rx_submit()` 之前就被分走了,而 M1/M3 在 802.11 层是不加密的。
+
 ### 驱动到协议栈的交接
 
-**1. iob 里的帧位置错了一个以太头**(`d8e3bcd`)
+**10. iob 里的帧位置错了一个以太头**(`d8e3bcd`)
 
 症状:`ifconfig` 显示 `Received=11 Errors=0`,而 `IPv4=0 ARP=0`,`arp_in` 每帧报 `Invalid hardware type`,ping 拿到 `ENETUNREACH`。
 
@@ -33,7 +113,7 @@ ping -c 4 192.168.190.241: 4 packets transmitted, 4 received, 0% packet loss
 
 细节见 `bk7258-rx-nuttx-vs-lwip.md`。
 
-**2. 大帧跨 IOB 链后静默丢弃**(`3b10c92`)
+**11. 大帧跨 IOB 链后静默丢弃**(`3b10c92`)
 
 症状:ping 通了,DHCP 拿不到地址。三次 DISCOVER 每次 3.0 秒超时,一次 REQUEST 都没有,没有任何错误日志。
 
@@ -43,7 +123,7 @@ ping -c 4 192.168.190.241: 4 packets transmitted, 4 received, 0% packet loss
 
 判据:同一帧的驱动侧记录从 `io_len=182 chained=1` 变成 `io_len=338 chained=0`,DHCP 随之走完握手。
 
-**3. netdev 的协议栈侧字段没填**(`8a6220c`)
+**12. netdev 的协议栈侧字段没填**(`8a6220c`)
 
 症状:netdev 注册成功,但发帧失败,原因与 vendor 路径无关。
 
@@ -53,7 +133,7 @@ ping -c 4 192.168.190.241: 4 packets transmitted, 4 received, 0% packet loss
 
 ### 中断上下文
 
-**4. vendor 从硬中断调 printf**(`2d6a5eb`)
+**13. vendor 从硬中断调 printf**(`2d6a5eb`)
 
 症状:`semaphore.h:518` assert。只在 `0914-vela-17` 一轮出现过,那之前 16 轮没有,那之后 7 轮也没再现。
 
@@ -65,7 +145,7 @@ ping -c 4 192.168.190.241: 4 packets transmitted, 4 received, 0% packet loss
 
 ### 启动与内存
 
-**5. PM 初始化关掉了 PSRAM 所在的电源域**(`51a3aef`)
+**14. PM 初始化关掉了 PSRAM 所在的电源域**(`51a3aef`)
 
 症状:`mm_foreach()` assert,而分配器自己的记账看起来完好,`free=` 每次探测都逐字节相同。
 
@@ -73,7 +153,7 @@ ping -c 4 192.168.190.241: 4 packets transmitted, 4 received, 0% packet loss
 
 修法:PM 硬件初始化移到 `nx_start()` 之前。
 
-**6. 链接脚本的孤儿段没被初始化**(`e74d83e`)
+**15. 链接脚本的孤儿段没被初始化**(`e74d83e`)
 
 症状:`mb_chnl_open()` 读到 `log_chnl == 0`,无任何诊断。
 
@@ -81,13 +161,13 @@ ping -c 4 192.168.190.241: 4 packets transmitted, 4 received, 0% packet loss
 
 修法:把 `.dtcm_sec_data` 折进 `.data`。
 
-**7. 释放从核前检查了不该检查的位**(`a8321d6`)
+**16. 释放从核前检查了不该检查的位**(`a8321d6`)
 
 根因:`sys_hal_power_config_default()` 通过置 halt 和 pwr_dw 把两个从核关掉,所以 `board_start_cpu()` 运行时 halt 本就是置位的,而释放流程要求它已清零。这个检查在 PM 初始化前移之后才第一次被真正执行到。
 
 ### 时序余量
 
-**8. AP 双核 SMP 让 PBKDF2 超出 BSS 有效期**(`7d7436c`,workaround)
+**17. AP 双核 SMP 让 PBKDF2 超出 BSS 有效期**(`7d7436c`,workaround)
 
 症状:关联必失败,扫到的 BSS 在关联工作项执行前就被回收。
 
@@ -97,11 +177,25 @@ ping -c 4 192.168.190.241: 4 packets transmitted, 4 received, 0% packet loss
 
 ### 可观测性
 
-这两条不是 bug,但没有它们前面的排查都做不了。
+这三条不是 bug,但没有它们前面的排查都做不了。
 
-**9. NSH 网络工具没编进去**(`bf6fb3f`):`ifconfig`/`ifup`/`renew`/`ping` 全部不可用,关联通了也没法配地址或造流量。DHCP 客户端还需要 `NET_BROADCAST` 和 `NET_SOCKOPTS` 同时开(`dhcpc.c` 用 `SO_RCVTIMEO`、`SO_BINDTODEVICE`、`INADDR_BROADCAST`,而 `udp_input.c` 的广播接收要求两者都在)。
+**18. NSH 网络工具没编进去**(`bf6fb3f`):`ifconfig`/`ifup`/`renew`/`ping` 全部不可用,关联通了也没法配地址或造流量。DHCP 客户端还需要 `NET_BROADCAST` 和 `NET_SOCKOPTS` 同时开(`dhcpc.c` 用 `SO_RCVTIMEO`、`SO_BINDTODEVICE`、`INADDR_BROADCAST`,而 `udp_input.c` 的广播接收要求两者都在)。
 
-**10. 日志噪声淹没证据**(`e7f563a`):SARADC 采样器每秒一轮,每轮无条件打四条 LOG_INFO。一次抓包里约 7% 是这些行,把 wpa_supplicant 的关联轨迹挤出了可见窗口。
+**19. 日志噪声淹没证据**(`e7f563a`):SARADC 采样器每秒一轮,每轮无条件打四条 LOG_INFO。一次抓包里约 7% 是这些行,把 wpa_supplicant 的关联轨迹挤出了可见窗口。
+
+**20. 收帧计数与 ARP 表不可见**(`02526fd`)
+
+关联成功完全不能证明数据路径通。EAPOL 在 `rx_submit()` 之前就被分流走了(见第 9 条),而 M1/M3 在 802.11 层不加密,所以四次握手跑完也说不出有没有一个普通数据帧到过协议栈。这个 commit 是补仪表,它自己没修任何失败。
+
+- Kconfig 里 `select ARCH_HAVE_NETDEV_STATISTICS`,`NETDEV_STATISTICS` 才能打开。上游只有 `NET_RPMSG_DRV`、`NET_DUMPPACKET`、`DM9X_NINTERFACES`、`ENC28J60_REGDEBUG` 会 select 它,lowerhalf 驱动默认摸不到。计数本身是 `netdev_upperhalf.c` 做的(六处 `NETDEV_RXPACKETS`/`TXPACKETS`/`RXDROPPED`),正是这个驱动挂进去的那一层。此后 `ifconfig` 才有 RX/TX 包数、错误、丢弃。
+
+  第 8 条那个偏移 bug 就是靠这组计数发现的:`Received=11 Errors=0` 而 `IPv4=0 ARP=0`,没有这些数字只能看到"ping 不通"。
+
+- `NET_ARP_IPIN` 和 `NET_ARPTAB_SIZE=48` 跟 r528s3-gemini-s1 那个已知能用的移植对齐。`ARP_IPIN` 顺带是一个收帧证明:开了它之后任何收到的 IP 包都会学一条 ARP 表项,所以 ARP 表一直空就说明根本没有 IPv4 帧进来。
+
+- `bk7258_wifi_reclaim()` 保持空实现,但注释写清了为什么。它不是 stub:`netpkt_free()` 自己归还配额(`netdev_upperhalf.c` 里对 `quota_ptr` 的 `atomic_add`),而 `transmit()` 在返回前就释放了 netpkt,所以配额在消耗它的同一个调用栈上就还掉了,这个驱动从不会在 transmit 之后继续持有 netpkt。这个 op 仍然注册,因为不注册的话 `netdev_upper_can_tx()` 没有恢复路径,任何一次配额丢失会从"损失一个轮询周期"变成永久致命。
+
+这个 commit 还撤回了两个关于 `ENETUNREACH` 的假设,没让它们悬着:`ifconfig` 配地址不会把接口拉下来(`SIOCSIFADDR` 在 `netdev_ioctl.c:1162` 只做比较、赋值、通知 netlink,从不碰 `IFF_UP`);TX 配额也没有泄漏,理由就是上面那条 `netpkt_free()` 的读法。
 
 ## 方法上的教训
 
@@ -144,6 +238,18 @@ strings nuttx.elf | grep -E "dhcp#%u dport|Received OFFER from"
 **PBKDF2 仍慢一个数量级。** 关掉 AP 的 SMP 后是 2.74 秒,理论值应在 0.4 秒以内,余量只剩 7 秒多。候选是 flash XIP 取指开销和 D-cache 配了但从未启用。
 
 **AP 的 SMP 死锁。** `7d7436c` 是 workaround,团队基线是 `CONFIG_SMP=y`。
+
+**三个 bring-up 探针到期未删。** `5540f23` 写明"握手闭环后必须移除",握手现在已经闭环(`add hw key` 两次、DHCP、ping 都过了),但它们还在树里:
+
+| 探针 | 位置 | 0915-5 里的打印数 |
+|---|---|---|
+| `evtq` | `glue/wpa_queue_shim.c:117,128` | 3 |
+| `l2tx cfm` | `third_party/.../rwnx_tx.c:314` | 11 |
+| `txq miss` | `third_party/.../rwnx_tx.c:645` | 0 |
+
+`l2tx cfm` 每个发出的帧都打一行,是当前抓包里最吵的一项。`txq miss` 是 `RWNX_LOGW` 且只在异常时触发,留着代价不大。`rw_task.c` 的丢消息日志已经不在了。
+
+删之前要注意 `rwnx_tx.c` 属于 `third_party/beken_armino`,动它会加大与 authority 原始文件的偏离量,得跟第 4 条那类改动一样在 commit 里写清理由。
 
 ## 复现步骤
 
