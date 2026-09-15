@@ -699,6 +699,12 @@ static bk_err_t bk7258_wifi_scan_done(void *arg, event_module_t module,
              *(volatile uint32_t *)(env + 0xec),
              *(volatile uint32_t *)(env + 0xf8));
     }
+    /* Milestone M1 (alignment checklist): 0x49108050 is the interrupt
+     * control register hal_machw_init programs last; ==1 means
+     * hal_machw_init ran to its interrupt-enable step. */
+    syslog(LOG_INFO,
+           "[BK7258-WIFI] M1: 49108050=%08x\n",
+           (unsigned long)getreg32(0x49108050));
   }
   /* NXMAC register-window dump (0x49100000-0x7F, 32 words = 8 short
    * lines).  Diff against the authoritative board's identical dump to
@@ -1000,6 +1006,16 @@ int bk7258_wifi_initialize(void)
    * row 0, leaving 0x49000000=0 and the NXMAC core without a functional
    * clock.  Both functions are global exports of libwifi.a; seeding the
    * vote slot and applying row 1 restores the authoritative clock state. */
+  /* vnd_cal overlay (bk_init.c:270 order): load vendor calibration
+   * tables (power gain base, TSSI thresholds, EPA config) BEFORE
+   * bk_wifi_init -- the authoritative boot chain does this and our
+   * builds had no vnd_cal symbols linked at all. */
+  {
+    extern void vnd_cal_overlay(void);
+
+    vnd_cal_overlay();
+    syslog(LOG_INFO, "[BK7258-WIFI] vnd_cal overlay applied\n");
+  }
   /* LPO source alignment (2026-09-01): the authoritative board's AON PMU
    * R41=0x232 carries lpo_config=PM_LPO_SRC_ROSC; our boot chain leaves
    * the reset default 0 (DIVD), so the library receives a different LPO

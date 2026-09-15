@@ -744,6 +744,37 @@ static void bk7258_wifi_exit_low_analog_cb_unused(void)
     bk_printf("[BK7258-WIFI] capability: _sys_hal_exit_low_analog not in profile\n"); }
 }
 #endif
+extern uint32_t hp_rc_drv_get_rx_mode_enrxsw(void);
+extern void hp_rc_drv_set_rx_mode_enrxsw(uint32_t en);
+extern void hp_rc_drv_set_agc_manual_en(uint32_t en);
+extern int hp_os_vsnprintf(char *buf, uint32_t size, const char *fmt, va_list ap);
+extern int hp_net_wlan_add_netif(uint8_t vif_idx);
+extern int hp_net_wlan_remove_netif(uint8_t vif_idx);
+extern int hp_sta_ip_start(void);
+extern int hp_sta_ip_down(void);
+extern int hp_sta_ip_mode_set(uint32_t mode);
+extern int hp_uap_ip_start(void);
+extern int hp_uap_ip_down(void);
+extern char *hp_inet_ntoa(uint32_t ip);
+extern uint32_t hp_lookup_ipaddr(const char *name);
+extern void hp_get_net_info(void *info);
+extern void hp_save_net_info(void *netif, void *sta);
+extern int hp_set_sta_status(uint32_t status);
+extern void hp_do_evm(void *param);
+extern void hp_do_rx_sensitivity(void);
+extern void hp_evm_via_mac_evt(void);
+extern void hp_evm_via_mac_continue(void);
+extern uint32_t hp_tx_evm_rate_get(void);
+extern uint32_t hp_tx_evm_bandwidth_get(void);
+extern uint32_t hp_tx_evm_mode_get(void);
+extern uint32_t hp_tx_evm_guard_i_tpye_get(void);
+extern uint32_t hp_tx_evm_modul_format_get(void);
+extern uint32_t hp_tx_evm_pwr_idx_get(void);
+extern int hp_wapi_wpi_encrypt(void *param);
+extern int hp_wapi_wpi_decrypt(void *param);
+extern uint32_t hp_get_pbuf_pool_size(void);
+extern uint32_t hp_get_rx_pbuf_type(void);
+
 static void tx_verify_test_call_back_cb(void) { }
 
 extern bk_err_t bk_wifi_get_vendor_ie_cb_internal(void *vendor_ie, uint32_t vendor_type, uint16_t len, uint8_t frame_type);
@@ -945,6 +976,35 @@ wifi_os_funcs_t g_wifi_os_funcs =
   ._rtos_exit_critical = bk7258_wifi_exit_critical_cb,
   ._rtos_delay_milliseconds = bk7258_wifi_delay_ms_cb,
   ._delay = bk7258_wifi_delay_cb,
+  ._rc_drv_get_rx_mode_enrxsw = hp_rc_drv_get_rx_mode_enrxsw,
+  ._rc_drv_set_rx_mode_enrxsw = hp_rc_drv_set_rx_mode_enrxsw,
+  ._rc_drv_set_agc_manual_en = hp_rc_drv_set_agc_manual_en,
+  ._net_wlan_add_netif = hp_net_wlan_add_netif,
+  ._net_wlan_remove_netif = hp_net_wlan_remove_netif,
+  ._sta_ip_start = hp_sta_ip_start,
+  ._sta_ip_down = hp_sta_ip_down,
+  ._sta_ip_mode_set = hp_sta_ip_mode_set,
+  ._uap_ip_start = hp_uap_ip_start,
+  ._uap_ip_down = hp_uap_ip_down,
+  ._inet_ntoa = hp_inet_ntoa,
+  ._lookup_ipaddr = hp_lookup_ipaddr,
+  ._get_net_info = hp_get_net_info,
+  ._save_net_info = hp_save_net_info,
+  ._set_sta_status = hp_set_sta_status,
+  ._do_evm = hp_do_evm,
+  ._do_rx_sensitivity = hp_do_rx_sensitivity,
+  ._evm_via_mac_evt = hp_evm_via_mac_evt,
+  ._evm_via_mac_continue = hp_evm_via_mac_continue,
+  ._tx_evm_rate_get = hp_tx_evm_rate_get,
+  ._tx_evm_bandwidth_get = hp_tx_evm_bandwidth_get,
+  ._tx_evm_mode_get = hp_tx_evm_mode_get,
+  ._tx_evm_guard_i_tpye_get = hp_tx_evm_guard_i_tpye_get,
+  ._tx_evm_modul_format_get = hp_tx_evm_modul_format_get,
+  ._tx_evm_pwr_idx_get = hp_tx_evm_pwr_idx_get,
+  ._wapi_wpi_encrypt = hp_wapi_wpi_encrypt,
+  ._wapi_wpi_decrypt = hp_wapi_wpi_decrypt,
+  ._get_pbuf_pool_size = hp_get_pbuf_pool_size,
+  ._get_rx_pbuf_type = hp_get_rx_pbuf_type,
   ._delay_us = bk7258_wifi_delay_us_cb,
   ._rtos_lock_mutex = bk7258_wifi_lock_mutex_cb,
   ._rtos_unlock_mutex = bk7258_wifi_unlock_mutex_cb,
@@ -1062,6 +1122,21 @@ wifi_os_variable_t g_wifi_os_variable =
   ._pm_cpu_frq_default = PM_CPU_FRQ_60M,
   ._pm_32k_step_begin = PM_32K_STEP_BEGIN,
   ._pm_32k_step_finish = PM_32K_STEP_FINISH,
+
+  /* Low-power clock-switch timing constants (values from the
+   * authoritative bk_wifi_adapter.c / bk7258 sys_types.h):
+   *  xtal_dpll_stability = (0.29ms DPLL + 0.75ms restore) * 1000 = 1040
+   *  hardware delay = 500us; 26M stability = 1800us (project config).
+   * The library consumes these during sleep/wake clock transitions;
+   * leaving them unbound left the timing at 0. */
+  ._low_power_xtal_dpll_stability_delay_time = 1040,
+  ._low_power_delay_time_hardware = 500,
+  ._low_power_26m_stability_delay_time_hardware = 1800,
+  /* WIFI_HSU interrupt enable bit: CPU0_INT_32_63_EN bit0 (WIFI_HSU). */
+  ._wifi_hsu_interrupt_ctrl_bit = 1,
+  /* Low-voltage wakeup lead time and debug config register address. */
+  ._pm_low_voltage_delta_wakeup_delay_in_us = 0,
+  ._sys_sys_debug_config1_addr = 0x44010000 + (0x39 << 2),
 
   ._cmd_rf_wifipll_hold_bit_set = CMD_RF_WIFIPLL_HOLD_BIT_SET,
   ._cmd_rf_wifipll_hold_bit_clr = CMD_RF_WIFIPLL_HOLD_BIT_CLR,
