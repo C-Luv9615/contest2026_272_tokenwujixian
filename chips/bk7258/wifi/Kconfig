@@ -14,12 +14,19 @@ config BK7258_WIFI
 	depends on BK7258_COMPONENT_CP
 	depends on NET
 	depends on NETDEVICES
+	select DRIVERS_WIRELESS
+	select NETDEV_WIRELESS_IOCTL
 	select NETDEV_WIRELESS_HANDLER
+	select DRIVERS_IEEE80211
+	select SCHED_HPWORK
+	select SCHED_LPWORK
 	help
 		Team-owned BK7258 Wi-Fi integration: netdev_lowerhalf +
 		wireless_ops_s data/control plane over the Beken MAC/PHY/RF runtime.
 		This is a skeleton milestone; it does not link the vendor library
-		until a NuttX-buildable vendor library and ABI are available.
+		until a NuttX-buildable vendor library and ABI are available. The
+		high-priority worker runs vendor HISR/timer bottom halves; the
+		low-priority worker runs the periodic SARADC/PHY temperature task.
 
 if BK7258_WIFI
 
@@ -29,6 +36,14 @@ config BK7258_WIFI_STA
 	help
 		Enable station mode skeleton. SoftAP/P2P/monitor are out of scope
 		for the first milestone.
+
+config BK7258_WIFI_AP
+	bool "BK7258 Wi-Fi SoftAP support"
+	default n
+	depends on BK7258_WIFI
+	help
+		Enable the separate SoftAP provider closure. Keep disabled while the
+		STA scan/connect milestone is being brought up.
 
 config BK7258_WIFI_OSAL
 	bool "BK7258 Wi-Fi OSAL (NuttX mapping)"
@@ -52,6 +67,31 @@ config BK7258_WIFI_DEBUG
 	depends on DEBUG_FEATURES
 	help
 		Enable skeleton-stage diagnostics. Must not print passphrase/PMK.
+
+config BK7258_WIFI_VENDOR_LINK
+	bool "Link BK7258 vendor Wi-Fi/PHY archives"
+	default n
+	depends on BK7258_WIFI
+	help
+		Add the pinned libwifi.a and libbk_phy.a archives to the link.
+		This option does not start the vendor runtime; keep
+		BK7258_WIFI_VENDOR_RUNTIME disabled until the OSAL, hardware, and
+		calibration contracts are validated.
+
+config BK7258_WIFI_VENDOR_RUNTIME
+	bool "Start BK7258 vendor Wi-Fi runtime"
+	default n
+	depends on BK7258_WIFI_VENDOR_LINK
+	help
+		Allow the explicit vendor runtime entry point to be enabled later.
+		This is intentionally off for the link-closure stage.
+
+config BK7258_WIFI_WPA_TASK_PRIORITY
+	int "WPA task priority"
+	default 100
+	depends on BK7258_WIFI_VENDOR_RUNTIME
+	help
+		NuttX priority used by the Armino WPA task provider.
 
 comment "Vendor packet private reserve (beken_genie BK7258 profile)"
 

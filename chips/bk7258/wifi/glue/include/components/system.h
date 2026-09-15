@@ -70,8 +70,8 @@ typedef enum {
 #define BK_IS_GROUP_MAC(m) ((m)[0] & 0x01)
 
 #define rtos_get_ms_per_tick()   (MSEC_PER_TICK)
+#define TICK_PER_SECOND          (TICK_PER_SEC)
 #define rtos_get_tick_per_second() (TICK_PER_SECOND)
-#define TICK_PER_SECOND          (TICK_PER_SECOND)
 #define BK_MS_TO_TICKS(x)        MSEC2TICK(x)
 #define BK_TICKS_TO_MS(x)        TICK2MSEC(x)
 

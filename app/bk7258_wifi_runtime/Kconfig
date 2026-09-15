@@ -1,0 +1,7 @@
+config BK7258_WIFI_RUNTIME_APP
+  bool "BK7258 Wi-Fi runtime manual probe"
+  default n
+  depends on BK7258_WIFI_VENDOR_RUNTIME
+  ---help---
+    Add the manually-invoked `bk7258_wifi_runtime init` command.  It never
+    starts Wi-Fi automatically; use it only after the base image is running.

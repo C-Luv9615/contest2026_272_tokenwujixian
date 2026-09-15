@@ -26,6 +26,8 @@ typedef uint32_t gpio_dev_t;
 #define GPIO_DEV_DEBUG0   0xC0u
 #define GPIO_DEV_DEBUG1   0xC1u
 #define GPIO_DEV_DEBUG2   0xC2u
+#define GPIO_DEV_RXEN     0xD0u
+#define GPIO_DEV_TXEN     0xD1u
 
 bk_err_t gpio_dev_map(gpio_id_t gpio_id, gpio_dev_t dev);
 bk_err_t gpio_dev_unmap(gpio_id_t gpio_id);

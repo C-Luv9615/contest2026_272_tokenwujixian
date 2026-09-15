@@ -18,6 +18,7 @@
 #include <nuttx/irq.h>
 #include <nuttx/mutex.h>
 #include <nuttx/semaphore.h>
+#include <nuttx/spinlock.h>
 #include <nuttx/wdog.h>
 #include <nuttx/wqueue.h>
 #include <nuttx/clock.h>
@@ -30,6 +31,8 @@
 #include <string.h>
 
 #include "bk7258_wifi_internal.h"
+
+#define BK7258_WIFI_WAIT_FOREVER UINT32_MAX
 
 /****************************************************************************
  * Threads
@@ -106,8 +109,12 @@ int bk7258_wifi_osal_thread_delete(uintptr_t handle)
  * Queue
  *
  * Fixed-capacity, fixed-message-size FIFO implemented with a ring buffer and
- * two counting semaphores (available messages / available space). send/recv
- * block for the given timeout and are safe to post from IRQ context.
+ * two counting semaphores (available messages / available space). The ring
+ * metadata is protected by a spinlock, not a mutex: vendor Wi-Fi IRQ handlers
+ * use BEKEN_NO_WAIT sends and queue-state checks to defer work to the core
+ * thread. A mutex would attempt to wait in that ISR path. The item semaphore
+ * remains an exact item count; the space semaphore is a task-context wakeup
+ * hint only. IRQ producers never wait on either semaphore.
  ****************************************************************************/
 
 struct bk7258_wifi_queue_s
@@ -119,9 +126,82 @@ struct bk7258_wifi_queue_s
   size_t count;
   sem_t count_sem;
   sem_t space_sem;
-  mutex_t lock;
+  spinlock_t lock;
   uint8_t buf[];
 };
+
+static int bk7258_wifi_osal_queue_send_common(
+  FAR struct bk7258_wifi_queue_s *q, const void *msg,
+  unsigned int timeout_ms, bool front)
+{
+  clock_t start = 0;
+  clock_t timeout = 0;
+
+  if (timeout_ms != 0 && timeout_ms != BK7258_WIFI_WAIT_FOREVER)
+    {
+      start = clock_systime_ticks();
+      timeout = MSEC2TICK(timeout_ms);
+    }
+
+  for (;;)
+    {
+      irqstate_t flags = spin_lock_irqsave(&q->lock);
+
+      if (q->count < q->capacity)
+        {
+          if (front)
+            {
+              q->head = (q->head + q->capacity - 1) % q->capacity;
+              memcpy(&q->buf[q->head * q->msg_size], msg, q->msg_size);
+            }
+          else
+            {
+              memcpy(&q->buf[q->tail * q->msg_size], msg, q->msg_size);
+              q->tail = (q->tail + 1) % q->capacity;
+            }
+
+          q->count++;
+          spin_unlock_irqrestore(&q->lock, flags);
+          nxsem_post(&q->count_sem);
+          return 0;
+        }
+
+      spin_unlock_irqrestore(&q->lock, flags);
+
+      /* The vendor uses BEKEN_NO_WAIT from Wi-Fi hard IRQ handlers. Never
+       * enter a semaphore wait path from IRQ context, even a "try" wait. */
+
+      if (timeout_ms == 0 || up_interrupt_context())
+        {
+          return -EAGAIN;
+        }
+
+      if (timeout_ms == BK7258_WIFI_WAIT_FOREVER)
+        {
+          int ret = nxsem_wait(&q->space_sem);
+          if (ret < 0)
+            {
+              return ret;
+            }
+        }
+      else
+        {
+          clock_t elapsed = clock_systime_ticks() - start;
+          int ret;
+
+          if (elapsed >= timeout)
+            {
+              return -ETIMEDOUT;
+            }
+
+          ret = nxsem_tickwait(&q->space_sem, timeout - elapsed);
+          if (ret < 0)
+            {
+              return ret;
+            }
+        }
+    }
+}
 
 int bk7258_wifi_osal_queue_create(uintptr_t *handle, const char *name,
                                   size_t msg_size, size_t msg_count)
@@ -141,9 +221,15 @@ int bk7258_wifi_osal_queue_create(uintptr_t *handle, const char *name,
 
   nxsem_init(&q->count_sem, 0, 0);
   nxsem_set_protocol(&q->count_sem, SEM_PRIO_NONE);
-  nxsem_init(&q->space_sem, 0, msg_count);
+  /* space_sem wakes a task-context sender after a consumer frees a ring
+   * entry. It is not a capacity reservation because IRQ producers must not
+   * call nxsem_trywait(). Ring count under q->lock is the capacity authority. */
+  nxsem_init(&q->space_sem, 0, 0);
   nxsem_set_protocol(&q->space_sem, SEM_PRIO_NONE);
-  nxmutex_init(&q->lock);
+
+  /* q comes from kmm_zalloc(); the all-zero lock state is the NuttX
+   * unlocked initial state. SP_UNLOCKED is a declaration initializer, not
+   * an assignable expression on this NuttX branch. */
 
   *handle = (uintptr_t)q;
   return 0;
@@ -153,28 +239,15 @@ int bk7258_wifi_osal_queue_send(uintptr_t handle, const void *msg,
                                 unsigned int timeout_ms)
 {
   FAR struct bk7258_wifi_queue_s *q = (FAR void *)handle;
-  int ret;
 
-  ret = bk7258_wifi_osal_sem_wait((uintptr_t)&q->space_sem, timeout_ms);
-  if (ret < 0)
-    {
-      return ret;
-    }
-
-  nxmutex_lock(&q->lock);
-  memcpy(&q->buf[q->tail * q->msg_size], msg, q->msg_size);
-  q->tail = (q->tail + 1) % q->capacity;
-  q->count++;
-  nxmutex_unlock(&q->lock);
-
-  nxsem_post(&q->count_sem);
-  return 0;
+  return bk7258_wifi_osal_queue_send_common(q, msg, timeout_ms, false);
 }
 
 int bk7258_wifi_osal_queue_recv(uintptr_t handle, void *msg,
                                 unsigned int timeout_ms)
 {
   FAR struct bk7258_wifi_queue_s *q = (FAR void *)handle;
+  irqstate_t flags;
   int ret;
 
   ret = bk7258_wifi_osal_sem_wait((uintptr_t)&q->count_sem, timeout_ms);
@@ -183,12 +256,14 @@ int bk7258_wifi_osal_queue_recv(uintptr_t handle, void *msg,
       return ret;
     }
 
-  nxmutex_lock(&q->lock);
+  flags = spin_lock_irqsave(&q->lock);
   memcpy(msg, &q->buf[q->head * q->msg_size], q->msg_size);
   q->head = (q->head + 1) % q->capacity;
   q->count--;
-  nxmutex_unlock(&q->lock);
+  spin_unlock_irqrestore(&q->lock, flags);
 
+  /* nxsem_post() is explicitly safe in IRQ context; here it wakes a sender
+   * waiting for any newly available ring slot. */
   nxsem_post(&q->space_sem);
   return 0;
 }
@@ -201,6 +276,38 @@ int bk7258_wifi_osal_queue_delete(uintptr_t handle)
   nxsem_destroy(&q->space_sem);
   kmm_free(q);
   return 0;
+}
+
+bool bk7258_wifi_osal_queue_empty(uintptr_t handle)
+{
+  FAR struct bk7258_wifi_queue_s *q = (FAR void *)handle;
+  bool empty;
+  irqstate_t flags = spin_lock_irqsave(&q->lock);
+
+  empty = q->count == 0;
+  spin_unlock_irqrestore(&q->lock, flags);
+
+  return empty;
+}
+
+bool bk7258_wifi_osal_queue_full(uintptr_t handle)
+{
+  FAR struct bk7258_wifi_queue_s *q = (FAR void *)handle;
+  bool full;
+  irqstate_t flags = spin_lock_irqsave(&q->lock);
+
+  full = q->count == q->capacity;
+  spin_unlock_irqrestore(&q->lock, flags);
+
+  return full;
+}
+
+int bk7258_wifi_osal_queue_send_front(uintptr_t handle, const void *msg,
+                                      unsigned int timeout_ms)
+{
+  FAR struct bk7258_wifi_queue_s *q = (FAR void *)handle;
+
+  return bk7258_wifi_osal_queue_send_common(q, msg, timeout_ms, true);
 }
 
 /****************************************************************************
@@ -258,6 +365,11 @@ int bk7258_wifi_osal_sem_wait(uintptr_t handle, unsigned int timeout_ms)
   int ret;
 
   if (timeout_ms == 0)
+    {
+      return nxsem_trywait(sem);
+    }
+
+  if (timeout_ms == BK7258_WIFI_WAIT_FOREVER)
     {
       return nxsem_wait(sem);
     }

@@ -40,6 +40,7 @@ void *os_malloc_debug(const char *func_name, int line, size_t size,
                       int need_zero);
 void  os_free_debug(const char *func_name, int line, void *pv);
 void *os_malloc_wifi_buffer(size_t size);
+void *os_memmove(void *dest, const void *src, size_t n);
 
 #define os_malloc(size)  os_malloc_debug(__FUNCTION__, __LINE__, size, 0)
 #define os_free(p)       os_free_debug(__FUNCTION__, __LINE__, p)

@@ -31,3 +31,13 @@ bk_err_t bk_netif_dhcpc_start(netif_if_t ifx)
 { (void)ifx; return BK_ERR_NOT_SUPPORT; }
 bk_err_t bk_netif_static_ip(netif_ip4_config_t config)
 { (void)config; return BK_ERR_NOT_SUPPORT; }
+
+void net_begin_send_arp_reply(int is_send_arp, int is_allow_send_req)
+{
+  /* The vendor indication asks lwIP to emit an active ARP reply. NuttX owns
+   * ARP and this S1/S2 port has no validated carrier/TX/IP lifecycle yet, so
+   * the optimization is deliberately disabled rather than synthesizing a
+   * packet behind the network stack's back. */
+  (void)is_send_arp;
+  (void)is_allow_send_req;
+}

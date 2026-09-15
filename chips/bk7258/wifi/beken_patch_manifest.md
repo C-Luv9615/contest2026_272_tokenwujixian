@@ -1,5 +1,13 @@
 # Beken patch manifest (P0 artifact)
 
+**Integration status (2026-08-26):** NuttX-owned OSAL, packet bridge, hardware
+shims, SARADC lifecycle and STA-only WPA source wrappers are present in the
+worktree. The default CP remains runtime-off. The separate runtime probe is a
+host link-closure artifact only; it is not a release or flashing input.
+
+The current functional scope is STA scan and association/WPA/EAPOL bring-up.
+SoftAP, P2P, WPS, monitor and STA+AP concurrency are deliberately disabled.
+
 Team-owned delivery contract for the BK7258 Wi-Fi vendor integration. The
 team repository does **not** copy Armino/Beken source; every external input is
 pinned here with a hash and a legal note so the integration is reproducible
@@ -31,6 +39,12 @@ and reviewable.
 | `beken/nuttx-netdev.patch` | add `CONFIG_BK_WIFI_NUTTX_NETDEV` / vendor-packet split | *(pending)* |
 | `beken/osal-adapter.patch` | map `wifi_os_funcs_t` onto `bk7258_wifi_osal.c` | *(pending)* |
 | `beken/eapol-rx-bridge.patch` | divert EAPOL/WAI to vendor WPA, data to lower half | *(pending)* |
+
+The current source-backed STA provider follows the SDK non-P2P manifest:
+`fake_socket.c`, `eloop.c`, `sk_intf.c`, the STA WPA core, Beken driver and
+`l2_packet_none.c`. AP/hostapd/P2P/WPS source files are not part of the current
+runtime probe. The generated per-source wrappers are build integration, not a
+claim that the runtime is already operational.
 
 ## 4. Configuration hash
 
