@@ -229,4 +229,47 @@ int bk7258_wifi_initialize(void);
  * scan against an unpowered MAC/PHY domain. */
 bool bk7258_wifi_is_ready(void);
 
+/****************************************************************************
+ * STA association
+ *
+ * These wrap the vendor association path so callers stay free of the Armino
+ * headers -- this file includes nothing but NuttX and libc (see the top of
+ * the file), and the runtime app must keep it that way.  State and reason are
+ * therefore plain int, and the two _str() helpers live on this side because
+ * decoding them in the caller would require the vendor enums the caller is
+ * not allowed to see.
+ ****************************************************************************/
+
+/* Start a WPA2-PSK association.  Returns once the request has been handed to
+ * the vendor stack, NOT once the link is up: association and the 4-way
+ * handshake complete asynchronously, so poll
+ * bk7258_wifi_sta_connect_status().
+ * ssid is 1..32 chars, psk 8..64; both are bounds-checked here.  Requires
+ * bk7258_wifi_is_ready(). */
+
+/* Named after the bk_wifi_sta_* family it wraps, which also keeps it clear of
+ * the file-local WEXT handler that fills wireless_ops_s.connect. */
+
+int bk7258_wifi_sta_connect(FAR const char *ssid, FAR const char *psk);
+
+/* Latest link state, plus the reason code explaining it.  Either pointer may
+ * be NULL.  Note the vendor reports a "success" sentinel in reason while the
+ * link is healthy, so decide the outcome from state and read reason only to
+ * explain a failure. */
+
+int bk7258_wifi_sta_connect_status(FAR int *state, FAR int *reason);
+
+/* True once the link is up.  Exists because the state values themselves are
+ * vendor enums a caller must not see, so "is it connected" cannot be decided
+ * outside this layer.  Mirrors the vendor's own wifi_netif_sta_is_connected(). */
+
+bool bk7258_wifi_sta_is_connected(void);
+
+/* Readable names for the two values above.  Never return NULL; unknown values
+ * yield a static "unknown" string rather than being formatted into a shared
+ * buffer, so these stay reentrant. */
+
+FAR const char *bk7258_wifi_sta_state_str(int state);
+FAR const char *bk7258_wifi_sta_reason_str(int reason);
+
 #endif /* __CHIPS_BK7258_WIFI_BK7258_WIFI_INTERNAL_H */

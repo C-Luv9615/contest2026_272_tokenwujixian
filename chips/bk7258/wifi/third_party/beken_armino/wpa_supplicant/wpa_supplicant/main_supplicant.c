@@ -130,7 +130,20 @@ int supplicant_main_entry(char *oob_ssid)
 
 	os_memset(&params, 0, sizeof(params));
 	params.wpa_debug_level = MSG_DEBUG;
-	params.wpa_debug_show_keys = 1;
+	/* show_keys 由 1 改为 0（本 port 的刻意改动）。
+	 *
+	 * bk_prelude.h 打开了 CONFIG_WPA_LOG，wpa_supplicant 的完整诊断因此生效，
+	 * 其中包含 316 个 wpa_hexdump_key()/wpa_hexdump_ascii_key() 调用点，会把
+	 * PMK/PTK/TK 原始字节打到串口。upstream 自己的开关就是这个字段：置 0 时
+	 * _wpa_hexdump()/_wpa_hexdump_ascii() 走 show==0 分支，打印 "[REMOVED]"
+	 * 而非密钥内容（wpa_debug.c:113-127）。
+	 *
+	 * 即用 upstream 机制压制凭据，而不是另造一套；文本诊断全部保留。
+	 * wpa_debug_level 必须留在 MSG_DEBUG：CONFIG_WPA_LOG 打开后
+	 * `State: %s -> %s`(wpa_supplicant.c:1056-1064) 由 wpa_dbg(MSG_DEBUG) 输出，
+	 * 抬到 MSG_INFO 会把现在能看到的状态跃迁滤掉。
+	 */
+	params.wpa_debug_show_keys = 0;
 
 	if (0 == wpas_ifaces) {
 		wpas_ifaces = os_zalloc(sizeof(struct wpa_interface));

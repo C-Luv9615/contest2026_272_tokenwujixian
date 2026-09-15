@@ -8,6 +8,7 @@
  */
 
 #include <nuttx/config.h>
+#include <nuttx/cache.h>
 #include <nuttx/kmalloc.h>
 
 #include <assert.h>
@@ -741,7 +742,21 @@ static void mcu_ps_bcn_callback_cb(void) { }
 static void dbg_enable_debug_gpio_cb(void) { }
 static void bk7258_wifi_gpio_unmap_cb(uint32_t id) { (void)gpio_dev_unmap((gpio_id_t)id); }
 static void bk7258_wifi_gpio_map_cb(uint32_t id, uint32_t dev) { (void)gpio_dev_map((gpio_id_t)id, (gpio_dev_t)dev); }
-static void flush_all_dcache_cb(void) { }
+/* Transcribed from the authority's cache driver semantics
+ * (cp/middleware/arch/cm33/cache.c:37-42): flush = Clean + Invalidate over the
+ * whole D-cache.  The old body here was an empty no-op from the pre-cache era;
+ * the port now runs with CONFIG_ARCH_DCACHE=y, and with the slot empty the
+ * closed library gets no writeback before whichever DMA handoff it guards --
+ * exactly the "silent data corruption on the MAC data path" our own
+ * glue/include/cache.h:12-16 warns about.  NuttX exposes the two halves
+ * separately (arm_cache.c:895/:737), so the authority's single
+ * CleanInvalidateDCache is spelled as clean-then-invalidate; the net cache
+ * state is the same (every line written back and invalidated). */
+static void flush_all_dcache_cb(void)
+{
+  up_clean_dcache_all();
+  up_invalidate_dcache_all();
+}
 static uint32_t bk7258_wifi_udp_bc_pkt_cb(u8 random_data)
 {
   static bool reported;
@@ -874,7 +889,9 @@ wifi_os_funcs_t g_wifi_os_funcs =
   /* RF capability entries below are backed by the linked BK PHY/runtime
    * implementation; do not replace them with synthetic success values. */
   ._manual_cal_rfcali = manual_cal_rfcali_status,
-  ._rc_drv_set_rf_en = rc_drv_set_rf_en,
+  /* 权威不填此槽。函数本体在 libbk_phy.a 里（两边同有），库需要时直调即可；
+   * 挂表只会激活权威没有的表内路径。退回 NULL 与权威逐槽相等。 */
+  //._rc_drv_set_rf_en = rc_drv_set_rf_en,
   ._rc_drv_get_rf_en = rc_drv_get_rf_en,
   /* Scan-probe TX chain requires real RF/power control; see the provider
    * block above for the board evidence that motivated these bindings. */
@@ -1015,13 +1032,24 @@ wifi_os_funcs_t g_wifi_os_funcs =
   ._rtos_enter_critical = bk7258_wifi_enter_critical_cb,
   ._rtos_exit_critical = bk7258_wifi_exit_critical_cb,
   ._rtos_delay_milliseconds = bk7258_wifi_delay_ms_cb,
-  ._delay = bk7258_wifi_delay_cb,
+  /* ._delay 曾填 bk7258_wifi_delay_cb（按毫秒睡）。退回 NULL 以与权威逐槽
+   * 相等：权威 adapter 不填此槽且实测可用，故库对它必然判空跳过 —— 填了反而
+   * 激活权威从未走过的路径，且参数语义（ms? tick?）无从考证（无权威语义可抄）。
+   * 风险场景：表调用在 core 线程上执行，若闭源库用它等待，我们的 ms 阻塞会
+   * 停摆整个 core 线程、CFM 得不到处理 —— 与未解释的间歇 rw_msg_send 超时
+   * （reqid 1/6173/7169/7172）形态吻合。退回 NULL 后该嫌疑整体消失。
+   * bk7258_wifi_delay_cb 本体保留（可能有别的引用），不再挂表。 */
+  //._delay = bk7258_wifi_delay_cb,
   ._rc_drv_get_rx_mode_enrxsw = hp_rc_drv_get_rx_mode_enrxsw,
   ._rc_drv_set_rx_mode_enrxsw = hp_rc_drv_set_rx_mode_enrxsw,
   ._rc_drv_set_agc_manual_en = hp_rc_drv_set_agc_manual_en,
   ._net_wlan_add_netif = hp_net_wlan_add_netif,
   ._net_wlan_remove_netif = hp_net_wlan_remove_netif,
-  ._sta_ip_start = hp_sta_ip_start,
+  /* 权威不填此槽（lwIP 层拥有 sta_ip_start，库不走表）。本 port 的对应义务
+   * 由 plan §11.4.3 承担：连接成功 → runtime app 侧 carrier_on + DHCPC，
+   * 与这个槽无关。hp_sta_ip_start 的 no-op 本体保留。退回 NULL 与权威逐槽
+   * 相等，避免激活权威从未走过的表内路径。 */
+  //._sta_ip_start = hp_sta_ip_start,
   ._sta_ip_down = hp_sta_ip_down,
   ._sta_ip_mode_set = hp_sta_ip_mode_set,
   ._uap_ip_start = hp_uap_ip_start,
@@ -1192,7 +1220,15 @@ wifi_os_variable_t g_wifi_os_variable =
   /* WIFI_HSU interrupt enable bit: CPU0_INT_32_63_EN bit0 (WIFI_HSU). */
   ._wifi_hsu_interrupt_ctrl_bit = 1,
   /* Low-voltage wakeup lead time and debug config register address. */
-  ._pm_low_voltage_delta_wakeup_delay_in_us = 0,
+  /* 0 -> 188: the authority fills
+   * PM_LOW_VOLTAGE_DELTA_WAKEUP_DELAY_IN_US = ceil(DELTA*1e6/RTC_CLOCK_FREQ),
+   * DELTA = (0xb+0xb+3)-(8+8+3) = 6 (cp/middleware/soc/bk7258/hal/sys_types.h
+   * :115-130), RTC_CLOCK_FREQ = 32000 in this profile -> 188.  The 0 was
+   * flagged in the value-table work as strictly worse than the real number
+   * ("tells the library the wakeup delay is zero"); the pinned libwifi.a is a
+   * PM_V2=1 build and may read this slot, so it gets the authority's number,
+   * not a guess. */
+  ._pm_low_voltage_delta_wakeup_delay_in_us = 188,
   ._sys_sys_debug_config1_addr = 0x44010000 + (0x39 << 2),
 
   ._cmd_rf_wifipll_hold_bit_set = CMD_RF_WIFIPLL_HOLD_BIT_SET,

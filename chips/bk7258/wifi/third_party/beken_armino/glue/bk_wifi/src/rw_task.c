@@ -994,6 +994,61 @@ static void core_thread_main(void *arg)
 				bmsg_ioctl_handler(&msg);
 				break;
 
+			/* 两个 case 从本文件的姊妹变体逐字移来（:886-894，`#if CONFIG_PM_V2`
+			 * 分支），处理方式与上面的 BMSG_IOCTL_TYPE 完全相同 —— 三者都只是
+			 * bmsg_ioctl_handler(&msg)。
+			 *
+			 * 为什么必须补：rw_msg_send() 会把 7 个消息 id 路由到
+			 * bmsg_hardware_para_ioctl_sender()（rw_msg_tx.c:112-118），其中就有
+			 * ME_GET_BSS_INFO_REQ，入队类型为 BMSG_HARDWARE_IOCTL_TYPE。而本变体
+			 * （非 PM_V2）的 switch 原先没有这个 case，消息落进 default 被静默丢弃：
+			 * LMAC 从未收到 REQ，ME_GET_BSS_INFO_CFM 永远不回，rw_msg_send 的 5 秒
+			 * 等待超时。
+			 *
+			 * 后果是致命的、且不在这一层显现：wpa_driver_get_bssid()
+			 * (driver_beken.c:2480) 因此失败，而 wpa_supplicant_event_assoc()
+			 * (events.c:3677) 的 `if (wpa_drv_get_bssid(...) < 0)` 会直接
+			 * deauthenticate + return —— set_state(WPA_ASSOCIATED) 在那一行之后，
+			 * 于是状态永远停在 ASSOCIATING，4-way 握手一次都不会开始。板上表现为
+			 * 关联成功（aid 已分配）却随即被 AP 以 reason 15 踢掉。
+			 *
+			 * 根因是这两个变体功能不对等，而厂商默认配置掩盖了它：
+			 * cp/middleware/soc/bk7258/bk7258.defconfig:171 是 CONFIG_PM_V2=y，
+			 * iperf 项目 overlay 不覆盖它，所以厂商发货镜像编的是 PM_V2 变体
+			 * —— 那个变体有这两个 case，因此厂商永远不会触发此问题
+			 * （纯净 v3.1.1 实测 4-way/DHCP/IP 全通，见
+			 * my_docs/bk7258-wifi/armino-reference/wifi_enable_to_connect_chain.md）。
+			 *
+			 * 本 port 没有 Armino 的 PM 子系统，CONFIG_PM_V2 未定义，于是编到
+			 * 这个 #else 变体，缺分支就暴露了。补 case 而不是去定义
+			 * CONFIG_PM_V2：PM_V2 变体会调 mac_sleep_check() / ps_msg_process()
+			 * 并带 #if CONFIG_STA_PS 块，那是本轮刻意不移植的 PM 耦合面。
+			 *
+			 * 佐证：当前那棵 armino 工作树被人关掉了 PM
+			 * （projects/wifi/iperf/cp/config/bk7258/config 相对 config.pre-pmoff
+			 * 把 PM_V2/PM_ENABLE/STA_PS 全设为 not set），它因此也编成 #else
+			 * 变体，实测同样卡在关联后 reason-15，且 rw_msg_send 超时走
+			 * BK_ASSERT(0) 直接重启（本 port 已降级为打印+返回）。也就是说关 PM
+			 * 这个动作顺带静默删掉了一个与电源管理无关的消息分派分支。
+			 *
+			 * 安全性：libwifi.a 对 bmsg_hardware_para_ioctl_sender 和
+			 * bmsg_software_para_ioctl_sender 的引用均为 0，唯一调用者是
+			 * rw_msg_tx.c:119，所以补这两个 case 不会改变闭源库看到的任何行为。
+			 * SOFTWARE 一并补上以与姊妹变体结构对齐，但它当前无调用者。
+			 *
+			 * 两个 case 都不设 ke_skip，与 BMSG_IOCTL_TYPE 一致 —— 处理完仍要跑
+			 * ke_evt_core_scheduler()，否则 CFM 不会被及时排空。
+			 */
+			case BMSG_SOFTWARE_IOCTL_TYPE:
+				RWNX_LOGV("bmsg_software_ioctl_handler\r\n");
+				bmsg_ioctl_handler(&msg);
+				break;
+
+			case BMSG_HARDWARE_IOCTL_TYPE:
+				RWNX_LOGV("bmsg_hardware_ioctl_handler\r\n");
+				bmsg_ioctl_handler(&msg);
+				break;
+
 			case BMSG_MEDIA_TYPE:
 				ke_skip = 1;
 				bmsg_music_handler(&msg);
@@ -1006,7 +1061,46 @@ static void core_thread_main(void *arg)
 				break;
 #endif
 			default:
-				RWNX_LOGV("unknown_msg\r\n");
+				/* Bring-up diagnostic: was RWNX_LOGV, which this port compiles
+				 * out (BK_LOGV is gated in glue/include/components/log.h to keep
+				 * wifi_v2.c:2781/2828 from printing the passphrase).  That made
+				 * this branch completely silent, and it is the branch that
+				 * swallows BMSG_HARDWARE_IOCTL_TYPE.
+				 *
+				 * Raised to RWNX_LOGW (-> syslog(LOG_WARNING), ungated) and the
+				 * type is now printed, because "a message was dropped" is
+				 * useless without knowing which one.
+				 *
+				 * Why it matters: the dispatch above (tbb jump table) sends
+				 * types 0, 3, 5, 6 and 12 here.  Type 6 is
+				 * BMSG_HARDWARE_IOCTL_TYPE, which rw_msg_send() selects for
+				 * ME_GET_BSS_INFO_REQ among six other ids (rw_msg_tx.c:112-118).
+				 * So wpa_driver_get_bssid() -> wpa_get_bss_info() ->
+				 * rw_msg_get_bss_info() -> rw_msg_send() posts a request that
+				 * never reaches the LMAC, no ME_GET_BSS_INFO_CFM ever returns,
+				 * and the 5 s wait expires -- which is what stops
+				 * wpa_supplicant_event_assoc() before it can set state
+				 * ASSOCIATED, so the 4-way handshake never starts.
+				 *
+				 * Disassembly of both this object and the authority's
+				 * rw_task.c.obj shows the identical jump table (type 6 -> the
+				 * default label in both), so the gap is vendor-original, not
+				 * ours.  This log exists to confirm at run time that a type-6
+				 * message really does arrive here.
+				 *
+				 * Rate-limited on purpose: an unexpected high-frequency type
+				 * falling through would otherwise flood the UART, and the
+				 * association window being measured is only ~1.5 s wide.
+				 */
+				{
+					static uint32_t drop_seq;
+
+					if (drop_seq < 32 || (drop_seq & 0x1f) == 0)
+						RWNX_LOGW("unknown_msg type=%u seq=%lu\r\n",
+								  (unsigned)msg.type,
+								  (unsigned long)drop_seq);
+					drop_seq++;
+				}
 				break;
 			}
 

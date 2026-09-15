@@ -204,6 +204,25 @@ static void rwnx_tx_confirm(void *param)
 		}
 #endif
 
+#if 1 /* bring-up probe, remove with the txq-miss probe when the 4-way closes */
+	/* The board shows every EAPOL M2 failing as "not acknowledged"
+	 * (l2_packet_tx_cb maps !acked to result=-1), while MGMT frames on the
+	 * same radio get ACKed fine.  cfm->status separates the three causes
+	 * without another guess: TX_STATUS_DISCARDED means the txu dropped the
+	 * frame (descriptor content), 0 means the firmware never wrote the
+	 * confirmation back (write-back address unreachable for its DMA), any
+	 * other value without ACKNOWLEDGED means the frame really went out
+	 * unacked.  Rate-limited like the txq-miss probe. */
+	{
+		static uint32_t l2cfm_seq;
+
+		if ((l2cfm_seq++ & 0x07) == 0)
+			RWNX_LOGW("l2tx cfm status=%08x acked=%d done=%d\n",
+					  (unsigned)cfm->status,
+					  !!(cfm->status & TX_STATUS_ACKNOWLEDGED),
+					  !!(cfm->status & TX_STATUS_DONE));
+	}
+#endif
 		// callback for mgmt frame tx
 		if (cb && skb->args)
 			cb(skb->args, !!(cfm->status & TX_STATUS_ACKNOWLEDGED));
@@ -455,6 +474,27 @@ static struct rwnx_txq *rwnx_select_txq(struct sk_buff *skb)
 		}
 		BK_ASSERT(txq->hwq);
 	}
+#if 1 /* bring-up probe, remove when the 4-way closes */
+	/* The `goto exit` on !txq in rwnx_start_xmit() is the one silent drop on
+	 * the EAPOL M2 path: the board reached 4WAY_HANDSHAKE (M1 received, PTK
+	 * derived) but every "Sending EAPOL-Key 2/4" failed with result<0 and
+	 * neither RWNX_LOGD line above fired, leaving two indistinguishable
+	 * causes: vif inactive (skips the sta lookup with no log) or the closed
+	 * lib's vif_mgmt_tx_get_staidx() missing the AP entry.  One rate-limited
+	 * line here separates them: active=0 says the vif flag, sta_idx=INVALID
+	 * (0xFF) says the lookup.  Editing this vendored file follows the
+	 * rw_task.c dispatch-fix precedent; revert with the probe. */
+	else {
+		static uint32_t txqmiss_seq;
+
+		if ((txqmiss_seq++ & 0x07) == 0)
+			RWNX_LOGW("txq miss: vif=%u active=%d sta_idx=%u dst="MACSTR"\n",
+					  skb->vif_idx,
+					  mac_vif_mgmt_get_active(rwnx_vif),
+					  skb->sta_idx,
+					  MAC2STR(eth_hdr_ptr->e_dest));
+	}
+#endif
 	return txq;
 }
 
