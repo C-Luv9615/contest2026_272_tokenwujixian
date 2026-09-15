@@ -157,50 +157,6 @@ void ethernetif_input(int iface, struct pbuf *p, uint8_t dst_idx)
     }
 
 #if CONFIG_BK7258_WIFI_VENDOR_RUNTIME
-  /* TEMPORARY RX frame probe (2026-09-14) -- remove once the RX classification
-   * gap is understood.
-   *
-   * ifconfig reports RX Received=11 with Errors=0, yet IPv4=0 and ARP=0: eleven
-   * data frames were handed to the stack after ifup and not one was classified.
-   * NETDEV_RXPACKETS is only bumped after the IFF_UP check in
-   * netdev_upperhalf.c:719-727, so those eleven really did reach eth_input().
-   *
-   * Leading hypothesis: 802.11 data frames carry an LLC/SNAP header, and if the
-   * vendor hands the frame over without translating it to Ethernet II, then what
-   * eth_input() reads at offset 12 is an LLC length (< 0x0600) rather than an
-   * ethertype -- matching neither 0x0800 nor 0x0806, so it is dropped silently.
-   * That produces exactly Received > 0 with IPv4 and ARP both zero.  Printing
-   * offsets 12..19 settles it: a SNAP frame shows aa aa 03 00 00 00 followed by
-   * the real ethertype.
-   *
-   * Placed ahead of the EAPOL split on purpose -- the split, the self-echo
-   * filter and the oversize drop all return early, so a probe further down would
-   * miss whole classes of frame.
-   *
-   * Bounded to the first 24 frames: this runs in the vendor RX callback, and an
-   * unbounded record here would both flood the console and perturb the path it
-   * is measuring. */
-
-  {
-    static unsigned int probe_count;
-
-    if (probe_count < 24u && p->len > BK7258_ETH_HDR_LEN)
-    {
-      FAR const uint8_t *b = (FAR const uint8_t *)p->payload;
-
-      probe_count++;
-      syslog(LOG_WARNING,
-             "[BK7258-WIFI] rx#%u len=%u/%u dst=%02x:%02x:%02x:%02x:%02x:%02x "
-             "et=%02x%02x tail=%02x %02x %02x %02x %02x %02x\n",
-             probe_count, (unsigned)p->len, (unsigned)p->tot_len,
-             b[0], b[1], b[2], b[3], b[4], b[5],
-             b[12], b[13],
-             b[14], b[15], b[16], b[17], b[18], b[19]);
-    }
-  }
-#endif
-
-#if CONFIG_BK7258_WIFI_VENDOR_RUNTIME
   /* Hand EAPOL to wpa_supplicant instead of to the NuttX stack.
    *
    * Transcribed from the vendor's own bridge, ethernetif_input() in
@@ -1567,7 +1523,6 @@ void bk7258_wifi_lower_rx_submit(struct bk7258_wifi_s *priv,
    * agrees: the run without setdatalen reported RX Bytes=0x2a for a 42-byte ARP
    * frame, i.e. the length was already right.  Adding the call on top coincided
    * with scan hanging, so it stays out. */
-
 
   if (bk7258_wifi_rx_enqueue(priv, iob) < 0)
     {
