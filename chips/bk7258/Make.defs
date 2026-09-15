@@ -4,7 +4,7 @@
 
 include armv8-m/Make.defs
 
-CHIP_CSRCS += bk7258_irq.c bk7258_allocateheap.c bk7258_timer.c
+CHIP_CSRCS += bk7258_irq.c bk7258_allocateheap.c bk7258_timer.c bk7258_flash.c
 CHIP_CSRCS += bk7258_ap_boot.c bk7258_gpio.c
 
 ifeq ($(CONFIG_ARCH_HAVE_MULTICPU),y)
@@ -40,3 +40,5 @@ DEPPATH += --dep-path audio
 CFLAGS += -I$(CHIP_DIR)$(DELIM)audio
 CHIP_CSRCS += bk7258_dac.c bk7258_gdma.c bk7258_audio.c
 endif
+
+include wifi/Make.defs

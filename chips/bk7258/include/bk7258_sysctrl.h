@@ -12,4 +12,15 @@ int bk7258_phy_power(bool enable);
 int bk7258_mac_reset(void);
 int bk7258_phy_reset(void);
 
+int bk7258_pmu_read(unsigned int reg, uint32_t *value);
+int bk7258_pmu_write(unsigned int reg, uint32_t value);
+int bk7258_analog_read(unsigned int reg, uint32_t *value);
+int bk7258_analog_write(unsigned int reg, uint32_t value);
+int bk7258_pmu_get_chipid(uint32_t *value);
+int bk7258_pmu_get_adc_cal(uint32_t *value);
+int bk7258_pmu_get_bgcal(uint32_t *value);
+int bk7258_sys_get_bgcalm(uint32_t *value);
+int bk7258_sys_set_bgcalm(uint32_t value);
+int bk7258_dpll_enable(bool enable);
+
 #endif /* __VENDOR_BEKEN_CHIP_BK7258_SYSCTRL_H */
