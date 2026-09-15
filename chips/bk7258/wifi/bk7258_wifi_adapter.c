@@ -712,6 +712,8 @@ static uint32_t bk7258_wifi_udp_bc_pkt_cb(u8 random_data)
   (void)random_data;
   return 0;
 }
+extern void bk7258_wifi_pwd_ofdm_override(uint32_t v);
+extern uint32_t bk7258_wifi_pwd_ofdm_get_override(void);
 extern void hp_sys_hal_enter_low_analog(void);
 extern void hp_sys_hal_exit_low_analog(void);
 
@@ -947,9 +949,9 @@ wifi_os_funcs_t g_wifi_os_funcs =
   ._sys_drv_int_group2_enable = bk7258_wifi_sys_drv_int_group2_enable_cb,
   ._sys_drv_int_group2_disable = bk7258_wifi_sys_drv_int_group2_disable_cb,
   ._sys_ll_set_cpu_power_sleep_wakeup_pwd_ofdm =
-    sys_ll_set_cpu_power_sleep_wakeup_pwd_ofdm,
+    bk7258_wifi_pwd_ofdm_override,
   ._sys_ll_get_cpu_power_sleep_wakeup_pwd_ofdm =
-    sys_ll_get_cpu_power_sleep_wakeup_pwd_ofdm,
+    bk7258_wifi_pwd_ofdm_get_override,
   ._sys_ll_get_cpu_device_clk_enable_mac_cken =
     sys_ll_get_cpu_device_clk_enable_mac_cken,
   ._sys_ll_get_cpu_device_clk_enable_phy_cken =
