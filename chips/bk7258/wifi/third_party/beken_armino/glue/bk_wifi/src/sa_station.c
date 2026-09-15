@@ -12,13 +12,6 @@
 #include "rw_ieee80211.h"
 #include "wifi_v2.h"
 
-/* Read-only NX MAC register probe used by the FSM bring-up diagnostics. */
-static inline unsigned hal_machw_probe(unsigned offset)
-{
-	return *(volatile unsigned *)(0x49100000u + offset);
-}
-
-
 
 //TODO should finally delete this file
 extern struct mac_scan_result *scanu_search_by_ssid(struct mac_ssid const *ssid);
@@ -132,35 +125,7 @@ static void sa_station_cfg80211_init(void)
 {
 	if (rwm_mgmt_is_vif_first_used() == NULL) {
 		WIFI_LOGV("init 1st vif\n");
-		/* FSM probe around MM_RESET: decides whether the NX MAC core ever
-		 * left reset (0x49100000 reads its "MAC" identity when out of
-		 * reset) or was started and later parked back at state 0. */
-		WIFI_LOGW("fsm pre-reset: 500=0x%08x 504=0x%08x 508=0x%08x id=0x%08x\n",
-				  (unsigned)hal_machw_probe(0x500),
-				  (unsigned)hal_machw_probe(0x504),
-				  (unsigned)hal_machw_probe(0x508),
-				  (unsigned)hal_machw_probe(0x0));
-		/* Clock state at MM_RESET time: distinguishes "the init-time
-		 * crm_clk_set(1) landed and was later reverted" (49000000=0x110c
-		 * here) from "it never landed" (49000000=0). */
-		WIFI_LOGW("clk pre-reset: 49000000=0x%08x 49850008=0x%08x 49100038=0x%08x\n",
-				  (unsigned)*(volatile unsigned *)0x49000000u,
-				  (unsigned)*(volatile unsigned *)0x49850008u,
-				  (unsigned)*(volatile unsigned *)0x49100038u);
-		/* MAC interrupt block (0x49108000 window): +0xf4 is the IRQ-route
-		 * register hal_machw_init reads to pick the ICU source for the GEN
-		 * handler; if it reads 0 the GEN/TIMER interrupts are routed to a
-		 * dead source and the chan machinery can never complete. */
-		WIFI_LOGW("irqblk pre-reset: f4=0x%08x 7c=0x%08x 70=0x%08x\n",
-				  (unsigned)*(volatile unsigned *)(0x49108000u + 0xf4),
-				  (unsigned)*(volatile unsigned *)(0x49108000u + 0x7c),
-				  (unsigned)*(volatile unsigned *)(0x49108000u + 0x70));
 		BK_LOG_ON_ERR(rw_msg_send_reset());
-		WIFI_LOGW("fsm post-reset: 500=0x%08x 504=0x%08x 508=0x%08x id=0x%08x\n",
-				  (unsigned)hal_machw_probe(0x500),
-				  (unsigned)hal_machw_probe(0x504),
-				  (unsigned)hal_machw_probe(0x508),
-				  (unsigned)hal_machw_probe(0x0));
 
 #if CONFIG_WIFI6
 		/* request lmac/umac features and handle dynamic parameters */
@@ -172,13 +137,6 @@ static void sa_station_cfg80211_init(void)
 		BK_LOG_ON_ERR(rw_msg_send_me_config_req());
 		BK_LOG_ON_ERR(rw_msg_send_me_chan_config_req());
 		BK_LOG_ON_ERR(rw_msg_send_start());
-		/* After MM_START: mm_active should have written 0x30 to 0x49100038
-		 * and the CRM row-1 clock config should still stand.  A revert here
-		 * points at phy_init/phy_set_channel inside mm_start_req_handler. */
-		WIFI_LOGW("clk post-start: 49000000=0x%08x 49850008=0x%08x 49100038=0x%08x\n",
-				  (unsigned)*(volatile unsigned *)0x49000000u,
-				  (unsigned)*(volatile unsigned *)0x49850008u,
-				  (unsigned)*(volatile unsigned *)0x49100038u);
 	}
 }
 

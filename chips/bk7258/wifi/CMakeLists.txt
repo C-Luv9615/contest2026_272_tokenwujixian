@@ -31,7 +31,13 @@ if(CONFIG_BK7258_WIFI)
       glue/platform_shim.c
       hal_port/hal_port_lpdoze.c
       hal_port/vnd_cal.c
-      hal_port/hal_port_power_clk_rf.c
+      # hal_port_power_clk_rf.c is intentionally NOT built: the
+      # authoritative bk7258 build leaves CONFIG_POWER_CLOCK_RF unset, so
+      # power_clk_rf_init never runs there.  Kept on disk as the reference
+      # transcription only.
+      hal_port/hal_port_dvfs.c
+      hal_port/hal_port_sys_int_power.c
+      hal_port/hal_port_mac.c
       hal_port/funcs_fill.c
       glue/os_shim.c
       glue/net_param_shim.c

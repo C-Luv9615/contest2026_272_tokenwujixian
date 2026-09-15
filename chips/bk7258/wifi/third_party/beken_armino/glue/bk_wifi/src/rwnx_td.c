@@ -9,6 +9,9 @@
 
 #include <common/sys_config.h>
 #include "rwnx_td.h"
+/* Restored (2026-09-01): d2ded03 includes rwnx_defs.h and the adaptation had
+ * dropped it, which silently took RWNX_LOGE with it.  See rwnx_td_pkt_dec(). */
+#include "rwnx_defs.h"
 
 #if CONFIG_RWNX_TD
 /*
@@ -65,8 +68,8 @@ void rwnx_td_pkt_dec(uint8_t vif_index,uint8_t access_category)
 
     if ((rwnx_td_env->pkt_cnt) == 0)
     {
-        DEBUGASSERT(false);
-        return;
+        RWNX_LOGE("rwnx_td_pkt_dec: pkt_cnt %x\r\n",rwnx_td_env->pkt_cnt);
+        BK_ASSERT(0); /* ASSERT VERIFIED */
     }
 
     irqstate_t flags = enter_critical_section();

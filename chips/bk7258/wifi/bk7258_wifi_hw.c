@@ -74,16 +74,21 @@ int bk7258_wifi_hw_power_on(void)
       return ret;
     }
 
-  /* The NX MAC core sits behind the OFDM domain; without it crm_mdm_reset()
-   * in the pinned archive skips the modem reset release and the MAC state
-   * machine never leaves 0. */
-  ret = bk7258_ofdm_power(true);
-  if (ret < 0)
-    {
-      bk7258_mac_power(false);
-      bk7258_phy_power(false);
-      return ret;
-    }
+  /* The OFDM domain is deliberately NOT touched here (2026-09-01).
+   *
+   * The authoritative adapter's wifi_mac_phy_power_on_wrapper
+   * (bk_wifi_adapter.c:426-436) votes MAC + PHY + PHY_WIFI power and MAC +
+   * PHY clocks -- and nothing else; it never controls the OFDM power domain.
+   * The closed library owns that domain entirely through the
+   * _sys_ll_set_cpu_power_sleep_wakeup_pwd_ofdm slot.
+   *
+   * The old comment here claimed the MAC core sits behind OFDM and that
+   * crm_mdm_reset would skip the modem reset release without it.  The
+   * authority board disproves the conclusion: crm_mdm_reset reads pwd_ofdm
+   * and only sets activeclkforce=3 when it reads 0 (OFDM powered).  The
+   * authority reads NON-zero there -- its OFDM is DOWN at that moment -- and
+   * its FSM works fine (0x49850010 = 0x108, scan returns results).  Forcing
+   * the domain on made us take a branch the authority never takes. */
 
   return 0;
 }
@@ -93,12 +98,10 @@ int bk7258_wifi_hw_power_off(void)
   int ret;
   int phy_ret;
 
-  ret = bk7258_ofdm_power(false);
-  phy_ret = bk7258_mac_power(false);
-  if (ret >= 0)
-    {
-      ret = phy_ret;
-    }
+  /* OFDM is not touched here either -- the domain belongs to the closed
+   * library (see bk7258_wifi_hw_power_on). */
+
+  ret = bk7258_mac_power(false);
   phy_ret = bk7258_phy_power(false);
   return ret < 0 ? ret : phy_ret;
 }

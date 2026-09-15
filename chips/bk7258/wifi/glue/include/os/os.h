@@ -112,9 +112,23 @@ size_t rtos_get_free_heap_size(void);
 size_t rtos_get_total_heap_size(void);
 size_t rtos_get_minimum_free_heap_size(void);
 
+/* Real interrupt masking, aligned with the authoritative definition
+ * (cp/include/os/os.h:43-47).  These were previously no-ops -- DISABLE just
+ * zeroed the local and RESTORE discarded it -- so every vendor critical
+ * section believed it had interrupts masked while it did not.  That covers
+ * 42 call sites in the compiled vendor sources, mostly co_list_push_back /
+ * co_list_extract on the shared rw_msg TX/RX lists (rw_msg_rx.c x13,
+ * bk_workqueue.c x6, eloop.c x6, wifi_v2.c x5, rw_msdu.c x4, rw_task.c x3,
+ * rw_msg_tx.c x2, rw_tx_buffering.c x2, hostapd_intf.c x1) -- i.e. exactly
+ * the message paths the MM_RESET/MM_START confirm handshake runs on, shared
+ * between the caller, the kmsgbk/core threads and the MAC ISR.
+ *
+ * rtos_disable_int/rtos_enable_int are declared above and already backed by
+ * bk7258_wifi_osal_disable_irq/enable_irq (glue/rtos_compat_shim.c:207-215),
+ * so this is the same primitive the authoritative macro uses. */
 #define GLOBAL_INT_DECLARATION()  uint32_t irq_level
-#define GLOBAL_INT_DISABLE()      do { irq_level = 0; } while (0)
-#define GLOBAL_INT_RESTORE()      do { (void)irq_level; } while (0)
+#define GLOBAL_INT_DISABLE()      do { irq_level = rtos_disable_int(); } while (0)
+#define GLOBAL_INT_RESTORE()      do { rtos_enable_int(irq_level); } while (0)
 
 /* Mailbox-backed PHY operation coordination is intentionally not enabled
  * until the vendor runtime and IPC adaptation are validated. */

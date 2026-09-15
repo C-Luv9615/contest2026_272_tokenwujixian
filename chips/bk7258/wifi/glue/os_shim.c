@@ -39,9 +39,21 @@ void os_free_debug(const char *func_name, int line, void *pv)
 
 void *os_malloc_wifi_buffer(size_t size)
 {
-  /* Skeleton: no DMA-alignment contract yet; plain kernel heap. Revisit once
-   * the vendor DMA/cache ABI is confirmed (plan §11.2). */
-  return kmm_malloc(size);
+  /* No DMA-alignment contract yet; plain kernel heap. Revisit once the vendor
+   * DMA/cache ABI is confirmed (plan §11.2).
+   *
+   * ZEROED DELIBERATELY (2026-09-01) -- kmm_zalloc, not kmm_malloc, for the
+   * same reason as ke_malloc() in glue/rtos_compat_shim.c: the closed library
+   * has code that allocates and then assumes the block is already zero (proven
+   * on-board for sta_info_tab / sta_mgmt_entry_init).  FreeRTOS hides that bug
+   * because its heap is the static .bss array ucHeap[] (heap_4.c:148), so
+   * init-time first-use allocations are zero by placement; NuttX's heap has
+   * already been churned by kernel and netdev bring-up and returns dirty
+   * memory.  This closes the class instead of guessing which archive-internal
+   * sites depend on it.  Zeroed memory is valid input anywhere uninitialised
+   * memory was, so nothing else changes. */
+
+  return kmm_zalloc(size);
 }
 
 void *os_sram_zalloc(size_t size)
