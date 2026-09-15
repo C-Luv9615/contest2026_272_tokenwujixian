@@ -13,9 +13,12 @@
 
 #include <nuttx/config.h>
 
-/* SoC family switches: BK7258 is none of the BK7236xx/BK7239xx/BK7256xx/
- * BK7286xx families these conditionals gate. */
-#define CONFIG_SOC_BK7236XX         0
+/* SoC family switches.  BK7258 belongs to the BK7236XX family: the
+ * authoritative BK7258 project configs set CONFIG_SOC_BK7236XX=y (loader
+ * ChipId 0x7236; see the armino bk7258 project configs).  Keeping it 0
+ * compiled every vendored 7236XX-conditional branch out, diverging from
+ * the profile the pinned libwifi.a was shipped for. */
+#define CONFIG_SOC_BK7236XX         1
 #define CONFIG_SOC_BK7239XX         0
 #define CONFIG_SOC_BK7256XX         0
 #define CONFIG_SOC_BK7286XX         0
@@ -32,6 +35,7 @@
 #define CONFIG_WIFI_ENABLE          1
 #define CONFIG_WIFI6                1
 #define CONFIG_WIFI4                0
+#define CONFIG_WIFI6_IP_DEBUG       1
 #define CONFIG_WIFI_BAND_5G         0
 #define CONFIG_WAPI_SUPPORT         0
 #define CONFIG_BLUETOOTH            0
@@ -42,11 +46,30 @@
 #define CONFIG_BRIDGE               0
 #define CONFIG_STA_AUTO_RECONNECT   0
 #define CONFIG_MONITOR_REQ          0
-#define CONFIG_ROLE_AP              0
-#define CONFIG_ROLE_STA             1
+#define CONFIG_WIFI_SCAN_COUNTRY_CODE 0
+/* CONFIG_ROLE_* comes from the vendored Armino bk_wifi_types.h.  Do not
+ * define it here: these are enum-like ABI values, not NuttX booleans. */
 
 /* Debug/trace off at skeleton stage. */
 #define CONFIG_RWNX_PROTO_DEBUG     0
+#define CONFIG_RWNX_TD              1
+#define CONFIG_RWNX_SW_TXQ          1
+#define CONFIG_SPECIAL_TX_TYPE      1
+#define CONFIG_WIFI_MAC_SUPPORT_STAS_MAX_NUM 2
+#define CONFIG_WIFI_KMSG_TASK_PRIO  3
+#define CONFIG_WIFI_KMSG_TASK_STACK_SIZE 4096
 #define CONFIG_SHELL_ASYNCLOG       0
+#define CONFIG_SCAN_SPEED_LEVEL     0
+#define CONFIG_SOC_BK7258           1
+
+/* Numeric fallback for Armino submodule identifiers not represented by the
+ * current NuttX PM header. These values are consumed only in the dormant RF
+ * capability table; no runtime vote is issued at this stage. */
+#ifndef POWER_SUB_MODULE_NAME_PHY_RF
+#  define POWER_SUB_MODULE_NAME_PHY_RF 2
+#endif
+#ifndef POWER_SUB_MODULE_NAME_PHY_WIFI
+#  define POWER_SUB_MODULE_NAME_PHY_WIFI 3
+#endif
 
 #endif /* __BK7258_WIFI_GLUE_COMMON_SYS_CONFIG_H */

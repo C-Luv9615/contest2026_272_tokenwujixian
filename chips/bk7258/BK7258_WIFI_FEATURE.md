@@ -1,12 +1,12 @@
 ---
 feature: bk7258-wifi-porting
 status: in-progress
-updated: 2026-08-20
+updated: 2026-08-26
 branch: feature/bk7258-wifi
 commits: # filled at delivery
 ---
 
-# BK7258 Wi-Fi OpenVela/NuttX 适配 — 骨架与 P0/P2 独立实现
+# BK7258 Wi-Fi OpenVela/NuttX 适配 — STA-only runtime bring-up
 
 ## Report
 
@@ -16,7 +16,15 @@ BK7258 DevKit 需要在 OpenVela/NuttX 上提供标准 `wlan0`，让上层通过
 
 适配主路径（详见 `chips/bk7258/OPENVELA_NUTTX_WIFI_PORTING_PLAN.md` §11.4）是：保留 Beken MAC/PHY/RF 与 WPA 核心，用 NuttX OSAL 替换 FreeRTOS，用 `netdev_lowerhalf` + NuttX 网络栈替换 Armino lwIP/DHCP/socket。
 
-本 feature 是第一个工作块：建立团队拥有的 Wi-Fi 骨架代码和 P0/P2 独立实现，不含真机验证（真机验证被 NuttX 版 Beken 库缺失阻塞）。
+当前工作块已经超出纯骨架阶段：团队已完成 capability owner、NuttX OSAL、
+timer/workqueue、vendor packet/pbuf copy bridge、netdev lower-half、IRQ、
+BK7258 SARADC 生命周期和 vendor source/build 接入。当前目标严格是 STA
+功能链：扫描、建立 WPA/EAPOL 状态机、连接、断开和后续 DHCP；SoftAP、P2P、
+WPS、monitor 与 STA+AP 并发不属于本阶段。
+
+默认 CP 镜像保持 `CONFIG_BK7258_WIFI_VENDOR_RUNTIME=n`。独立
+`runtime-probe` 仅用于 runtime-on 编译/链接收敛，当前已通过主要 WPA 源码
+编译但尚未完成最终链接，也没有烧录或实板联网证据。
 
 ## [S2] Design
 
@@ -27,7 +35,7 @@ NuttX netdev_lowerhalf + wireless_ops_s   （团队实现）
         │ NetPKT
 vendor packet shim（pbuf ABI + private reserve）  （团队实现）
         │
-Beken libwifi.a / libbk_phy.a             （外部输入，本块不链接）
+Beken libwifi.a / libbk_phy.a             （外部输入，runtime-on probe 条件链接）
         │
 BK7258 MAC / PHY / RF
 ```
@@ -61,19 +69,32 @@ board/bk7258-devkit/src/
 - 关联成功后才 `netdev_lower_carrier_on()`；DHCP lease bound 后调用 `wlan_dhcp_done_ind(vif_idx)`。
 - 团队仓不复制 Armino 源码；Beken 集成修改以 patch manifest 交付。
 
-### 构建约束
+### 当前构建与验证状态
 
-团队仓无本地 lint/unit-test/typecheck 命令（AGENTS.md）；构建在父 openvela workspace 通过 `./build.sh <board-config>` 进行，且依赖 linkfile 映射和 NuttX 版 Beken 库。本块不执行完整 NuttX 构建，也不做真机验证。
+已在独立 worktree/build slot 中执行 CMake configure 和 runtime-on probe
+构建。runtime-off 曾有通过记录，但当前改动后仍需重新确认；runtime-on
+当前停在链接闭包阶段。不得把 host 编译通过、默认镜像链接通过或
+`runtime-probe` 产物当作真机 STA 证据。
+
+## 当前实现状态
+
+| 阶段 | 状态 | 说明 |
+| --- | --- | --- |
+| Capability/ABI/OSAL | 已完成 | generated ABI 保持原布局，P0/P1 OSAL 已接入 |
+| packet/netdev bridge | 已完成（host evidence） | pbuf/vendor packet 使用显式 copy，未宣称 zero-copy |
+| hardware/SARADC glue | 部分完成 | SARADC MMIO 生命周期和校准表已接入，reset/RF/板上测量未完成 |
+| STA WPA source closure | 进行中 | 按 SDK non-P2P manifest 接入，runtime-on 当前停在最终链接 |
+| STA scan/association | 未开始实板验收 | 依赖 runtime link、RF 时序、WPA/EAPOL 和控制面闭合 |
+| DHCP/IP/stability | 未开始实板验收 | 依赖 carrier/IP-ready、DMA/cache 和 pbuf reserve 证据 |
 
 ## [S3] Out of Scope
 
-- 真机验证（RF 扫描、WPA 关联、DHCP、DNS、MQTT）——阻塞于 NuttX 版 Beken 库。
-- 链接 Armino/FreeRTOS 版 `libwifi.a`/`libbk_phy.a`（ABI 未验证）。
+- 真机验证（RF 扫描、WPA 关联、DHCP、DNS、MQTT）——当前尚未执行。
 - 修改 NuttX 上游或 Armino 集成代码（本块只产出 patch manifest 机制，不实现 patch）。
-- SoftAP、P2P、STA+AP 并发、monitor、coexistence。
+- SoftAP、P2P、STA+AP 并发、monitor、WPS 和 BT coexistence。
 - RPMsg 跨核网络共享（usrsock/L2）。
-- 完整 NuttX 构建与 flashing（需父 workspace linkfile 指向本 worktree + NuttX 版库）。
-- board bring-up 接入 `bk7258_wifi_initialize()`（需 vendor 库可链接后；骨架阶段不加入调用点，避免未链接时产生误导性失败日志）。
+- flashing；在 runtime-on 链接、RF 时序和 STA 控制面验证完成前禁止烧录。
+- 自动启动 vendor runtime；当前只能由 `bk7258_wifi_runtime init` 手动触发。
 
 ## Tasks
 

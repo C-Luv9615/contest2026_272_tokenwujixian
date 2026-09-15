@@ -18,25 +18,32 @@
 int bk7258_analog_read(unsigned int reg, uint32_t *value);
 int bk7258_analog_write(unsigned int reg, uint32_t value);
 
+/* Analog registers are shared by PSRAM, SARADC and the Wi-Fi PHY.  A
+ * field-level update must retain the lock until the SPI transaction completes,
+ * otherwise another writer can overwrite a stale register image. */
+
+static spinlock_t g_bk7258_analog_lock = SP_UNLOCKED;
+
 static int bk7258_pmu_valid(unsigned int reg)
 {
   return reg < 0x80 ? OK : -EINVAL;
 }
 
-static int bk7258_analog_update_bits(unsigned int reg, uint32_t mask,
-                                     uint32_t value)
+static int bk7258_analog_write_locked(unsigned int reg, uint32_t value)
 {
-  uint32_t current;
-  int ret;
+  unsigned int count;
 
-  ret = bk7258_analog_read(reg, &current);
-  if (ret < 0)
+  putreg32(value, BK7258_SYS_ANALOG_BASE + (reg << 2));
+  for (count = 0; count < 1000; count++)
     {
-      return ret;
+      if ((getreg32(BK7258_SYS_ANALOG_STATE) &
+           (UINT32_C(1) << (BK7258_SYS_ANALOG_STATE_SHIFT + reg))) == 0)
+        {
+          return OK;
+        }
     }
 
-  current = (current & ~mask) | (value & mask);
-  return bk7258_analog_write(reg, current);
+  return -ETIMEDOUT;
 }
 
 int bk7258_pmu_read(unsigned int reg, uint32_t *value)
@@ -74,24 +81,38 @@ int bk7258_analog_read(unsigned int reg, uint32_t *value)
 
 int bk7258_analog_write(unsigned int reg, uint32_t value)
 {
-  unsigned int count;
+  irqstate_t flags;
+  int ret;
 
   if (reg >= 28)
     {
       return -EINVAL;
     }
 
-  putreg32(value, BK7258_SYS_ANALOG_BASE + (reg << 2));
-  for (count = 0; count < 1000; count++)
+  flags = spin_lock_irqsave(&g_bk7258_analog_lock);
+  ret = bk7258_analog_write_locked(reg, value);
+  spin_unlock_irqrestore(&g_bk7258_analog_lock, flags);
+  return ret;
+}
+
+int bk7258_analog_update_bits(unsigned int reg, uint32_t mask,
+                               uint32_t value)
+{
+  irqstate_t flags;
+  uint32_t current;
+  int ret;
+
+  if (reg >= 28)
     {
-      if ((getreg32(BK7258_SYS_ANALOG_STATE) &
-           (UINT32_C(1) << (BK7258_SYS_ANALOG_STATE_SHIFT + reg))) == 0)
-        {
-          return OK;
-        }
+      return -EINVAL;
     }
 
-  return -ETIMEDOUT;
+  flags = spin_lock_irqsave(&g_bk7258_analog_lock);
+  current = getreg32(BK7258_SYS_ANALOG_BASE + (reg << 2));
+  current = (current & ~mask) | (value & mask);
+  ret = bk7258_analog_write_locked(reg, current);
+  spin_unlock_irqrestore(&g_bk7258_analog_lock, flags);
+  return ret;
 }
 
 int bk7258_pmu_get_chipid(uint32_t *value)
@@ -119,10 +140,12 @@ int bk7258_pmu_get_adc_cal(uint32_t *value)
 int bk7258_pmu_get_bgcal(uint32_t *value)
 {
   uint32_t raw;
-  int ret = bk7258_pmu_read(0x7d, &raw);
+  /* BK7258 SDK aon_pmu_hal_bias_cal_get() reads PMU R7E.cbcal[4:0].
+   * R7D contains the ADC calibration fields and is not the bias trim. */
+  int ret = bk7258_pmu_read(0x7e, &raw);
   if (ret == OK && value != NULL)
     {
-      *value = (raw >> 15) & UINT32_C(0x3f);
+      *value = raw & UINT32_C(0x1f);
     }
   return value == NULL ? -EINVAL : ret;
 }
@@ -170,6 +193,59 @@ int bk7258_dpll_enable(bool enable)
                                    enable ? UINT32_C(1) << 5 : 0);
 }
 
+int bk7258_cali_dpll(uint32_t param)
+{
+  irqstate_t flags;
+  uint32_t value;
+  volatile unsigned int delay;
+  int ret;
+
+  /* BK7258 Armino sys_drv_cali_dpll() keeps this exact four-write sequence
+   * inside one critical section.  Hold the ANA lock across the RMWs and their
+   * busy waits so another ANA writer cannot split the trigger/detect edges. */
+  flags = spin_lock_irqsave(&g_bk7258_analog_lock);
+
+  value = getreg32(BK7258_SYS_ANALOG_BASE);
+  value &= ~(UINT32_C(1) << 19); /* ANA0 spitrig */
+  ret = bk7258_analog_write_locked(0, value);
+  if (ret < 0)
+    {
+      goto out;
+    }
+
+  for (delay = 0; delay < (param == 0 ? 120U : 60U); delay++)
+    {
+    }
+
+  value = getreg32(BK7258_SYS_ANALOG_BASE);
+  value |= UINT32_C(1) << 19; /* ANA0 spitrig */
+  ret = bk7258_analog_write_locked(0, value);
+  if (ret < 0)
+    {
+      goto out;
+    }
+
+  value = getreg32(BK7258_SYS_ANALOG_BASE);
+  value &= ~(UINT32_C(1) << 4); /* ANA0 spideten */
+  ret = bk7258_analog_write_locked(0, value);
+  if (ret < 0)
+    {
+      goto out;
+    }
+
+  for (delay = 0; delay < (param == 0 ? 3400U : 340U); delay++)
+    {
+    }
+
+  value = getreg32(BK7258_SYS_ANALOG_BASE);
+  value |= UINT32_C(1) << 4; /* ANA0 spideten */
+  ret = bk7258_analog_write_locked(0, value);
+
+out:
+  spin_unlock_irqrestore(&g_bk7258_analog_lock, flags);
+  return ret;
+}
+
 static int bk7258_power_gate(uint32_t mask, bool enable)
 {
   irqstate_t flags;
@@ -191,6 +267,11 @@ static int bk7258_power_gate(uint32_t mask, bool enable)
 int bk7258_mac_power(bool enable)
 {
   return bk7258_power_gate(BK7258_SYS_WIFI_MAC_POWERDOWN, enable);
+}
+
+int bk7258_ofdm_power(bool enable)
+{
+  return bk7258_power_gate(BK7258_SYS_OFDM_POWERDOWN, enable);
 }
 
 int bk7258_phy_power(bool enable)

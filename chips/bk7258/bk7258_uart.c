@@ -221,10 +221,16 @@ void arm_serialinit(void)
    * registering the console so NSH can receive input as well as emit early
    * polling output. */
 
+  bk7258_lowputc('G');
+
   (void)bk7258_uart_setup(&g_uartport);
+
+  bk7258_lowputc('H');
 
   uart_register("/dev/console", &g_uartport);
   uart_register("/dev/ttyS0", &g_uartport);
+
+  bk7258_lowputc('I');
 }
 
 void up_putc(int ch)
