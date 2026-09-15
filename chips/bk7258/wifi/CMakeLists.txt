@@ -31,6 +31,7 @@ if(CONFIG_BK7258_WIFI)
       glue/platform_shim.c
       hal_port/hal_port_lpdoze.c
       hal_port/vnd_cal.c
+      hal_port/hal_port_power_clk_rf.c
       hal_port/funcs_fill.c
       glue/os_shim.c
       glue/net_param_shim.c
@@ -171,6 +172,7 @@ if(CONFIG_BK7258_WIFI)
   target_sources(arch PRIVATE ${SRCS})
   target_include_directories(arch PRIVATE
                              ${BK7258_WIFI_ROOT}
+                             ${BK7258_WIFI_ROOT}/hal_port
                              ${BK7258_WIFI_GLUE}/include
                              ${BK7258_WIFI_GLUE}/include/wpa_compat
                              ${BK7258_ARMINO_ROOT}/include

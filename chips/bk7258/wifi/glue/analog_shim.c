@@ -54,6 +54,7 @@
 #include "bk_private/bk_phy.h"
 #include "temp_detect.h"
 #include "temp_detect_pub.h"
+#include "hal_port_sys_all.h"
 
 /****************************************************************************
  * Pre-processor definitions
@@ -132,64 +133,6 @@ static void bk7258_analog_set_field(const char *name, unsigned int reg,
       BK_LOGE(ANALOG_TAG, "%s: analog REG%u update failed=%d\n",
               name, reg, ret);
     }
-}
-
-void sys_ll_set_ana_reg5_adc_div(uint32_t v)
-{
-  bk7258_analog_set_field(__func__, 5, ANA_FIELD_MASK(2, 10), 10, v);
-}
-
-uint32_t sys_ll_get_ana_reg5_adc_div(void)
-{
-  uint32_t value;
-
-  if (bk7258_analog_read(5, &value) < 0)
-    {
-      BK_LOGE(ANALOG_TAG, "%s: analog REG5 read failed\n", __func__);
-      return 0;
-    }
-
-  return (value >> 10) & UINT32_C(0x3);
-}
-
-void sys_ll_set_ana_reg8_iocurlim(uint32_t v)
-{
-  bk7258_analog_set_field(__func__, 8, ANA_FIELD_MASK(1, 15), 15, v);
-}
-
-void sys_ll_set_ana_reg8_ioldo_lp(uint32_t v)
-{
-  bk7258_analog_set_field(__func__, 8, ANA_FIELD_MASK(1, 0), 0, v);
-}
-
-void sys_ll_set_ana_reg8_violdosel(uint32_t v)
-{
-  bk7258_analog_set_field(__func__, 8, ANA_FIELD_MASK(3, 12), 12, v);
-}
-
-void sys_ll_set_ana_reg9_spi_latch1v(uint32_t v)
-{
-  bk7258_analog_set_field(__func__, 9, ANA_FIELD_MASK(1, 9), 9, v);
-}
-
-void sys_ll_set_ana_reg9_vcorehsel(uint32_t v)
-{
-  bk7258_analog_set_field(__func__, 9, ANA_FIELD_MASK(4, 16), 16, v);
-}
-
-void sys_ll_set_ana_reg10_iobyapssen(uint32_t v)
-{
-  bk7258_analog_set_field(__func__, 10, ANA_FIELD_MASK(1, 19), 19, v);
-}
-
-void sys_ll_set_ana_reg11_aldosel(uint32_t v)
-{
-  bk7258_analog_set_field(__func__, 11, ANA_FIELD_MASK(1, 31), 31, v);
-}
-
-void sys_ll_set_ana_reg12_dldosel(uint32_t v)
-{
-  bk7258_analog_set_field(__func__, 12, ANA_FIELD_MASK(1, 31), 31, v);
 }
 
 /****************************************************************************
