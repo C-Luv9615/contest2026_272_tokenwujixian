@@ -1489,7 +1489,25 @@ void rwnx_set_wifi_rlk_start(uint32_t start)
 
 uint32_t rwnx_get_wifi_rlk_start(void)
 {
-	RWNX_LOGV("%s start %d\r\n",__func__,wifi_rlk_info.wifi_rlk_start);
+	/* The authority's RWNX_LOGV here is dropped, not silenced by config.
+	 *
+	 * Upstream this call site prints nothing: the authority compiles BK_LOGV
+	 * out at log level 3, and RWNX_LOGV is BK_LOGV (rwnx_defs.h:286).  Our
+	 * glue/include/components/log.h deliberately routes V to LOG_DEBUG instead,
+	 * because two evidence channels this bring-up reads off the UART travel
+	 * through it -- `[hitf] add key`/`add hw key` (hostapd_intf.c:413,418, the
+	 * proof that PTK/GTK reached the MAC) and the wpa 4-way state trace.
+	 *
+	 * That override turned this particular line into noise.  This is a getter
+	 * called once per packet from rwnx_txq.c:819 and :859, so it emitted 173
+	 * lines in a single connect capture (/tmp/0910-vela-1.log) and completely
+	 * buried the tail of the log.
+	 *
+	 * Removing it therefore converges on authority *behaviour* -- silence here
+	 * -- while keeping the channels the override exists for.  The identically
+	 * worded RWNX_LOGV in rwnx_set_wifi_rlk_start() above is kept: it fires only
+	 * when the flag actually changes, which is signal rather than noise. */
+
 	return wifi_rlk_info.wifi_rlk_start;
 }
 

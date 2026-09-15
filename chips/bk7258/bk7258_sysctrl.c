@@ -258,9 +258,19 @@ static int bk7258_power_gate(uint32_t mask, bool enable)
   ret = ((getreg32(BK7258_SYS_POWER_WAKEUP) & mask) == 0) == enable ?
         OK : -EIO;
   leave_critical_section(flags);
-  syslog(LOG_INFO, "[BK7258] power gate mask=0x%08lx enable=%d ret=%d reg=0x%08lx\n",
-         (unsigned long)mask, enable, ret,
-         (unsigned long)getreg32(BK7258_SYS_POWER_WAKEUP));
+
+  /* Errors only: the read-back check above is the useful part, and the SARADC
+   * sampler power-gates its domain on every cycle, so logging every success
+   * drowned the capture. */
+
+  if (ret < 0)
+    {
+      syslog(LOG_ERR,
+             "[BK7258] power gate mask=0x%08lx enable=%d ret=%d reg=0x%08lx\n",
+             (unsigned long)mask, enable, ret,
+             (unsigned long)getreg32(BK7258_SYS_POWER_WAKEUP));
+    }
+
   return ret;
 }
 

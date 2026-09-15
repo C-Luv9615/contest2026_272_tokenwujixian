@@ -242,8 +242,18 @@ int bk7258_icu_attach(unsigned int source, xcpt_t handler, void *arg)
 {
   int irq = bk7258_icu_irq(source);
   int ret = irq < 0 || handler == NULL ? -EINVAL : irq_attach(irq, handler, arg);
-  syslog(LOG_INFO, "[BK7258] ICU attach source=%u irq=%d ret=%d\n",
-         source, irq, ret);
+
+  /* Errors only.  This is not a hot path by design, but the temperature/voltage
+   * sampler attaches and detaches the SARADC interrupt on every cycle -- once a
+   * second for the first 30 samples -- so an unconditional record here buried
+   * the wpa_supplicant trace that carries actual association failures. */
+
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "[BK7258] ICU attach source=%u irq=%d ret=%d\n",
+             source, irq, ret);
+    }
+
   return ret;
 }
 
@@ -264,8 +274,10 @@ int bk7258_icu_enable(unsigned int source)
     }
 
   up_enable_irq(irq);
-  syslog(LOG_INFO, "[BK7258] ICU enable source=%u irq=%d ret=%d int_en=0x%08lx\n",
-         source, irq, ret, (unsigned long)getreg32(BK7258_SYS_CPU0_INT_EN));
+
+  /* Dropped for the same reason as the attach record above: both early returns
+   * already report their own failures, so nothing diagnostic is lost. */
+
   return OK;
 }
 
@@ -281,8 +293,15 @@ int bk7258_icu_disable(unsigned int source)
 
   up_disable_irq(irq);
   ret = bk7258_icu_set(source, false);
-  syslog(LOG_INFO, "[BK7258] ICU disable source=%u irq=%d ret=%d int_en=0x%08lx\n",
-         source, irq, ret, (unsigned long)getreg32(BK7258_SYS_CPU0_INT_EN));
+
+  if (ret < 0)
+    {
+      syslog(LOG_ERR,
+             "[BK7258] ICU disable source=%u irq=%d ret=%d int_en=0x%08lx\n",
+             source, irq, ret,
+             (unsigned long)getreg32(BK7258_SYS_CPU0_INT_EN));
+    }
+
   return ret;
 }
 
