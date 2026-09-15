@@ -157,7 +157,105 @@ netpkt_copyin(PRIV2LOWER(priv), iob, vpkt->payload, len, 0);
 
 用 API 而不是自己 `iob_reserve` 加手动 trim,是因为偏移算术本身就是这个 bug 的来源。让框架保证约定,以后 `NET_LL_HDRLEN` 变了也不用跟着改。
 
+## 第二个问题:跨 IOB 链的帧
+
+ping 通之后 DHCP 仍然拿不到地址。三次 DISCOVER 发出去,每次 3.0 秒超时,一次 REQUEST 都没有。
+
+### 逐层排除
+
+线上帧是好的。驱动入口打印 DHCP 头,两个方向都对得上:
+
+```
+dhcp#1 dport=67 op=1 xid=e195c2e8 yiaddr=0.0.0.0         chaddr=c8:47:8c:46:02:15
+dhcp#2 dport=68 op=2 xid=e195c2e8 yiaddr=192.168.190.248 chaddr=c8:47:8c:46:02:15
+```
+
+`op=2` 是 REPLY,xid 逐字节相同,chaddr 相同,路由器已经把 `192.168.190.248` 分好了。在帧上原地跑一遍 `dhcpc_parseoptions()` 的遍历,`msgtype=2`,cookie `63825363`,11 个 option 正常走完。
+
+于是 `dhcpc_parsemsg()`(`dhcpc.c:450-453`)那三个门全部通过。它返回的是 `parseoptions()` 的结果,而那个函数解不出东西时返回 0,任何 debug level 都打不出一行。
+
+投递也是通的。每个 OFFER 后面跟着 `eth_input: IPv4 frame`、`udp_callback: flags: 2`、`udp_eventhandler: UDP done`。`UDP_NEWDATA` 只对 `udp_active()` 匹配到的 conn 触发,所以数据递进了 dhcpc 的 socket。
+
+我们自己 DISCOVER 的回声是天然对照组:目的端口 67,dhcpc 绑 68,它停在 `eth_input` 就没有下文。之前担心的"回声覆写 `pdhcpc->packet`"因此不成立。
+
+### 剩下的那个入参
+
+`parseoptions` 拿到的长度是:
+
+```c
+len = buflen - (offsetof(struct dhcp_msg, options) + 4)    /* = buflen - 240 */
+```
+
+线上 352 字节的帧,DHCP 报文 310,正常 `len = 70`。若 `recv()` 只返回 196,`len = -44`,`end` 落到 `optptr` 前面,while 一次都不执行,返回 0。
+
+一处反证支持这个方向:`parseoptions` 里四个 `nerr("Packet too short ...")` 一次没打,而 `DEBUG_NET_ERROR` 是开的。内容错通常会撞上其中一个;`len <= 0` 时循环不执行,四个全静默。
+
+196 正是 `CONFIG_IOB_BUFSIZE` 的默认值。352 字节的 OFFER 是这个驱动交出去的第一个装不进单个 IOB 的帧,ping 验证过的 ARP(42)和 ICMP(98)都是单 IOB。
+
+### 绕开
+
+`CONFIG_IOB_BUFSIZE` 从 196 改到 640。`640 - 14 = 626`,大于 `CONFIG_NET_ETH_PKTSIZE=590`,任何收帧都不再跨链。
+
+同一帧在两个配置下的驱动侧记录:
+
+```
+196:  chain#2 len=352 pktlen=338 io_len=182 io_offset=14 chained=1
+640:  chain#2 len=352 pktlen=338 io_len=338 io_offset=14 chained=0
+```
+
+唯一变量是 `IOB_BUFSIZE`,DHCP 随之走完整个握手:
+
+```
+dhcpc_request: Broadcast DISCOVER
+dhcpc_request: Received OFFER from c0a8bef1
+dhcpc_request: Send REQUEST
+dhcpc_request: Received ACK
+dhcpc_request: Got IP address 192.168.190.248
+                  netmask 255.255.255.0
+                  DNS / router 192.168.190.241
+                  Lease expires in 3599 seconds
+```
+
+`ifconfig` 落地 `inet addr:192.168.190.248 DRaddr:192.168.190.241 Mask:255.255.255.0`。
+
+代价是 IOB 池从 24×196 涨到 24×640,多占约 10.4 KB 堆。
+
+### BOOTP 广播位
+
+同一轮排查里把 `CONFIG_NETUTILS_DHCPC_BOOTP_FLAGS` 从 `0x0000` 改成 `0x8000`。
+
+默认值下 broadcast 位是 0,按 RFC 2131 §4.1 服务器单播回 yiaddr,而 yiaddr 此刻还没生效。这一步是为了消掉"单播能不能收到"这个变量,`dhcpc.c:270-276` 的注释本身就建议在这种情形下置位。改完 OFFER 的目的 MAC 从 `c8:47:8c:46:02:15` 变成 `ff:ff:ff:ff:ff:ff`,但 DHCP 仍然失败,所以它不是这个问题的原因。保留,因为接口没有地址时广播回复更稳。
+
 ## 尚未解决
+
+### 跨 IOB 链为什么丢,机制不明
+
+上面那一节是绕开,不是确诊。
+
+手算 `iob_copyout()` 的链遍历是对的:`udp_recvfrom.c:147` 给的偏移是 28(IPv4 20 + UDP 8),第一个 IOB 拷 `182 - 28 = 154`,第二个拷 156,合计 310,正是 DHCP 报文长度。所以读代码解释不了这个失败,而三轮都是同一个图形,不是偶发。
+
+`chain#` 探针测的是 `rx_submit` 时刻,那里链是对的。从那里到 `udp_recvfrom` 之间还有 `netdev_iob_replace`、`eth_input`、`ipv4_input`、`udp_input`,这段路上链有没有被拆开或压平,没有测过。
+
+当前配置下这段路径是死代码,收帧不可能跨链。谁把 `NET_ETH_PKTSIZE` 提到 626 以上就会再撞上。
+
+### uart_spinunlock 的 assert
+
+一轮 ping 中途 assert 在 `nuttx/drivers/serial/serial.c:2064`,即 `uart_spinunlock()` 的 nopreempt 分支。用户栈是 ping 自己的 `printf`:
+
+```
+ping_main -> ping_result -> printf -> vfprintf -> lib_fwrite_unlocked
+  -> write -> file_writev -> uart_write -> uart_spinunlock
+```
+
+`CONFIG_SPINLOCK` 和 `CONFIG_SMP` 都是关的,所以不是跨核争抢,是单核下 `lock->count` 或 `sched_unlock()` 的配平。`xPSR=2000000b` 低 9 位是 11,SVCall,崩的时候在异常上下文里。dump 打完 ping 继续跑完了 4 包。
+
+那一轮开着 `DEBUG_NET_INFO` 和三个临时探针,日志量比正常配置大一个数量级。删掉之后同样的 connect + renew + ping 没有复现,但只有一轮,只能说未回归。删了诊断配置也就摸不到它,所以现在没有继续查。
+
+### 扫描约 30% 失败
+
+23 轮统计,`chan_survey` 打满 14 个信道则关联 14/16 成功;中途停则 0/6,`lmac_connect_req` 根本不发,`Scan completed in 10.002 seconds` 是 wpa 的超时兜底而非真扫完。
+
+失败的 6 轮里有 4 轮发生在 RX 路径改动之前,所以这是既有问题。下一节记的 `iob_trimhead` 相关性是同一现象的一个早期观察。
 
 ### iob_trimhead 尝试与扫描失败的相关性
 
