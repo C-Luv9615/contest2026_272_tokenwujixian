@@ -20,6 +20,7 @@ config BK7258_WIFI
 	select DRIVERS_IEEE80211
 	select SCHED_HPWORK
 	select SCHED_LPWORK
+	select ARCH_HAVE_NETDEV_STATISTICS
 	help
 		Team-owned BK7258 Wi-Fi integration: netdev_lowerhalf +
 		wireless_ops_s data/control plane over the Beken MAC/PHY/RF runtime.
