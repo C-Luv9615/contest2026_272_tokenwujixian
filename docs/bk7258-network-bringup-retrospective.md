@@ -239,17 +239,7 @@ strings nuttx.elf | grep -E "dhcp#%u dport|Received OFFER from"
 
 **AP 的 SMP 死锁。** `7d7436c` 是 workaround,团队基线是 `CONFIG_SMP=y`。
 
-**三个 bring-up 探针到期未删。** `5540f23` 写明"握手闭环后必须移除",握手现在已经闭环(`add hw key` 两次、DHCP、ping 都过了),但它们还在树里:
-
-| 探针 | 位置 | 0915-5 里的打印数 |
-|---|---|---|
-| `evtq` | `glue/wpa_queue_shim.c:117,128` | 3 |
-| `l2tx cfm` | `third_party/.../rwnx_tx.c:314` | 11 |
-| `txq miss` | `third_party/.../rwnx_tx.c:645` | 0 |
-
-`l2tx cfm` 每个发出的帧都打一行,是当前抓包里最吵的一项。`txq miss` 是 `RWNX_LOGW` 且只在异常时触发,留着代价不大。`rw_task.c` 的丢消息日志已经不在了。
-
-删之前要注意 `rwnx_tx.c` 属于 `third_party/beken_armino`,动它会加大与 authority 原始文件的偏离量,得跟第 4 条那类改动一样在 commit 里写清理由。
+**`txcfm` 探针仍在,尚未定去处。** `rwnx_tx.c` 的 `rwnx_txdesc_free()` 里那个配对确认探针每帧打一行,前 48 帧无条件打、之后每 64 帧一次。它不属于 `5540f23` 列的那三个,所以没跟着一起清。同一文件里 500 行附近那段 `#if 0` 的分析注释引用它作为"live verdict",要删得连那段一起处理。
 
 ## 复现步骤
 

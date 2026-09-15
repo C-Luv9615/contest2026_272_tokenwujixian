@@ -284,42 +284,6 @@ static void rwnx_tx_confirm(void *param)
 		}
 #endif
 
-#if 1 /* bring-up probe, remove with the txq-miss probe when the 4-way closes */
-	/* The board shows every EAPOL M2 failing as "not acknowledged"
-	 * (l2_packet_tx_cb maps !acked to result=-1), while MGMT frames on the
-	 * same radio get ACKed fine.  cfm->status tells the causes apart:
-	 * status 0 means the firmware never wrote the confirmation back
-	 * (write-back address unreachable for its DMA), while any value with
-	 * DONE but without ACKNOWLEDGED means the frame really went out and
-	 * was not acknowledged.  The retry bits say whether the MAC itself
-	 * wanted a retransmission -- the block above that would have honoured
-	 * TX_STATUS_SW_RETRY_REQUIRED is #if 0'd out by the vendor, so an
-	 * unacked sframe is reported up to wpa_supplicant without any MAC
-	 * level retry.
-	 *
-	 * Deliberately NOT rate limited.  The earlier (l2cfm_seq & 0x07)
-	 * filter printed one line in eight, so a session with six M2 attempts
-	 * produced a single confirmation line and the status of the other five
-	 * was simply unknown -- which is what made the first analysis of this
-	 * failure inconclusive.  Printing l2cfm_seq instead of filtering on it
-	 * also keeps the total confirmation count observable.  Restore a
-	 * filter before this probe is left in with normal data traffic.
-	 *
-	 * (TX_STATUS_DISCARDED is referenced by the #if 0 vendor block above
-	 * but is not defined anywhere in this tree, so a "txu discarded the
-	 * frame" case cannot be distinguished here.) */
-	{
-		static uint32_t l2cfm_seq;
-
-		RWNX_LOGW("l2tx cfm seq=%u status=%08x acked=%d done=%d retry=%d swretry=%d\n",
-				  (unsigned)l2cfm_seq++,
-				  (unsigned)cfm->status,
-				  !!(cfm->status & TX_STATUS_ACKNOWLEDGED),
-				  !!(cfm->status & TX_STATUS_DONE),
-				  !!(cfm->status & TX_STATUS_RETRY_REQUIRED),
-				  !!(cfm->status & TX_STATUS_SW_RETRY_REQUIRED));
-	}
-#endif
 		// callback for mgmt frame tx
 		if (cb && skb->args)
 			cb(skb->args, !!(cfm->status & TX_STATUS_ACKNOWLEDGED));
@@ -577,8 +541,9 @@ static struct rwnx_txq *rwnx_select_txq(struct sk_buff *skb)
 	 * limited, ~120 bytes per frame, and our BK_LOGW lands on a synchronous
 	 * blocking syslog where the authority filters through an async queue --
 	 * order 10 ms of the TX submission path per frame at 115200 baud, i.e. the
-	 * instrument perturbs what it measures.  The live verdict is `txcfm`
-	 * (:1179) plus `l2tx cfm` (:207).
+	 * instrument perturbs what it measures.  The live verdict is the paired
+	 * `txcfm` probe in rwnx_txdesc_free() below.  The `l2tx cfm` probe this
+	 * line also used to name was removed once the handshake closed.
 	 *
 	 * Original reasoning kept verbatim below.
 	 *
