@@ -18,6 +18,7 @@
 #include <string.h>
 
 #include "bk7258_wifi_internal.h"
+#include "os/mem.h"
 
 /****************************************************************************
  * Private helpers
@@ -45,7 +46,7 @@ struct bk7258_vpkt *bk7258_vpkt_alloc(uint16_t len, bool rx)
   size_t total;
 
   total = sizeof(*p) + BK7258_WIFI_PRIVATE_RESERVE + len;
-  p = bk7258_wifi_osal_zalloc(total);
+  p = os_zalloc(total);
   if (p == NULL)
     {
       return NULL;
@@ -60,7 +61,7 @@ struct bk7258_vpkt *bk7258_vpkt_alloc_ref(void *payload, uint16_t len)
 {
   struct bk7258_vpkt *p;
 
-  p = bk7258_wifi_osal_zalloc(sizeof(*p));
+  p = os_zalloc(sizeof(*p));
   if (p == NULL)
     {
       return NULL;
@@ -93,7 +94,7 @@ void bk7258_vpkt_free(struct bk7258_vpkt *p)
 
       if (p->ref == 0)
         {
-          bk7258_wifi_osal_free(p);
+          os_free(p);
         }
 
       p = next;
