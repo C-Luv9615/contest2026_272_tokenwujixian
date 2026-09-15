@@ -168,6 +168,15 @@ struct bk7258_wifi_s
   /* Accessed by the vendor scan-done callback and NuttX WEXT ioctl callers.
    * The callback never retains SDK-owned scan_result.aps memory. */
 
+  /* Requested scan SSID (WEXT SIOCSIWESSID).  Zero length means a broadcast
+   * scan, i.e. bk_wifi_scan_start(NULL).  A non-empty SSID makes the next
+   * scan directed, built the same way the vendor's own callers build a
+   * wifi_scan_config_t (wifi_api.c:57, wifi_station.c:244).  Scan selection
+   * only -- this never carries credentials and never associates. */
+
+  char scan_ssid[BK7258_WIFI_SCAN_SSID_LEN + 1u];
+  uint8_t scan_ssid_len;
+
   mutex_t scan_lock;
   bool scan_lock_ready;
   bool scan_callback_registered;

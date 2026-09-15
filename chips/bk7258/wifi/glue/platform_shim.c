@@ -104,16 +104,35 @@ bk_err_t bk_pm_clock_ctrl(pm_dev_clk_e module, pm_dev_clk_pwr_e clock_state)
       return BK_ERR_PARAM;
     }
 
-  if (module == PM_CLK_ID_MAC)
-    {
-      return bk7258_mac_clock(enable) == OK ? BK_OK : BK_FAIL;
-    }
-  else if (module == PM_CLK_ID_PHY)
-    {
-      return bk7258_phy_clock(enable) == OK ? BK_OK : BK_FAIL;
-    }
+  /* Generic gate, ported from sys_hal_clk_pwr_ctrl (see the faithfulness
+   * note in hal_port/hal_port_sys_int_power.c).  Previously this hand-picked
+   * MAC and PHY and returned BK_ERR_NOT_SUPPORT for every other id without
+   * writing a register -- so bk_phy_adapter.c:195's PM_CLK_ID_SARADC request
+   * on the phy_init path was silently dropped.  MAC/PHY keep the same
+   * resulting bits (ids 26/27 == MAC_CKEN/PHY_CKEN). */
 
-  return BK_ERR_NOT_SUPPORT;
+  /* One-shot per id: record WHICH clock ids the closed library actually asks
+   * for.  Before this function was generalized every id other than MAC(26)
+   * and PHY(27) was dropped with BK_ERR_NOT_SUPPORT and no register write, so
+   * the set of victims was never observable.  Now that the write always
+   * happens, this log is the only way to learn what had been silently lost
+   * (SARADC=5 is the one already proven from source; XVR=25 and BTDM=24 are
+   * the other plausible requesters on the RF path). */
+
+  {
+    static uint32_t reported;
+    uint32_t id = (uint32_t)module;
+
+    if (id < 32 && (reported & (UINT32_C(1) << id)) == 0)
+      {
+        reported |= UINT32_C(1) << id;
+        syslog(LOG_INFO, "[BK7258-WIFI] clk id=%lu en=%d first\n",
+               (unsigned long)id, (int)enable);
+      }
+  }
+
+  hp_sys_hal_clk_pwr_ctrl((uint32_t)module, enable);
+  return BK_OK;
 }
 
 bk_err_t bk_pm_lpo_src_set(pm_lpo_src_e lpo_src)
@@ -135,31 +154,38 @@ pm_lpo_src_e bk_pm_lpo_src_get(void)
   return bk7258_wifi_lpo_src_read();
 }
 
+/* Real register-backed power-state query, ported from pm.c:1309-1378 into
+ * hal_port/hal_port_sys_int_power.c.  The former fixed
+ * PM_POWER_MODULE_STATE_NONE return also contradicted hw_driver_shim's
+ * fixed STATE_ON, though both slots report the same register. */
+extern int32_t hp_bk_pm_module_power_state_get(pm_power_module_name_e module);
+extern void hp_sys_hal_clk_pwr_ctrl(uint32_t dev, bool power_up);
+
+/* Declared in glue/include/sys_driver.h, which this file does not include;
+ * the PHY submodule vote below needs it to read back the power domain the
+ * way pm.c:634 does. */
+extern int32_t sys_drv_module_power_state_get(power_module_name_t module);
+
 int32 bk_pm_module_power_state_get(pm_power_module_name_e module)
 {
-  (void)module;
-  return (int32)PM_POWER_MODULE_STATE_NONE;
+  return (int32)hp_bk_pm_module_power_state_get(module);
 }
+
+/* Real DVFS, ported from the Armino HAL (hal_port/hal_port_dvfs.c).
+ * Replaces the former accept-and-log stub: that stub left the core voltage
+ * at whatever the bootloader set, so the authoritative pairing of 120M with
+ * vdddig 0.9V (sys_hal.c:663) never happened on our board. */
+extern bk_err_t hp_pm_module_vote_cpu_freq(pm_dev_id_e module,
+                                           pm_cpu_freq_e cpu_freq);
 
 bk_err_t bk_pm_module_vote_cpu_freq(pm_dev_id_e module, pm_cpu_freq_e cpu_freq)
 {
-  /* Behavioral alignment note (2026-08-31): the authoritative Armino
-   * implementation (bk_pm.c) records the per-module vote, takes the max and
-   * actually switches the CPU bus frequency through
-   * sys_drv_switch_cpu_bus_freq -> sys_hal_core_bus_clock_ctrl
-   * (CLK_DIV_REG0 cksel/div writes plus VDDD voltage trims).  crm_clk_set
-   * derives the modem clock by dividing that CPU bus clock, so a real DVFS
-   * implementation matters when the voted frequency differs from the boot
-   * default.  This platform currently runs the CPU at the bootloader-set
-   * frequency with no DVFS framework, so the vote is recorded and accepted
-   * (returning BK_OK keeps the library on its normal branch); switching the
-   * real frequency requires the CLK_DIV_REG0/CPU-divider sequence to be
-   * ported and is tracked as a follow-up.  The board read of 0x44010020 in
-   * the scan diag reports the actual cksel/divider in effect. */
+  bk_err_t ret = hp_pm_module_vote_cpu_freq(module, cpu_freq);
+
   syslog(LOG_INFO,
-         "[BK7258-WIFI] pmq: cpu_freq vote module=%d freq=%d "
-         "(no DVFS; accepted)\n", (int)module, (int)cpu_freq);
-  return BK_OK;
+         "[BK7258-WIFI] pmq: cpu_freq vote module=%d freq=%d ret=%d\n",
+         (int)module, (int)cpu_freq, (int)ret);
+  return ret;
 }
 
 bk_err_t bk_pm_module_vote_power_ctrl(pm_power_module_name_e module,
@@ -188,6 +214,111 @@ bk_err_t bk_pm_module_vote_power_ctrl(pm_power_module_name_e module,
     {
       return bk7258_phy_power(enable) == OK ? BK_OK : BK_FAIL;
     }
+  else if (module == (pm_power_module_name_e)POWER_SUB_MODULE_NAME_PHY_BT ||
+           module == (pm_power_module_name_e)POWER_SUB_MODULE_NAME_PHY_WIFI ||
+           module == (pm_power_module_name_e)POWER_SUB_MODULE_NAME_PHY_RF)
+    {
+      /* PHY submodule vote, ported from pm.c:628-660 (ON) and :815-830
+       * (OFF).  This arm previously fell through to BK_ERR_NOT_SUPPORT, so
+       * wifi_init.c:71's third power vote never did anything -- and with it
+       * we skipped the ONE authoritative side effect on this path:
+       * phy_wakeup_reinit().  That function is defined in the pinned
+       * libwifi.a (phy_karst_bk7236.c.obj) and our port had never called it.
+       *
+       * Refcount semantics matter in both directions: ON is idempotent only
+       * once calibration has run, and OFF powers the PHY down solely when
+       * the last submodule releases it (wifi_v2.c:1878 votes PHY_WIFI OFF,
+       * which must NOT kill a PHY that BT/RF still hold).
+       *
+       * Polarity reminder: sys_drv_module_power_state_get returns the raw
+       * pwd bit, so 0x0 means "powered ON" -- the comparisons below read
+       * exactly as upstream writes them. */
+
+      static uint32_t phy_submodule_state;
+      static uint32_t phy_calibration_state;
+      static spinlock_t phy_lock = SP_UNLOCKED;
+      const uint32_t bit = UINT32_C(1) <<
+        ((uint32_t)module % (uint32_t)(PM_POWER_MODULE_NAME_PHY *
+                                       PM_MODULE_SUB_POWER_DOMAIN_MAX));
+      irqstate_t flags;
+
+      if (enable)
+        {
+          flags = spin_lock_irqsave(&phy_lock);
+          phy_submodule_state |= bit;
+          spin_unlock_irqrestore(&phy_lock, flags);
+
+          if (sys_drv_module_power_state_get(PM_POWER_MODULE_NAME_PHY) == 0x0 &&
+              phy_calibration_state == 0x1)
+            {
+              return BK_OK;
+            }
+
+          if (bk7258_phy_power(true) != OK)
+            {
+              return BK_FAIL;
+            }
+
+          if (sys_drv_module_power_state_get(PM_POWER_MODULE_NAME_PHY) == 0x0 &&
+              module != (pm_power_module_name_e)POWER_SUB_MODULE_NAME_PHY_RF)
+            {
+              extern void phy_wakeup_reinit(uint8_t is_wifi);
+
+              syslog(LOG_INFO,
+                     "[BK7258-WIFI] pmq: phy_wakeup_reinit(is_wifi=%d) enter\n",
+                     module ==
+                     (pm_power_module_name_e)POWER_SUB_MODULE_NAME_PHY_WIFI);
+
+              phy_wakeup_reinit(module ==
+                (pm_power_module_name_e)POWER_SUB_MODULE_NAME_PHY_WIFI ? 1 : 0);
+
+              syslog(LOG_INFO,
+                     "[BK7258-WIFI] pmq: phy_wakeup_reinit done\n");
+
+              g_phy_reinit = true;
+
+              flags = spin_lock_irqsave(&phy_lock);
+              phy_calibration_state = 0x1;
+              spin_unlock_irqrestore(&phy_lock, flags);
+            }
+
+          return BK_OK;
+        }
+
+      flags = spin_lock_irqsave(&phy_lock);
+      phy_submodule_state &= ~bit;
+
+      if (phy_submodule_state == 0x0)
+        {
+          phy_calibration_state = 0x0;
+          spin_unlock_irqrestore(&phy_lock, flags);
+          return bk7258_phy_power(false) == OK ? BK_OK : BK_FAIL;
+        }
+
+      spin_unlock_irqrestore(&phy_lock, flags);
+      return BK_OK;
+    }
+
+  /* Report instead of dropping silently.  This exact fallthrough hid a real
+   * bug: PHY_WIFI was mis-defined as 3, landed here, and wifi_init.c:71's
+   * third power vote wrote no register at all for weeks.  Any further module
+   * the closed library votes for and we do not recognize must be visible.
+   * One-shot per module id, so a repeated vote cannot flood the console. */
+
+  {
+    static uint32_t reported_lo;
+    static uint32_t reported_hi;
+    uint32_t id = (uint32_t)module;
+    uint32_t *slot = id < 32 ? &reported_lo : &reported_hi;
+    uint32_t bit = UINT32_C(1) << (id < 32 ? id : (id % 32));
+
+    if ((*slot & bit) == 0)
+      {
+        *slot |= bit;
+        syslog(LOG_WARNING, "[BK7258-WIFI] pwr vote id=%lu UNHANDLED\n",
+               (unsigned long)id);
+      }
+  }
 
   return BK_ERR_NOT_SUPPORT;
 }

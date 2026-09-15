@@ -21,22 +21,17 @@
  * MAC
  ****************************************************************************/
 
-bk_err_t bk_set_base_mac(const uint8_t *mac)
-{
-  /* Chip-layer efuse/OTP base-MAC write is not wired yet. */
-  (void)mac;
-  return BK_FAIL;
-}
-
-bk_err_t bk_get_mac(uint8_t *mac, mac_type_t type)
-{
-  if (mac == NULL || type != MAC_TYPE_BASE)
-    {
-      return BK_FAIL;
-    }
-
-  return bk7258_wifi_board_get_mac(mac) == 0 ? BK_OK : BK_FAIL;
-}
+/* bk_get_mac / bk_set_base_mac MOVED to hal_port/hal_port_mac.c (2026-09-01),
+ * ported from cp/components/bk_system/mac.c.
+ *
+ * The implementation that used to live here accepted only MAC_TYPE_BASE and
+ * returned BK_FAIL for every other type WITHOUT writing the caller's buffer.
+ * The closed library requests MAC_TYPE_STA via bk_wifi_sta_get_mac()
+ * (wifi_v2.c:4481), which discards the return value and always reports BK_OK,
+ * so callers -- including scan_probe_req_tx and the MM_ADD_IF_REQ payload --
+ * silently received uninitialised memory.  Consistent with NXMAC's address
+ * registers reading zero on our board (0x49100010/0x14) where the authority
+ * holds C8:47:8C:46:02:15. */
 
 /****************************************************************************
  * Reboot
