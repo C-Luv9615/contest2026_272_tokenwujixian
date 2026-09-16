@@ -32,29 +32,18 @@ if(CONFIG_BK7258_WIFI)
       glue/m2_snapshot.c
       glue/platform_shim.c
       hal_port/hal_port_lpdoze.c
-      # hal_port/vnd_cal.c is intentionally NOT built (2026-09-04): it was a
-      # hand transcription of the same translation unit already compiled from
-      # third_party/beken_armino/board/bk7258/vnd_cal/vnd_cal.c below, and BOTH
-      # were in SRCS.  Two objects in libarch.a defined vnd_cal_version,
-      # vnd_cal_set_epa_config and vnd_cal_version_log; no duplicate-symbol
-      # error appeared only because static-archive member extraction stops at
-      # the first definition that satisfies the reference, so which copy won
-      # depended on archive order rather than on intent.
+      # vnd_cal comes from third_party/beken_armino/board/bk7258/vnd_cal below,
+      # which is byte-identical to authority cp/middleware/boards/bk7258.  Do
+      # not add a hal_port transcription of it again: we had one, both copies
+      # reached SRCS, and libarch.a ended up with two definitions of
+      # vnd_cal_version, vnd_cal_set_epa_config and vnd_cal_version_log.  No
+      # duplicate-symbol error surfaced because archive member extraction stops
+      # at the first definition satisfying the reference, so which copy won
+      # depended on archive order.
       #
-      # The vendored copy is kept because it is byte-identical to authority
-      # cp/middleware/boards/bk7258/vnd_cal/vnd_cal.c.  The transcription's only
-      # substantive delta was passing 26/28 literals instead of GPIO_26/GPIO_28
-      # to avoid <driver/hal/hal_gpio_types.h> -- unnecessary, that header does
-      # exist here (glue/include/driver/hal/hal_gpio_types.h) and defines both
-      # enumerators.  That delta also sat inside `#if CONFIG_EPA_ENABLE_FLAG`,
-      # which BK7258 leaves n (cp/middleware/soc/bk7258/bk7258.defconfig:287),
-      # so the two copies were behaviourally identical today -- the hazard was
-      # a future edit to whichever copy does not win the link.
-      # Kept on disk as the reference transcription only.
-      # hal_port_power_clk_rf.c is intentionally NOT built: the
-      # authoritative bk7258 build leaves CONFIG_POWER_CLOCK_RF unset, so
-      # power_clk_rf_init never runs there.  Kept on disk as the reference
-      # transcription only.
+      # power_clk_rf_init has no port here on purpose: the authoritative bk7258
+      # build leaves CONFIG_POWER_CLOCK_RF unset, so it never runs there.  See
+      # the comment at bk7258_wifi_lower.c:2226.
       hal_port/hal_port_dvfs.c
       hal_port/hal_port_sys_int_power.c
       hal_port/hal_port_mac.c
