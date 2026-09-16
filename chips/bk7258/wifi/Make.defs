@@ -32,37 +32,37 @@ CHIP_CSRCS += glue/m2_snapshot.c
 CHIP_CSRCS += glue/platform_shim.c
 CHIP_CSRCS += glue/os_shim.c
 CHIP_CSRCS += glue/net_param_shim.c
-CHIP_CSRCS += glue/vendor_sources/rwnx_params.c
-CHIP_CSRCS += glue/vendor_sources/rwnx_td.c
-CHIP_CSRCS += glue/vendor_sources/rwnx_txq.c
+CHIP_CSRCS += third_party/beken_armino/glue/bk_wifi/src/rwnx_params.c
+CHIP_CSRCS += third_party/beken_armino/glue/bk_wifi/src/rwnx_td.c
+CHIP_CSRCS += third_party/beken_armino/glue/bk_wifi/src/rwnx_txq.c
 # VIF/STA index helpers referenced by rw_task.c, rwnx_tx.c and rwnx_rx.c.
-CHIP_CSRCS += glue/vendor_sources/rwnx_utils.c
+CHIP_CSRCS += third_party/beken_armino/glue/bk_wifi/src/rwnx_utils.c
 # Monitor callback registry + management-frame filter, backing rwnx_rx.c
 # (wifi_monitor_get_cb) and libwifi.a's rxl_cntrl (rx_mgmt_filter).
-CHIP_CSRCS += glue/vendor_sources/lsig_monitor.c
-CHIP_CSRCS += glue/vendor_sources/rw_ieee80211.c
-CHIP_CSRCS += glue/vendor_sources/rwnx_tx.c
-CHIP_CSRCS += glue/vendor_sources/rwnx_rx.c
+CHIP_CSRCS += third_party/beken_armino/glue/bk_wifi/src/lsig_monitor.c
+CHIP_CSRCS += third_party/beken_armino/glue/bk_wifi/src/rw_ieee80211.c
+CHIP_CSRCS += third_party/beken_armino/glue/bk_wifi/src/rwnx_tx.c
+CHIP_CSRCS += third_party/beken_armino/glue/bk_wifi/src/rwnx_rx.c
 CHIP_CSRCS += glue/vendor_sources/rw_task.c
-CHIP_CSRCS += glue/vendor_sources/wifi_v2.c
-CHIP_CSRCS += glue/vendor_sources/wifi_config.c
+CHIP_CSRCS += third_party/beken_armino/glue/bk_wifi/src/wifi_v2.c
+CHIP_CSRCS += third_party/beken_armino/glue/bk_wifi/src/wifi_config.c
 CHIP_CSRCS += glue/vendor_sources/net_param.c
-CHIP_CSRCS += glue/vendor_sources/rw_msg_tx.c
-CHIP_CSRCS += glue/vendor_sources/rw_msg_rx.c
+CHIP_CSRCS += third_party/beken_armino/glue/bk_wifi/src/rw_msg_tx.c
+CHIP_CSRCS += third_party/beken_armino/glue/bk_wifi/src/rw_msg_rx.c
 CHIP_CSRCS += glue/vendor_sources/wifi_init.c
-CHIP_CSRCS += glue/vendor_sources/bk_phy_adapter.c
+CHIP_CSRCS += third_party/beken_armino/glue/bk_phy/src/bk_phy_adapter.c
 CHIP_CSRCS += third_party/beken_armino/board/bk7258/vnd_cal/vnd_cal.c
-CHIP_CSRCS += glue/vendor_sources/skbuff.c
+CHIP_CSRCS += third_party/beken_armino/glue/bk_wifi/src/skbuff.c
 
 ifeq ($(CONFIG_BK7258_WIFI_VENDOR_RUNTIME),y)
-CHIP_CSRCS += glue/vendor_sources/fake_socket.c
-CHIP_CSRCS += glue/vendor_sources/eloop.c
+CHIP_CSRCS += third_party/beken_armino/wpa_supplicant/bk_patch/fake_socket.c
+CHIP_CSRCS += third_party/beken_armino/wpa_supplicant/src/utils/eloop.c
 CHIP_CSRCS += glue/vendor_sources/wpa_signal.c
-CHIP_CSRCS += glue/vendor_sources/sk_intf.c
+CHIP_CSRCS += third_party/beken_armino/wpa_supplicant/bk_patch/sk_intf.c
 # WPA <-> MAC ioctl bridge and its transport; STA providers, runtime-only
 # because they depend on the WPA socket contract.
-CHIP_CSRCS += glue/vendor_sources/ddrv.c
-CHIP_CSRCS += glue/vendor_sources/hostapd_intf.c
+CHIP_CSRCS += third_party/beken_armino/wpa_supplicant/bk_patch/ddrv.c
+CHIP_CSRCS += third_party/beken_armino/glue/bk_wifi/src/hostapd_intf.c
 # STA association command, called by hostapd_intf.c (wpa_send_assoc_req).
 CHIP_CSRCS += glue/vendor_sources/sa_station.c
 # Team-owned WPA handler queue object + accessors (upstream keeps these in
@@ -72,8 +72,8 @@ CHIP_CSRCS += glue/vendor_sources/wpa_ctrl_iface.c
 CHIP_CSRCS += glue/vendor_sources/wpas_main_supplicant.c
 endif
 
-CHIP_CSRCS += glue/vendor_sources/bk_rf_adapter.c
-CHIP_CSRCS += glue/vendor_sources/bk_phy_api.c
-CHIP_CSRCS += glue/vendor_sources/bk_phy_notify.c
+CHIP_CSRCS += third_party/beken_armino/glue/bk_phy/src/bk_rf_adapter.c
+CHIP_CSRCS += third_party/beken_armino/glue/bk_phy/src/bk_phy_api.c
+CHIP_CSRCS += third_party/beken_armino/glue/bk_phy/src/bk_phy_notify.c
 
 endif

@@ -51,33 +51,33 @@ if(CONFIG_BK7258_WIFI)
       hal_port/funcs_fill.c
       glue/os_shim.c
       glue/net_param_shim.c
-      glue/vendor_sources/rwnx_params.c
-      glue/vendor_sources/rwnx_td.c
-      glue/vendor_sources/rwnx_txq.c
+      third_party/beken_armino/glue/bk_wifi/src/rwnx_params.c
+      third_party/beken_armino/glue/bk_wifi/src/rwnx_td.c
+      third_party/beken_armino/glue/bk_wifi/src/rwnx_txq.c
       # VIF/STA index helpers used by rw_task.c, rwnx_tx.c and rwnx_rx.c above.
       # The wrapper existed but was never listed here, which is why rwm_mgmt_*
       # and rwm_get_monitor_vif_idx appeared as undefined symbols.
-      glue/vendor_sources/rwnx_utils.c
+      third_party/beken_armino/glue/bk_wifi/src/rwnx_utils.c
       # Monitor callback registry + management-frame filter. Backs the
       # unconditional rwnx_rx.c (wifi_monitor_get_cb) and libwifi.a's rxl_cntrl
       # (rx_mgmt_filter), so it belongs at the same level as its consumers.
-      glue/vendor_sources/lsig_monitor.c
-      glue/vendor_sources/rw_ieee80211.c
-      glue/vendor_sources/rwnx_tx.c
-      glue/vendor_sources/rwnx_rx.c
+      third_party/beken_armino/glue/bk_wifi/src/lsig_monitor.c
+      third_party/beken_armino/glue/bk_wifi/src/rw_ieee80211.c
+      third_party/beken_armino/glue/bk_wifi/src/rwnx_tx.c
+      third_party/beken_armino/glue/bk_wifi/src/rwnx_rx.c
       glue/vendor_sources/rw_task.c
-      glue/vendor_sources/wifi_v2.c
-      glue/vendor_sources/wifi_config.c
+      third_party/beken_armino/glue/bk_wifi/src/wifi_v2.c
+      third_party/beken_armino/glue/bk_wifi/src/wifi_config.c
       glue/vendor_sources/net_param.c
-      glue/vendor_sources/rw_msg_tx.c
-      glue/vendor_sources/rw_msg_rx.c
+      third_party/beken_armino/glue/bk_wifi/src/rw_msg_tx.c
+      third_party/beken_armino/glue/bk_wifi/src/rw_msg_rx.c
       glue/vendor_sources/wifi_init.c
-      glue/vendor_sources/bk_phy_adapter.c
+      third_party/beken_armino/glue/bk_phy/src/bk_phy_adapter.c
       third_party/beken_armino/board/bk7258/vnd_cal/vnd_cal.c
-      glue/vendor_sources/skbuff.c
-      glue/vendor_sources/bk_rf_adapter.c
-      glue/vendor_sources/bk_phy_api.c
-      glue/vendor_sources/bk_phy_notify.c)
+      third_party/beken_armino/glue/bk_wifi/src/skbuff.c
+      third_party/beken_armino/glue/bk_phy/src/bk_rf_adapter.c
+      third_party/beken_armino/glue/bk_phy/src/bk_phy_api.c
+      third_party/beken_armino/glue/bk_phy/src/bk_phy_notify.c)
   list(APPEND SRCS glue/netif_shim.c)
 
   # These source-backed WPA units require the complete Armino eloop/socket
@@ -162,17 +162,17 @@ if(CONFIG_BK7258_WIFI)
       list(APPEND SRCS ${wpa_generated})
     endforeach()
     list(APPEND SRCS
-         glue/vendor_sources/fake_socket.c
-         glue/vendor_sources/eloop.c
+         third_party/beken_armino/wpa_supplicant/bk_patch/fake_socket.c
+         third_party/beken_armino/wpa_supplicant/src/utils/eloop.c
          glue/vendor_sources/wpa_signal.c
-         glue/vendor_sources/sk_intf.c
+         third_party/beken_armino/wpa_supplicant/bk_patch/sk_intf.c
          # The WPA <-> MAC ioctl bridge and its transport. Both are STA
          # providers: driver_beken.c reaches hapd_intf_ioctl() through
          # ddrv.c:ioctl_inet(), and hapd_intf_ke_rx_handle() is what actually
          # transmits the STA MLME/EAPOL frames queued by wpa_supplicant.
          # They depend on the WPA socket contract, so they stay runtime-only.
-         glue/vendor_sources/ddrv.c
-         glue/vendor_sources/hostapd_intf.c
+         third_party/beken_armino/wpa_supplicant/bk_patch/ddrv.c
+         third_party/beken_armino/glue/bk_wifi/src/hostapd_intf.c
          # STA association command, called by hostapd_intf.c:974
          # (wpa_send_assoc_req). Runtime-only because its only consumer is.
          glue/vendor_sources/sa_station.c

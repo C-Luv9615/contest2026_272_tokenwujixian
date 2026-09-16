@@ -1,3 +1,10 @@
+/* NuttX port: the prologue below came from a wrapper translation unit
+ * at wifi/glue/vendor_sources/bk_phy_api.c, which existed only to include this
+ * file.  The build lists this file directly now.
+ */
+/* Wi-Fi-only translation unit: establish Armino's global build contract. */
+#include <bk_prelude.h>
+
 #include <modules/wifi.h>
 
 extern int manual_cal_get_tx_power(wifi_standard standard, float *powerdBm);

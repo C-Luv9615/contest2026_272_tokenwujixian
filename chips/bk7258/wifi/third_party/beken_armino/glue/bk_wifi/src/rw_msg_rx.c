@@ -1,3 +1,9 @@
+/* NuttX port: the prologue below came from a wrapper translation unit
+ * at wifi/glue/vendor_sources/rw_msg_rx.c, which existed only to include this
+ * file.  The build lists this file directly now.
+ */
+#include <bk_prelude.h>
+
 // Copyright 2020-2021 Beken
 //
 // Licensed under the Apache License, Version 2.0 (the "License");

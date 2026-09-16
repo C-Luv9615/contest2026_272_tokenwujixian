@@ -1,3 +1,9 @@
+/* NuttX port: the prologue below came from a wrapper translation unit
+ * at wifi/glue/vendor_sources/eloop.c, which existed only to include this
+ * file.  The build lists this file directly now.
+ */
+#include <bk_prelude.h>
+
 /*
  * Event loop based on select() loop
  * Copyright (c) 2002-2009, Jouni Malinen <j@w1.fi>
