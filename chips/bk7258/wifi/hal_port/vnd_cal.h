@@ -1,3 +1,13 @@
+/* Load-bearing despite looking orphaned: nothing in this directory includes it
+ * any more, but the compiled third_party/beken_armino/board/bk7258/vnd_cal/
+ * vnd_cal.c resolves its own #include "vnd_cal.h" to this file, because
+ * -I.../wifi/hal_port precedes -I.../vnd_cal/include on the command line.  The
+ * two headers differ: the vendored one pulls bk_arm_arch.h and bk_misc.h from
+ * its sibling include/, this one pulls <common/bk_include.h> from glue/include.
+ * Deleting this file silently switches that translation unit to the other
+ * header.
+ */
+
 #ifndef VND_CAL_H
 #define VND_CAL_H
 
