@@ -1,3 +1,9 @@
+/* NuttX port: the prologue below came from a wrapper translation unit
+ * at wifi/glue/vendor_sources/fake_socket.c, which existed only to include this
+ * file.  The build lists this file directly now.
+ */
+#include <bk_prelude.h>
+
 #include <common/bk_include.h>
 #include "common.h"
 #include <wpa_compat/fake_socket.h>

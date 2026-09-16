@@ -1,3 +1,11 @@
+/* NuttX port: the prologue below came from a wrapper translation unit
+ * at wifi/glue/vendor_sources/rwnx_txq.c, which existed only to include this
+ * file.  The build lists this file directly now.
+ */
+/* Wi-Fi-only translation unit: establish Armino's global build contract. */
+#include <bk_prelude.h>
+#include "driver.h"
+
 #include "bk_compiler.h"
 #include "rw_msdu.h"
 #include "bk_rw.h"

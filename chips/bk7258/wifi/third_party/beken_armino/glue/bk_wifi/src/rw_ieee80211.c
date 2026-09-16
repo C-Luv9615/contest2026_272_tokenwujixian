@@ -1,3 +1,11 @@
+/* NuttX port: the prologue below came from a wrapper translation unit
+ * at wifi/glue/vendor_sources/rw_ieee80211.c, which existed only to include this
+ * file.  The build lists this file directly now.
+ */
+/* Wi-Fi-only translation unit: establish Armino's global build contract. */
+#include <bk_prelude.h>
+#include "driver.h"
+
 #include <common/bk_include.h>
 #include "rw_ieee80211.h"
 #include "bk_rw.h"

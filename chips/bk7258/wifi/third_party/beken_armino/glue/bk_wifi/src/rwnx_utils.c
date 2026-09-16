@@ -1,3 +1,9 @@
+/* NuttX port: the prologue below came from a wrapper translation unit
+ * at wifi/glue/vendor_sources/rwnx_utils.c, which existed only to include this
+ * file.  The build lists this file directly now.
+ */
+#include <bk_prelude.h>
+
 /**
  ****************************************************************************************
  *

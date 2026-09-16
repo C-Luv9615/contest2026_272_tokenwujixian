@@ -1,3 +1,10 @@
+/* NuttX port: the prologue below came from a wrapper translation unit
+ * at wifi/glue/vendor_sources/wifi_config.c, which existed only to include this
+ * file.  The build lists this file directly now.
+ */
+/* Wi-Fi-only translation unit: establish Armino's local build contract. */
+#include <bk_prelude.h>
+
 /**
  ****************************************************************************************
  *
