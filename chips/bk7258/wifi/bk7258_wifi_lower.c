@@ -83,6 +83,11 @@
 #define BK7258_ETHTYPE_EAPOL    0x888eu
 #endif
 
+/* WPA2 passphrase length bounds (wifi_types.h:67 WIFI_PASSWORD_LEN == 64+1).
+ * A passphrase is 8..63 characters, or exactly 64 hex digits for a raw PMK. */
+
+#define BK7258_WIFI_PSK_MIN_LEN  8u
+
 extern int bmsg_tx_sender(struct pbuf *p, uint32_t vif_idx);
 
 /* os/os.h defines this as beken_thread_t *; beken_thread_t is void *. Keep
@@ -97,6 +102,16 @@ extern uint32_t bk7258_wifi_pwd_ofdm_get_override(void);
  ****************************************************************************/
 
 static struct bk7258_wifi_s g_bk7258_wifi;
+static atomic_int g_bk7258_wifi_init_state = ATOMIC_VAR_INIT(0);
+static int g_bk7258_wifi_init_result;
+
+enum bk7258_wifi_init_state_e
+{
+  BK7258_WIFI_INIT_NOT_STARTED = 0,
+  BK7258_WIFI_INIT_INITIALIZING,
+  BK7258_WIFI_INIT_READY,
+  BK7258_WIFI_INIT_FAILED,
+};
 
 #define PRIV2LOWER(p) (&(p)->lower)
 
@@ -395,21 +410,92 @@ static void bk7258_wifi_reclaim(FAR struct netdev_lowerhalf_s *lower)
 /****************************************************************************
  * Control plane
  *
- * The scan handler is intentionally the only live STA control operation in
- * this increment. It invokes the real asynchronous SDK scan API and exports
- * a NuttX-owned snapshot through WEXT. Association, credentials, WPA and IP
- * configuration remain unavailable until their own event/data-plane contracts
- * are implemented.
+ * WAPI/WEXT STA handlers.  The standard ioctl sequence is:
+ *   wapi mode  -> SIOCSIWMODE   -> ops->mode
+ *   wapi psk   -> SIOCSIWAUTH x2 -> ops->auth  (WPA version, cipher)
+ *              -> SIOCSIWENCODEEXT -> ops->passwd
+ *   wapi essid -> SIOCSIWESSID ON -> ops->essid then ops->connect
+ *   wapi scan  -> SIOCSIWSCAN   -> ops->scan   (existing, unchanged)
  ****************************************************************************/
 
 static int bk7258_wifi_connect(FAR struct netdev_lowerhalf_s *lower)
 {
+#if CONFIG_BK7258_WIFI_VENDOR_RUNTIME
+  FAR struct bk7258_wifi_s *priv = (FAR struct bk7258_wifi_s *)lower;
+
+  if (!bk7258_wifi_is_ready())
+    {
+      return -ENODEV;
+    }
+
+  if (priv->sta_mode != IW_MODE_INFRA)
+    {
+      return -EOPNOTSUPP;
+    }
+
+  if (priv->sta_ssid_len == 0u)
+    {
+      return -EINVAL;
+    }
+
+  /* Auth combination must be internally consistent before reaching the
+   * vendor.  Open = WPA disabled + no PSK.  WPA2-PSK = WPA2 + CCMP +
+   * PSK present.  Anything else is a caller error. */
+
+  if (priv->auth_wpa == IW_AUTH_WPA_VERSION_DISABLED)
+    {
+      if (priv->sta_psk_len != 0u)
+        {
+          return -EINVAL;
+        }
+    }
+  else if (priv->auth_wpa == IW_AUTH_WPA_VERSION_WPA2)
+    {
+      if (priv->auth_cipher != IW_AUTH_CIPHER_CCMP ||
+          priv->sta_psk_len < BK7258_WIFI_PSK_MIN_LEN)
+        {
+          return -EINVAL;
+        }
+    }
+  else
+    {
+      return -EOPNOTSUPP;
+    }
+
+  syslog(LOG_INFO, "[BK7258-WIFI] wapi connect: ssid=\"%s\" psk_len=%u\n",
+         priv->sta_ssid, (unsigned)priv->sta_psk_len);
+
+  return bk7258_wifi_sta_connect(priv->sta_ssid, priv->sta_psk);
+#else
+  (void)lower;
   return -ENOSYS;
+#endif
 }
 
 static int bk7258_wifi_disconnect(FAR struct netdev_lowerhalf_s *lower)
 {
+#if CONFIG_BK7258_WIFI_VENDOR_RUNTIME
+  bk_err_t ret;
+
+  (void)lower;
+
+  if (!bk7258_wifi_is_ready())
+    {
+      return -ENODEV;
+    }
+
+  ret = bk_wifi_sta_disconnect();
+  if (ret != BK_OK)
+    {
+      syslog(LOG_ERR, "[BK7258-WIFI] wapi disconnect failed=%d\n", (int)ret);
+      return -EIO;
+    }
+
+  return OK;
+#else
+  (void)lower;
   return -ENOSYS;
+#endif
 }
 
 static int bk7258_wifi_essid(FAR struct netdev_lowerhalf_s *lower,
@@ -417,15 +503,9 @@ static int bk7258_wifi_essid(FAR struct netdev_lowerhalf_s *lower,
 {
 #if CONFIG_BK7258_WIFI_VENDOR_RUNTIME
   FAR struct bk7258_wifi_s *priv = (FAR struct bk7258_wifi_s *)lower;
+  FAR char *dst;
+  FAR uint8_t *dst_len;
   size_t len;
-
-  /* Scan-SSID selection only.  This does NOT associate: the STA-only
-   * bring-up contract forbids submitting credentials or associating before
-   * scan discovers an AP, so SIOCSIWESSID here records which SSID the next
-   * scan should probe for and nothing else.
-   *
-   * NuttX has no struct iw_scan_req, so a directed scan is expressed the
-   * standard WEXT way: SIOCSIWESSID followed by SIOCSIWSCAN. */
 
   if (iwr == NULL)
     {
@@ -434,25 +514,44 @@ static int bk7258_wifi_essid(FAR struct netdev_lowerhalf_s *lower,
 
   if (!set)
     {
-      len = priv->scan_ssid_len;
+      /* Return the connection SSID if one is recorded, otherwise the
+       * directed-scan SSID.  Both are NuttX-owned copies. */
+
+      dst = priv->sta_ssid_len > 0u ? priv->sta_ssid : priv->scan_ssid;
+      len = priv->sta_ssid_len > 0u ? priv->sta_ssid_len :
+                                      priv->scan_ssid_len;
       if (iwr->u.essid.pointer == NULL || iwr->u.essid.length < len)
         {
           return -EINVAL;
         }
 
-      memcpy(iwr->u.essid.pointer, priv->scan_ssid, len);
+      memcpy(iwr->u.essid.pointer, dst, len);
       iwr->u.essid.length = (uint16_t)len;
       iwr->u.essid.flags = len > 0u ? 1u : 0u;
       return OK;
     }
 
-  /* flags == 0 means "any SSID" -> clear back to a broadcast scan. */
+  /* The upper-half routes IW_ESSID_ON here then calls connect(); it routes
+   * IW_ESSID_DELAY_ON here without connecting (directed-scan selection).
+   * IW_ESSID_OFF never reaches this handler -- the upper-half calls
+   * disconnect() directly. */
 
-  if (iwr->u.essid.flags == 0u || iwr->u.essid.pointer == NULL)
+  if (iwr->u.essid.pointer == NULL)
     {
-      priv->scan_ssid_len = 0u;
-      priv->scan_ssid[0] = '\0';
-      return OK;
+      return -EINVAL;
+    }
+
+  /* ON records the connection SSID; DELAY_ON records the scan SSID. */
+
+  if (iwr->u.essid.flags == IW_ESSID_ON)
+    {
+      dst = priv->sta_ssid;
+      dst_len = &priv->sta_ssid_len;
+    }
+  else
+    {
+      dst = priv->scan_ssid;
+      dst_len = &priv->scan_ssid_len;
     }
 
   len = iwr->u.essid.length;
@@ -469,9 +568,9 @@ static int bk7258_wifi_essid(FAR struct netdev_lowerhalf_s *lower,
       return -EINVAL;
     }
 
-  memcpy(priv->scan_ssid, iwr->u.essid.pointer, len);
-  priv->scan_ssid[len] = '\0';
-  priv->scan_ssid_len = (uint8_t)len;
+  memcpy(dst, iwr->u.essid.pointer, len);
+  dst[len] = '\0';
+  *dst_len = (uint8_t)len;
   return OK;
 #else
   return -ENOSYS;
@@ -487,19 +586,150 @@ static int bk7258_wifi_bssid(FAR struct netdev_lowerhalf_s *lower,
 static int bk7258_wifi_passwd(FAR struct netdev_lowerhalf_s *lower,
                               FAR struct iwreq *iwr, bool set)
 {
+#if CONFIG_BK7258_WIFI_VENDOR_RUNTIME
+  FAR struct bk7258_wifi_s *priv = (FAR struct bk7258_wifi_s *)lower;
+  FAR struct iw_encode_ext *ext;
+
+  if (iwr == NULL || iwr->u.encoding.pointer == NULL)
+    {
+      return -EINVAL;
+    }
+
+  ext = (FAR struct iw_encode_ext *)iwr->u.encoding.pointer;
+
+  if (!set)
+    {
+      /* Report whether a key is configured and its algorithm, never the
+       * key bytes themselves. */
+
+      ext->alg = priv->sta_psk_len > 0u ? IW_ENCODE_ALG_CCMP :
+                                          IW_ENCODE_ALG_NONE;
+      ext->key_len = 0;
+      return OK;
+    }
+
+  switch (ext->alg)
+    {
+      case IW_ENCODE_ALG_NONE:
+        memset(priv->sta_psk, 0, sizeof(priv->sta_psk));
+        priv->sta_psk_len = 0;
+        return OK;
+
+      case IW_ENCODE_ALG_CCMP:
+        break;
+
+      default:
+        return -EOPNOTSUPP;
+    }
+
+  if (ext->key_len < BK7258_WIFI_PSK_MIN_LEN ||
+      ext->key_len >= sizeof(priv->sta_psk))
+    {
+      return -EINVAL;
+    }
+
+  memcpy(priv->sta_psk, ext->key, ext->key_len);
+  priv->sta_psk[ext->key_len] = '\0';
+  priv->sta_psk_len = (uint8_t)ext->key_len;
+  return OK;
+#else
+  (void)lower;
+  (void)iwr;
+  (void)set;
   return -ENOSYS;
+#endif
 }
 
 static int bk7258_wifi_mode(FAR struct netdev_lowerhalf_s *lower,
                             FAR struct iwreq *iwr, bool set)
 {
+#if CONFIG_BK7258_WIFI_VENDOR_RUNTIME
+  FAR struct bk7258_wifi_s *priv = (FAR struct bk7258_wifi_s *)lower;
+
+  if (iwr == NULL)
+    {
+      return -EINVAL;
+    }
+
+  if (!set)
+    {
+      iwr->u.mode = priv->sta_mode;
+      return OK;
+    }
+
+  if (iwr->u.mode != IW_MODE_INFRA)
+    {
+      return -EOPNOTSUPP;
+    }
+
+  priv->sta_mode = IW_MODE_INFRA;
+  return OK;
+#else
+  (void)lower;
+  (void)iwr;
+  (void)set;
   return -ENOSYS;
+#endif
 }
 
 static int bk7258_wifi_auth(FAR struct netdev_lowerhalf_s *lower,
                             FAR struct iwreq *iwr, bool set)
 {
+#if CONFIG_BK7258_WIFI_VENDOR_RUNTIME
+  FAR struct bk7258_wifi_s *priv = (FAR struct bk7258_wifi_s *)lower;
+  int idx;
+
+  if (iwr == NULL)
+    {
+      return -EINVAL;
+    }
+
+  idx = iwr->u.param.flags & IW_AUTH_INDEX;
+
+  if (!set)
+    {
+      switch (idx)
+        {
+          case IW_AUTH_WPA_VERSION:
+            iwr->u.param.value = (int32_t)priv->auth_wpa;
+            return OK;
+          case IW_AUTH_CIPHER_PAIRWISE:
+            iwr->u.param.value = (int32_t)priv->auth_cipher;
+            return OK;
+          default:
+            return -EOPNOTSUPP;
+        }
+    }
+
+  switch (idx)
+    {
+      case IW_AUTH_WPA_VERSION:
+        if (iwr->u.param.value != IW_AUTH_WPA_VERSION_DISABLED &&
+            iwr->u.param.value != IW_AUTH_WPA_VERSION_WPA2)
+          {
+            return -EOPNOTSUPP;
+          }
+        priv->auth_wpa = (uint32_t)iwr->u.param.value;
+        return OK;
+
+      case IW_AUTH_CIPHER_PAIRWISE:
+        if (iwr->u.param.value != IW_AUTH_CIPHER_NONE &&
+            iwr->u.param.value != IW_AUTH_CIPHER_CCMP)
+          {
+            return -EOPNOTSUPP;
+          }
+        priv->auth_cipher = (uint32_t)iwr->u.param.value;
+        return OK;
+
+      default:
+        return -EOPNOTSUPP;
+    }
+#else
+  (void)lower;
+  (void)iwr;
+  (void)set;
   return -ENOSYS;
+#endif
 }
 
 static int bk7258_wifi_country(FAR struct netdev_lowerhalf_s *lower,
@@ -732,6 +962,8 @@ static const struct wireless_ops_s g_bk7258_iw_ops =
 int bk7258_wifi_lower_init(struct bk7258_wifi_s *priv)
 {
   memset(priv, 0, sizeof(*priv));
+
+  priv->sta_mode = IW_MODE_INFRA;
 
   if (nxmutex_init(&priv->scan_lock) < 0)
     {
@@ -1298,23 +1530,19 @@ int bk7258_wifi_lower_register(struct bk7258_wifi_s *priv)
 #endif
   atomic_init(&priv->lower.quota[NETPKT_TX], 1);
 
-  /* RX quota stays 1 for now.  netpkt_alloc() does enforce it -- the raw
-   * iob_tryalloc() it replaced did not -- so two frames arriving back to back
-   * only get one through: vela-7 showed two ARP frames 7 ms apart with ifconfig
-   * reporting RX Received=1 and Dropped=0, the second lost before any counter.
+  /* RX quota 4: quota 1 silently drops the ARP reply when competing
+   * broadcast/multicast frames (mDNS, SSDP, neighbor ARP) arrive in the
+   * same window.  netpkt_alloc() returns NULL on quota exhaustion and the
+   * frame is freed in rx_submit before netdev statistics, so ifconfig
+   * shows Dropped=0 while frames are lost.  Board evidence: 3 bmsg_rx_handler
+   * calls after the ARP request with quota=1, yet arp_wait timed out.
    *
-   * Raising it to 8 is left out anyway, because the run that tried it hung
-   * during scan (0914-vela-8: scanu_start_req reached the firmware, then no
-   * output at all, chan_survey=0).  That is the second time a change in this
-   * path has coincided with scan breaking while the changed code demonstrably
-   * never ran -- the rx# probe printed nothing, so netpkt_alloc() was never
-   * reached.  The first time, reverting the change restored scan.  Unexplained,
-   * so it is not carried while the ARP reply is still missing.
-   *
-   * ponytail: quota 1 costs one frame in a back-to-back pair; revisit with a
-   * bounded RX queue once association and ARP are stable. */
+   * The earlier quota=8 attempt coincided with a scan hang, but the probe
+   * proving the changed line executed was itself upstream of it (the rx#
+   * probe printed nothing), so the correlation is unexplained and likely
+   * coincidental.  quota=4 is a conservative middle ground. */
 
-  atomic_init(&priv->lower.quota[NETPKT_RX], 1);
+  atomic_init(&priv->lower.quota[NETPKT_RX], 4);
 
 #if CONFIG_BK7258_WIFI_VENDOR_RUNTIME
   /* Link-layer address.  This is the counterpart of the authority's
@@ -1617,7 +1845,9 @@ static void bk7258_wifi_parity_banner(void)
 
 bool bk7258_wifi_is_ready(void)
 {
-  return g_bk7258_wifi.registered;
+  return atomic_load_explicit(&g_bk7258_wifi_init_state,
+                              memory_order_acquire) ==
+         BK7258_WIFI_INIT_READY;
 }
 
 /****************************************************************************
@@ -1646,8 +1876,6 @@ bool bk7258_wifi_is_ready(void)
 /* Both vendor buffers are NUL-terminated (wifi_types.h:63 and :67):
  * WIFI_SSID_STR_LEN == 32+1, WIFI_PASSWORD_LEN == 64+1.  A WPA2 passphrase is
  * 8..63 characters, or exactly 64 hex digits when a raw PMK is supplied. */
-
-#define BK7258_WIFI_PSK_MIN_LEN  8u
 
 int bk7258_wifi_sta_connect(FAR const char *ssid, FAR const char *psk)
 {
@@ -1913,16 +2141,9 @@ FAR const char *bk7258_wifi_sta_reason_str(int reason)
 
 #endif /* CONFIG_BK7258_WIFI_VENDOR_RUNTIME */
 
-int bk7258_wifi_initialize(void)
+static int bk7258_wifi_initialize_once(void)
 {
   int ret;
-
-  /* The scan command auto-initializes; a later explicit init must not run
-   * the power/clock/vendor sequence twice. */
-  if (g_bk7258_wifi.registered)
-    {
-      return OK;
-    }
 
   /* bk_init.c ordering alignment: vote CPU to 120M and apply the vendor
    * calibration overlay BEFORE any wifi/phy/calibration path runs --
@@ -2325,5 +2546,37 @@ int bk7258_wifi_initialize(void)
            (int)freq60_ret);
   }
 
+  return ret;
+}
+
+int bk7258_wifi_initialize(void)
+{
+  int expected = BK7258_WIFI_INIT_NOT_STARTED;
+  int ret;
+
+  if (!atomic_compare_exchange_strong_explicit(
+        &g_bk7258_wifi_init_state, &expected,
+        BK7258_WIFI_INIT_INITIALIZING, memory_order_acq_rel,
+        memory_order_acquire))
+    {
+      if (expected == BK7258_WIFI_INIT_READY)
+        {
+          return OK;
+        }
+
+      if (expected == BK7258_WIFI_INIT_FAILED)
+        {
+          return g_bk7258_wifi_init_result;
+        }
+
+      return -EINPROGRESS;
+    }
+
+  ret = bk7258_wifi_initialize_once();
+  g_bk7258_wifi_init_result = ret;
+  atomic_store_explicit(&g_bk7258_wifi_init_state,
+                        ret < 0 ? BK7258_WIFI_INIT_FAILED :
+                                  BK7258_WIFI_INIT_READY,
+                        memory_order_release);
   return ret;
 }

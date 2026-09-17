@@ -15,6 +15,7 @@
 #include <nuttx/arch.h>
 #include <nuttx/kthread.h>
 #include <nuttx/panic_notifier.h>
+#include <nuttx/semaphore.h>
 #include <nuttx/serial/uart_rpmsg.h>
 #include <nuttx/signal.h>
 
@@ -26,6 +27,7 @@
 #include <arch/chip/bk7258_mb_ipc.h>
 #include <arch/chip/bk7258_memorymap.h>
 #include <arch/chip/bk7258_timer.h>
+#include <arch/chip/bk7258_wifi.h>
 #include <arch/board/board.h>
 
 #ifdef CONFIG_RPTUN
@@ -39,6 +41,68 @@ int bk7258_devkit_audio_pa_register(void);
 
 #ifdef CONFIG_BK7258_COMPONENT_CP
 int bk7258_ap_start_monitor(void);
+
+#ifdef CONFIG_BK7258_WIFI_VENDOR_RUNTIME
+#  define BK7258_WIFI_INIT_PRIORITY  85
+#  define BK7258_WIFI_INIT_STACKSIZE 8192
+#  define BK7258_WIFI_INIT_TIMEOUT   SEC2TICK(30)
+
+static sem_t g_bk7258_wifi_init_done;
+static int g_bk7258_wifi_init_result;
+
+static int bk7258_wifi_init_worker(int argc, char *argv[])
+{
+  (void)argc;
+  (void)argv;
+
+  g_bk7258_wifi_init_result = bk7258_wifi_initialize();
+  nxsem_post(&g_bk7258_wifi_init_done);
+  return g_bk7258_wifi_init_result;
+}
+
+static void bk7258_wifi_boot_initialize(void)
+{
+  int ret;
+
+  ret = nxsem_init(&g_bk7258_wifi_init_done, 0, 0);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "[BK7258-WIFI] init semaphore failed: %d\n", ret);
+      return;
+    }
+
+  ret = kthread_create("bk7258-wifi-init", BK7258_WIFI_INIT_PRIORITY,
+                       BK7258_WIFI_INIT_STACKSIZE,
+                       bk7258_wifi_init_worker, NULL);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "[BK7258-WIFI] init thread failed: %d\n", ret);
+      return;
+    }
+
+  ret = nxsem_tickwait_uninterruptible(&g_bk7258_wifi_init_done,
+                                       BK7258_WIFI_INIT_TIMEOUT);
+  if (ret == -ETIMEDOUT)
+    {
+      syslog(LOG_ERR, "[BK7258-WIFI] init timed out after 30 seconds\n");
+      return;
+    }
+
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "[BK7258-WIFI] init wait failed: %d\n", ret);
+    }
+  else if (g_bk7258_wifi_init_result < 0)
+    {
+      syslog(LOG_ERR, "[BK7258-WIFI] boot init failed: %d\n",
+             g_bk7258_wifi_init_result);
+    }
+  else
+    {
+      syslog(LOG_INFO, "[BK7258-WIFI] wlan0 ready before userspace\n");
+    }
+}
+#endif
 #endif
 
 #ifdef CONFIG_BK7258_COMPONENT_AP
@@ -125,6 +189,9 @@ void board_late_initialize(void)
   up_putc('M');
 #else
   (void)bk7258_ap_start_monitor();
+#endif
+#ifdef CONFIG_BK7258_WIFI_VENDOR_RUNTIME
+  bk7258_wifi_boot_initialize();
 #endif
 #else
   bk7258_ap_initialize();

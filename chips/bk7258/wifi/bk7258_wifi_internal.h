@@ -186,6 +186,20 @@ struct bk7258_wifi_s
   char scan_ssid[BK7258_WIFI_SCAN_SSID_LEN + 1u];
   uint8_t scan_ssid_len;
 
+  /* WAPI/WEXT STA connection configuration, populated by the standard
+   * ioctl sequence (mode -> auth x2 -> passwd -> essid ON -> connect).
+   * sta_psk is sensitive: never logged, never returned on
+   * SIOCGIWENCODEEXT.  Cleared only by a subsequent ALG_NONE passwd
+   * set (open network). */
+
+  uint8_t  sta_mode;        /* IW_MODE_*; default INFRA */
+  uint32_t auth_wpa;        /* IW_AUTH_WPA_VERSION_* */
+  uint32_t auth_cipher;     /* IW_AUTH_CIPHER_* */
+  char     sta_ssid[BK7258_WIFI_SCAN_SSID_LEN + 1u];
+  uint8_t  sta_ssid_len;
+  char     sta_psk[65];
+  uint8_t  sta_psk_len;
+
   mutex_t scan_lock;
   bool scan_lock_ready;
   bool scan_callback_registered;
@@ -236,6 +250,7 @@ int bk7258_wifi_initialize(void);
 /* True once bk7258_wifi_initialize() has completed (lower half registered).
  * Lets command entry points auto-initialize instead of silently running a
  * scan against an unpowered MAC/PHY domain. */
+
 bool bk7258_wifi_is_ready(void);
 
 /****************************************************************************
