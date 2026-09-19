@@ -22,17 +22,17 @@ endif()
 
 if(CONFIG_BK7258_MB_IPC_RPMSG)
   if(CONFIG_BK7258_COMPONENT_CP)
-   set(BK7258_MB_IPC_ROLE ${NUTTX_CHIP_ABS_DIR}/mb_ipc/authority)
+   set(BK7258_MB_IPC_ROLE ${NUTTX_CHIP_ABS_DIR}/mb_ipc/armino)
     set(BK7258_MB_IPC_SOURCES
-        mb_ipc/authority_cp_mailbox_channel.c
-        mb_ipc/authority_cp_mb_chnl_buff.c
-        mb_ipc/authority_cp_mb_ipc.c)
+        mb_ipc/armino_cp_mailbox_channel.c
+        mb_ipc/armino_cp_mb_chnl_buff.c
+        mb_ipc/armino_cp_mb_ipc.c)
   else()
-    set(BK7258_MB_IPC_ROLE ${NUTTX_CHIP_ABS_DIR}/mb_ipc/authority_ap)
+    set(BK7258_MB_IPC_ROLE ${NUTTX_CHIP_ABS_DIR}/mb_ipc/armino_ap)
     set(BK7258_MB_IPC_SOURCES
-        mb_ipc/authority_ap_mailbox_channel.c
-        mb_ipc/authority_ap_mb_chnl_buff.c
-        mb_ipc/authority_ap_mb_ipc.c
+        mb_ipc/armino_ap_mailbox_channel.c
+        mb_ipc/armino_ap_mb_chnl_buff.c
+        mb_ipc/armino_ap_mb_ipc.c
         mb_ipc/bk_mailbox_rpmsg_ap_rtos.c)
   endif()
 
@@ -68,20 +68,20 @@ if(CONFIG_BK7258_WIFI)
        saradc/middleware/driver/saradc/adc_driver.c
        saradc/middleware/driver/saradc/adc_statis.c
        temp_detect/bk7258_temp_detect.c
-       otp/authority/middleware/driver/otp/otp_driver_v1_1.c
-       otp/authority/middleware/soc/common/hal/otp_hal.c
-       aon_rtc/aon_rtc_authority_hal.c
-       aon_rtc/aon_rtc_authority_driver.c
+       otp/armino/middleware/driver/otp/otp_driver_v1_1.c
+       otp/armino/middleware/soc/common/hal/otp_hal.c
+       aon_rtc/aon_rtc_armino_hal.c
+       aon_rtc/aon_rtc_armino_driver.c
        aon_rtc/nuttx_port/aon_rtc_nuttx_port.c
-       trng/authority/middleware/driver/trng/trng_driver.c
-       trng/authority/middleware/soc/common/hal/trng_hal.c
-       trng/authority/middleware/soc/bk7258/hal/trng_ll.c
-       gpio/authority/middleware/soc/common/hal/gpio_hal.c
-       gpio/authority/middleware/driver/bk7258/gpio_driver.c
+       trng/armino/middleware/driver/trng/trng_driver.c
+       trng/armino/middleware/soc/common/hal/trng_hal.c
+       trng/armino/middleware/soc/bk7258/hal/trng_ll.c
+       gpio/armino/middleware/soc/common/hal/gpio_hal.c
+       gpio/armino/middleware/driver/bk7258/gpio_driver.c
        gpio/nuttx_port/gpio_nuttx_port.c
-       pm/authority/middleware/soc/bk7258/hal/sys_hal.c
-       pm/authority/middleware/soc/bk7258/hal/sys_pm_hal.c
-       pm/authority/middleware/driver/pwr_clk/pwr_clk.c)
+       pm/armino/middleware/soc/bk7258/hal/sys_hal.c
+       pm/armino/middleware/soc/bk7258/hal/sys_pm_hal.c
+       pm/armino/middleware/driver/pwr_clk/pwr_clk.c)
 endif()
 
 target_sources(arch PRIVATE ${SRCS})
@@ -98,50 +98,50 @@ set(BK7258_CHIP_MODULE_INCLUDES
     ${NUTTX_CHIP_ABS_DIR}/saradc/middleware/soc/bk7258/hal
     ${NUTTX_CHIP_ABS_DIR}/saradc/middleware/soc/bk7258/soc
     ${NUTTX_CHIP_ABS_DIR}/saradc/middleware/driver/saradc
-    ${NUTTX_CHIP_ABS_DIR}/otp/authority/include
-    ${NUTTX_CHIP_ABS_DIR}/otp/authority/include/driver
-    ${NUTTX_CHIP_ABS_DIR}/otp/authority/middleware/driver/otp
-    ${NUTTX_CHIP_ABS_DIR}/otp/authority/middleware/soc/common/hal/include
-    ${NUTTX_CHIP_ABS_DIR}/otp/authority/middleware/soc/bk7258/hal
-    ${NUTTX_CHIP_ABS_DIR}/otp/authority/middleware/soc/bk7258/soc
-    ${NUTTX_CHIP_ABS_DIR}/aon_rtc/authority/include
-    ${NUTTX_CHIP_ABS_DIR}/aon_rtc/authority/middleware/driver/rtc
-    ${NUTTX_CHIP_ABS_DIR}/aon_rtc/authority/middleware/soc/common/hal/include
-    ${NUTTX_CHIP_ABS_DIR}/aon_rtc/authority/middleware/soc/common/soc/include
-    ${NUTTX_CHIP_ABS_DIR}/aon_rtc/authority/middleware/soc/bk7258/hal
-    ${NUTTX_CHIP_ABS_DIR}/aon_rtc/authority/middleware/soc/bk7258/soc
-    ${NUTTX_CHIP_ABS_DIR}/trng/authority/include
-    ${NUTTX_CHIP_ABS_DIR}/trng/authority/include/driver
-    ${NUTTX_CHIP_ABS_DIR}/trng/authority/middleware/driver/trng
-    ${NUTTX_CHIP_ABS_DIR}/trng/authority/middleware/soc/common/hal/include
-    ${NUTTX_CHIP_ABS_DIR}/trng/authority/middleware/soc/common/soc/include
-    ${NUTTX_CHIP_ABS_DIR}/trng/authority/middleware/soc/bk7258/hal
-    ${NUTTX_CHIP_ABS_DIR}/trng/authority/middleware/soc/bk7258/soc
-    ${NUTTX_CHIP_ABS_DIR}/gpio/authority/include
-    ${NUTTX_CHIP_ABS_DIR}/gpio/authority/include/driver
-    ${NUTTX_CHIP_ABS_DIR}/gpio/authority/middleware/driver/gpio
-    ${NUTTX_CHIP_ABS_DIR}/gpio/authority/middleware/driver/bk7258
-    ${NUTTX_CHIP_ABS_DIR}/gpio/authority/middleware/driver/include/bk_private
-    ${NUTTX_CHIP_ABS_DIR}/gpio/authority/middleware/soc/common/hal/include
-    ${NUTTX_CHIP_ABS_DIR}/gpio/authority/middleware/soc/common/soc/include
-    ${NUTTX_CHIP_ABS_DIR}/gpio/authority/middleware/soc/bk7258/hal
-    ${NUTTX_CHIP_ABS_DIR}/gpio/authority/middleware/soc/bk7258/soc
+    ${NUTTX_CHIP_ABS_DIR}/otp/armino/include
+    ${NUTTX_CHIP_ABS_DIR}/otp/armino/include/driver
+    ${NUTTX_CHIP_ABS_DIR}/otp/armino/middleware/driver/otp
+    ${NUTTX_CHIP_ABS_DIR}/otp/armino/middleware/soc/common/hal/include
+    ${NUTTX_CHIP_ABS_DIR}/otp/armino/middleware/soc/bk7258/hal
+    ${NUTTX_CHIP_ABS_DIR}/otp/armino/middleware/soc/bk7258/soc
+    ${NUTTX_CHIP_ABS_DIR}/aon_rtc/armino/include
+    ${NUTTX_CHIP_ABS_DIR}/aon_rtc/armino/middleware/driver/rtc
+    ${NUTTX_CHIP_ABS_DIR}/aon_rtc/armino/middleware/soc/common/hal/include
+    ${NUTTX_CHIP_ABS_DIR}/aon_rtc/armino/middleware/soc/common/soc/include
+    ${NUTTX_CHIP_ABS_DIR}/aon_rtc/armino/middleware/soc/bk7258/hal
+    ${NUTTX_CHIP_ABS_DIR}/aon_rtc/armino/middleware/soc/bk7258/soc
+    ${NUTTX_CHIP_ABS_DIR}/trng/armino/include
+    ${NUTTX_CHIP_ABS_DIR}/trng/armino/include/driver
+    ${NUTTX_CHIP_ABS_DIR}/trng/armino/middleware/driver/trng
+    ${NUTTX_CHIP_ABS_DIR}/trng/armino/middleware/soc/common/hal/include
+    ${NUTTX_CHIP_ABS_DIR}/trng/armino/middleware/soc/common/soc/include
+    ${NUTTX_CHIP_ABS_DIR}/trng/armino/middleware/soc/bk7258/hal
+    ${NUTTX_CHIP_ABS_DIR}/trng/armino/middleware/soc/bk7258/soc
+    ${NUTTX_CHIP_ABS_DIR}/gpio/armino/include
+    ${NUTTX_CHIP_ABS_DIR}/gpio/armino/include/driver
+    ${NUTTX_CHIP_ABS_DIR}/gpio/armino/middleware/driver/gpio
+    ${NUTTX_CHIP_ABS_DIR}/gpio/armino/middleware/driver/bk7258
+    ${NUTTX_CHIP_ABS_DIR}/gpio/armino/middleware/driver/include/bk_private
+    ${NUTTX_CHIP_ABS_DIR}/gpio/armino/middleware/soc/common/hal/include
+    ${NUTTX_CHIP_ABS_DIR}/gpio/armino/middleware/soc/common/soc/include
+    ${NUTTX_CHIP_ABS_DIR}/gpio/armino/middleware/soc/bk7258/hal
+    ${NUTTX_CHIP_ABS_DIR}/gpio/armino/middleware/soc/bk7258/soc
     ${NUTTX_CHIP_ABS_DIR}/pm/nuttx_port/include
-    ${NUTTX_CHIP_ABS_DIR}/pm/authority/include
-    ${NUTTX_CHIP_ABS_DIR}/pm/authority/include/cmsis
-    ${NUTTX_CHIP_ABS_DIR}/pm/authority/include/soc/bk7258
-    ${NUTTX_CHIP_ABS_DIR}/pm/authority/middleware/driver/include/bk_private
-    ${NUTTX_CHIP_ABS_DIR}/pm/authority/middleware/soc/common/hal/include
-    ${NUTTX_CHIP_ABS_DIR}/pm/authority/middleware/soc/common/soc/include
-    ${NUTTX_CHIP_ABS_DIR}/pm/authority/middleware/soc/bk7258/hal
-    ${NUTTX_CHIP_ABS_DIR}/pm/authority/middleware/soc/bk7258/soc
-    ${NUTTX_CHIP_ABS_DIR}/pm/authority/middleware/driver/pwr_clk)
+    ${NUTTX_CHIP_ABS_DIR}/pm/armino/include
+    ${NUTTX_CHIP_ABS_DIR}/pm/armino/include/cmsis
+    ${NUTTX_CHIP_ABS_DIR}/pm/armino/include/soc/bk7258
+    ${NUTTX_CHIP_ABS_DIR}/pm/armino/middleware/driver/include/bk_private
+    ${NUTTX_CHIP_ABS_DIR}/pm/armino/middleware/soc/common/hal/include
+    ${NUTTX_CHIP_ABS_DIR}/pm/armino/middleware/soc/common/soc/include
+    ${NUTTX_CHIP_ABS_DIR}/pm/armino/middleware/soc/bk7258/hal
+    ${NUTTX_CHIP_ABS_DIR}/pm/armino/middleware/soc/bk7258/soc
+    ${NUTTX_CHIP_ABS_DIR}/pm/armino/middleware/driver/pwr_clk)
 
 target_include_directories(arch PRIVATE ${BK7258_CHIP_MODULE_INCLUDES})
 
 if(CONFIG_BK7258_MB_IPC_RPMSG)
   target_include_directories(arch PRIVATE
-                             ${NUTTX_CHIP_ABS_DIR}/wifi/glue/include
+                             ${NUTTX_CHIP_ABS_DIR}/wifi/hal_port/include
                              ${NUTTX_CHIP_ABS_DIR}/mb_ipc
                              ${NUTTX_CHIP_ABS_DIR}/mb_ipc/include
                              ${BK7258_MB_IPC_ROLE}/include

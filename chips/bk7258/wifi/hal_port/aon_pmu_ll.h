@@ -1,5 +1,5 @@
 /* Direct authority BK7258 generated LL import. */
-#include "../../aon_pmu/authority/middleware/soc/bk7258/soc/aon_pmu_ll.h"
+#include "../../aon_pmu/armino/middleware/soc/bk7258/soc/aon_pmu_ll.h"
 
 #if 0
 #ifndef __HP_AON_PMU_LL_H_GUARD

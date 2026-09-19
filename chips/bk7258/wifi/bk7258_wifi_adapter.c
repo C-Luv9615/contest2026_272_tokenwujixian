@@ -769,7 +769,7 @@ static bk_err_t bk7258_wifi_gpio_map_cb(uint32_t id, uint32_t dev)
  * the port now runs with CONFIG_ARCH_DCACHE=y, and with the slot empty the
  * closed library gets no writeback before whichever DMA handoff it guards --
  * exactly the "silent data corruption on the MAC data path" our own
- * glue/include/cache.h:12-16 warns about.  NuttX exposes the two halves
+ * hal_port/include/cache.h:12-16 warns about.  NuttX exposes the two halves
  * separately (arm_cache.c:895/:737), so the authority's single
  * CleanInvalidateDCache is spelled as clean-then-invalidate; the net cache
  * state is the same (every line written back and invalidated). */
@@ -1107,7 +1107,7 @@ wifi_os_funcs_t g_wifi_os_funcs =
    * implementations were in use.  They were also wrong: hp_get_rx_pbuf_type
    * returned lwIP's PBUF_RAM (a 0x0380 bit combination) where the slot's
    * contract is a bk_pbuf_type ordinal 0..4.  The surviving pair in
-   * glue/pbuf_shim.c now returns BK_PBUF_RAM_RX, matching the authority.
+   * hal_port/pbuf_shim.c now returns BK_PBUF_RAM_RX, matching the authority.
    *
    * Checked at the same time: g_wifi_os_variable has no duplicates. */
 

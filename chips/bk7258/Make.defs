@@ -22,13 +22,13 @@ endif
 ifeq ($(CONFIG_BK7258_MB_IPC_RPMSG),y)
 VPATH += :mb_ipc
 ifeq ($(CONFIG_BK7258_COMPONENT_CP),y)
-CFLAGS += -I$(CHIP_DIR)$(DELIM)mb_ipc$(DELIM)authority$(DELIM)include
-CFLAGS += -I$(CHIP_DIR)$(DELIM)mb_ipc$(DELIM)authority$(DELIM)middleware$(DELIM)driver$(DELIM)mailbox
-CHIP_CSRCS += authority_cp_mailbox_channel.c authority_cp_mb_chnl_buff.c authority_cp_mb_ipc.c
+CFLAGS += -I$(CHIP_DIR)$(DELIM)mb_ipc$(DELIM)armino$(DELIM)include
+CFLAGS += -I$(CHIP_DIR)$(DELIM)mb_ipc$(DELIM)armino$(DELIM)middleware$(DELIM)driver$(DELIM)mailbox
+CHIP_CSRCS += armino_cp_mailbox_channel.c armino_cp_mb_chnl_buff.c armino_cp_mb_ipc.c
 else
-CFLAGS += -I$(CHIP_DIR)$(DELIM)mb_ipc$(DELIM)authority_ap$(DELIM)include
-CFLAGS += -I$(CHIP_DIR)$(DELIM)mb_ipc$(DELIM)authority_ap$(DELIM)middleware$(DELIM)driver$(DELIM)mailbox
-CHIP_CSRCS += authority_ap_mailbox_channel.c authority_ap_mb_chnl_buff.c authority_ap_mb_ipc.c bk_mailbox_rpmsg_ap_rtos.c
+CFLAGS += -I$(CHIP_DIR)$(DELIM)mb_ipc$(DELIM)armino_ap$(DELIM)include
+CFLAGS += -I$(CHIP_DIR)$(DELIM)mb_ipc$(DELIM)armino_ap$(DELIM)middleware$(DELIM)driver$(DELIM)mailbox
+CHIP_CSRCS += armino_ap_mailbox_channel.c armino_ap_mb_chnl_buff.c armino_ap_mb_ipc.c bk_mailbox_rpmsg_ap_rtos.c
 endif
 DEPPATH += --dep-path mb_ipc
 CFLAGS += -I$(CHIP_DIR)$(DELIM)wifi$(DELIM)glue$(DELIM)include

@@ -38,7 +38,7 @@
  *
  * All of that is deleted (2026-09-09).  The generated authority LL header
  * is imported verbatim and is byte-identical to the reference tree
- * (chips/bk7258/aon_pmu/authority/middleware/soc/bk7258/hal/sys_ll.h,
+ * (chips/bk7258/aon_pmu/armino/middleware/soc/bk7258/hal/sys_ll.h,
  * reached here through hal_port_sys_all.h), so every accessor these
  * function bodies need already exists with the authoritative bitfield
  * definition.  Re-typing those literals bought nothing and risked a silent
@@ -225,7 +225,7 @@ void hp_aon_pmu_hal_clear_wakeup_source(uint32_t value)
 /* bgcalm unconditionally (bk_phy_adapter.c:651-652 -- no              */
 /* CONFIG_SOC_BK7256XX guard, unlike the eFuse entry), so these are    */
 /* live calls from libbk_phy.a, not dead table slots.  They used to    */
-/* resolve to log-only stubs in glue/analog_shim.c that returned 0 /   */
+/* resolve to log-only stubs in hal_port/analog_shim.c that returned 0 /   */
 /* BK_FAIL and touched no hardware; the PHY's bandgap trim therefore   */
 /* silently did nothing.  bandgap_init() (components_init.c:97) also   */
 /* has sys_drv_set_bgcalm() as its whole point, so importing it before */

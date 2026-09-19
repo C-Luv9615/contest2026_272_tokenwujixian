@@ -87,7 +87,7 @@ config BK7258_WIFI_VENDOR_RUNTIME
 	default n
 	depends on BK7258_WIFI_VENDOR_LINK
 	help
-		Compile the vendor runtime and its WPA/glue closure. The BK7258
+		Compile the vendor runtime and its WPA closure. The BK7258
 		board starts it before userspace from a dedicated large-stack
 		worker. User-space control is through the standard wapi CLI.
 

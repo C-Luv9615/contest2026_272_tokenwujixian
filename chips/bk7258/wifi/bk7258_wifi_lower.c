@@ -194,7 +194,7 @@ void ethernetif_input(int iface, struct pbuf *p, uint8_t dst_idx)
    * worked: those take the separate rwnx_rx_mgmt_any() path.
    *
    * This gap was known and recorded, not newly discovered:
-   * glue/include/wpa_compat/sk_intf.h:20-22 states that "EAPOL/WAI (0x888e)
+   * hal_port/include/wpa_compat/sk_intf.h:20-22 states that "EAPOL/WAI (0x888e)
    * demux to the WPA entity is the network bridge's job (plan 11.4.2), not this
    * header's" -- the bridge is this function, and the work was never done.
    *
@@ -1371,7 +1371,7 @@ static bk_err_t bk7258_wifi_scan_done(void *arg, event_module_t module,
 
 /* Declared here rather than by including <bk_private/bk_rw.h>: that header
  * pulls in fhost_msg.h, fhost_mac.h and pbuf.h, and our own
- * glue/include/pbuf.h includes bk_rw.h back, so including it here would drag a
+ * hal_port/include/pbuf.h includes bk_rw.h back, so including it here would drag a
  * circular chain into this file.  Same single-symbol extern pattern the
  * chan_env/txl_cntrl_env declarations in the scan-done probe already use.
  *
@@ -2195,7 +2195,7 @@ static int bk7258_wifi_initialize_once(void)
      *
      * BK7258 needs no clock or power gate for this block -- authority only
      * touches sys_drv_trng_disckg_set() under CONFIG_SOC_BK7256XX, which is 0
-     * in this profile (glue/include/common/sys_config.h:23), and bk_trng_start()
+     * in this profile (hal_port/include/common/sys_config.h:23), and bk_trng_start()
      * itself bypasses the block's clock gate (trng_ll.h:59). */
 
     extern void sys_hal_low_power_hardware_init(void);

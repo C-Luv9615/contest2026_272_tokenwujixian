@@ -1,6 +1,6 @@
 /* Legacy Wi-Fi include path.  The full generated SYS structure definitions
  * are imported once from the AON authority module. */
-#include "../../aon_pmu/authority/middleware/soc/bk7258/soc/sys_struct.h"
+#include "../../aon_pmu/armino/middleware/soc/bk7258/soc/sys_struct.h"
 
 #if 0
 // Copyright 2022-2023 Beken

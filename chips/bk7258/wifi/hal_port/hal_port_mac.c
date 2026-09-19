@@ -7,7 +7,7 @@
  *           :466  bk_get_mac
  *           :486+ bk_set_base_mac
  *
- * Why this replaces the previous shim (glue/system_shim.c):
+ * Why this replaces the previous shim (hal_port/system_shim.c):
  *
  * The old implementation accepted ONLY MAC_TYPE_BASE and returned BK_FAIL for
  * every other type WITHOUT writing the caller's buffer:
@@ -35,7 +35,7 @@
  * 1. mac_init's persistence chain (get_net_info / read_base_mac_to_otp2 /
  *    save_net_info) is replaced by the board's flash accessor
  *    bk7258_wifi_board_get_mac().  Our save_info_item/get_info_item are still
- *    stubs (glue/net_param_shim.c), so there is nothing to persist into yet.
+ *    stubs (hal_port/net_param_shim.c), so there is nothing to persist into yet.
  * 2. Armino randomises the low bytes when no stored address is found
  *    (CONFIG_RANDOM_MAC_ADDR=1 authoritatively) and persists the result.
  *    Without a persistence layer a random address would change every boot,
