@@ -5,8 +5,8 @@
 #ifndef __BK7258_AON_PMU_NUTTX_SYSTEM_HW_H
 #define __BK7258_AON_PMU_NUTTX_SYSTEM_HW_H
 
-#include "../../authority/middleware/soc/bk7258/soc/sys_reg.h"
-#include "../../authority/middleware/soc/bk7258/soc/sys_struct.h"
-#include "../../authority/middleware/soc/bk7258/hal/sys_ll.h"
+#include "../../armino/middleware/soc/bk7258/soc/sys_reg.h"
+#include "../../armino/middleware/soc/bk7258/soc/sys_struct.h"
+#include "../../armino/middleware/soc/bk7258/hal/sys_ll.h"
 
 #endif /* __BK7258_AON_PMU_NUTTX_SYSTEM_HW_H */

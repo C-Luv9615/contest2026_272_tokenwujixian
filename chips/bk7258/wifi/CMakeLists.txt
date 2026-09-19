@@ -3,10 +3,10 @@
 if(CONFIG_BK7258_WIFI)
 
   set(BK7258_WIFI_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
-  set(BK7258_ARMINO_ROOT ${BK7258_WIFI_ROOT}/third_party/beken_armino)
+  set(BK7258_ARMINO_ROOT ${BK7258_WIFI_ROOT}/armino)
   set(BK7258_ARMINO_WIFI ${BK7258_ARMINO_ROOT}/glue/bk_wifi)
   set(BK7258_ARMINO_WPA ${BK7258_ARMINO_ROOT}/wpa_supplicant)
-  set(BK7258_WIFI_GLUE ${BK7258_WIFI_ROOT}/glue)
+  set(BK7258_WIFI_GLUE ${BK7258_WIFI_ROOT}/hal_port)
 
   # Include directories shared by `arch` and the bk7258_wpa aux library.
   set(BK7258_WIFI_INCLUDES
@@ -36,27 +36,27 @@ if(CONFIG_BK7258_WIFI)
       bk7258_wifi_lower.c
       bk7258_wifi_osal.c
       bk7258_wifi_packet.c
-      glue/pbuf_shim.c
+      hal_port/pbuf_shim.c
       bk7258_wifi_hw.c
       bk7258_wifi_adapter.c
-      ../aon_pmu/aon_pmu_authority_hal.c
-      ../aon_pmu/aon_pmu_authority_driver.c
-      glue/hw_driver_shim.c
-      glue/system_shim.c
-      glue/rtos_ext_shim.c
-      glue/rtos_compat_shim.c
-      glue/bk_workqueue_nuttx.c
-      glue/phy_calibration_shim.c
-      glue/analog_shim.c
-      glue/feature_shim.c
-      glue/flash_shim.c
-      glue/misc_shim.c
-      glue/event_shim.c
-      glue/scan_diagnostics.c
-      glue/m2_snapshot.c
-      glue/platform_shim.c
+      ../aon_pmu/aon_pmu_armino_hal.c
+      ../aon_pmu/aon_pmu_armino_driver.c
+      hal_port/hw_driver_shim.c
+      hal_port/system_shim.c
+      hal_port/rtos_ext_shim.c
+      hal_port/rtos_compat_shim.c
+      hal_port/bk_workqueue_nuttx.c
+      hal_port/phy_calibration_shim.c
+      hal_port/analog_shim.c
+      hal_port/feature_shim.c
+      hal_port/flash_shim.c
+      hal_port/misc_shim.c
+      hal_port/event_shim.c
+      hal_port/scan_diagnostics.c
+      hal_port/m2_snapshot.c
+      hal_port/platform_shim.c
       hal_port/hal_port_lpdoze.c
-      # vnd_cal comes from third_party/beken_armino/board/bk7258/vnd_cal below,
+      # vnd_cal comes from armino/board/bk7258/vnd_cal below,
       # which is byte-identical to authority cp/middleware/boards/bk7258.  Do
       # not add a hal_port transcription of it again: we had one, both copies
       # reached SRCS, and libarch.a ended up with two definitions of
@@ -73,36 +73,36 @@ if(CONFIG_BK7258_WIFI)
       hal_port/hal_port_mac.c
       hal_port/hal_port_bandgap.c
       hal_port/funcs_fill.c
-      glue/os_shim.c
-      glue/net_param_shim.c
-      third_party/beken_armino/glue/bk_wifi/src/rwnx_params.c
-      third_party/beken_armino/glue/bk_wifi/src/rwnx_td.c
-      third_party/beken_armino/glue/bk_wifi/src/rwnx_txq.c
+      hal_port/os_shim.c
+      hal_port/net_param_shim.c
+      armino/glue/bk_wifi/src/rwnx_params.c
+      armino/glue/bk_wifi/src/rwnx_td.c
+      armino/glue/bk_wifi/src/rwnx_txq.c
       # VIF/STA index helpers used by rw_task.c, rwnx_tx.c and rwnx_rx.c above.
       # The wrapper existed but was never listed here, which is why rwm_mgmt_*
       # and rwm_get_monitor_vif_idx appeared as undefined symbols.
-      third_party/beken_armino/glue/bk_wifi/src/rwnx_utils.c
+      armino/glue/bk_wifi/src/rwnx_utils.c
       # Monitor callback registry + management-frame filter. Backs the
       # unconditional rwnx_rx.c (wifi_monitor_get_cb) and libwifi.a's rxl_cntrl
       # (rx_mgmt_filter), so it belongs at the same level as its consumers.
-      third_party/beken_armino/glue/bk_wifi/src/lsig_monitor.c
-      third_party/beken_armino/glue/bk_wifi/src/rw_ieee80211.c
-      third_party/beken_armino/glue/bk_wifi/src/rwnx_tx.c
-      third_party/beken_armino/glue/bk_wifi/src/rwnx_rx.c
-      glue/vendor_sources/rw_task.c
-      third_party/beken_armino/glue/bk_wifi/src/wifi_v2.c
-      third_party/beken_armino/glue/bk_wifi/src/wifi_config.c
-      third_party/beken_armino/glue/bk_wifi/src/net_param.c
-      third_party/beken_armino/glue/bk_wifi/src/rw_msg_tx.c
-      third_party/beken_armino/glue/bk_wifi/src/rw_msg_rx.c
-      glue/vendor_sources/wifi_init.c
-      third_party/beken_armino/glue/bk_phy/src/bk_phy_adapter.c
-      third_party/beken_armino/board/bk7258/vnd_cal/vnd_cal.c
-      third_party/beken_armino/glue/bk_wifi/src/skbuff.c
-      third_party/beken_armino/glue/bk_phy/src/bk_rf_adapter.c
-      third_party/beken_armino/glue/bk_phy/src/bk_phy_api.c
-      third_party/beken_armino/glue/bk_phy/src/bk_phy_notify.c)
-  list(APPEND SRCS glue/netif_shim.c)
+      armino/glue/bk_wifi/src/lsig_monitor.c
+      armino/glue/bk_wifi/src/rw_ieee80211.c
+      armino/glue/bk_wifi/src/rwnx_tx.c
+      armino/glue/bk_wifi/src/rwnx_rx.c
+      hal_port/vendor_sources/rw_task.c
+      armino/glue/bk_wifi/src/wifi_v2.c
+      armino/glue/bk_wifi/src/wifi_config.c
+      armino/glue/bk_wifi/src/net_param.c
+      armino/glue/bk_wifi/src/rw_msg_tx.c
+      armino/glue/bk_wifi/src/rw_msg_rx.c
+      hal_port/vendor_sources/wifi_init.c
+      armino/glue/bk_phy/src/bk_phy_adapter.c
+      armino/board/bk7258/vnd_cal/vnd_cal.c
+      armino/glue/bk_wifi/src/skbuff.c
+      armino/glue/bk_phy/src/bk_rf_adapter.c
+      armino/glue/bk_phy/src/bk_phy_api.c
+      armino/glue/bk_phy/src/bk_phy_notify.c)
+  list(APPEND SRCS hal_port/netif_shim.c)
 
   # These source-backed WPA units require the complete Armino eloop/socket
   # contract and are relevant only when runtime bring-up is explicitly
@@ -110,73 +110,73 @@ if(CONFIG_BK7258_WIFI)
   # contract into the default, runtime-disabled CP image.
   if(CONFIG_BK7258_WIFI_VENDOR_RUNTIME)
     set(BK7258_WPA_STA_SOURCES
-        third_party/beken_armino/wpa_supplicant/src/common/ieee802_11_common.c
-        third_party/beken_armino/wpa_supplicant/src/common/wpa_common.c
-        third_party/beken_armino/wpa_supplicant/src/common/wpa_psk_cache.c
-        third_party/beken_armino/wpa_supplicant/src/drivers/driver_beken.c
-        third_party/beken_armino/wpa_supplicant/src/drivers/driver_common.c
-        third_party/beken_armino/wpa_supplicant/src/drivers/drivers.c
-        third_party/beken_armino/wpa_supplicant/src/l2_packet/l2_packet_none.c
-        third_party/beken_armino/wpa_supplicant/src/rsn_supp/pmksa_cache.c
-        third_party/beken_armino/wpa_supplicant/src/rsn_supp/wpa.c
-        third_party/beken_armino/wpa_supplicant/src/rsn_supp/wpa_ie.c
-        third_party/beken_armino/wpa_supplicant/src/utils/common.c
-        third_party/beken_armino/wpa_supplicant/src/utils/crc32.c
-        third_party/beken_armino/wpa_supplicant/src/utils/os_none.c
-        third_party/beken_armino/wpa_supplicant/src/utils/wpa_debug.c
-        third_party/beken_armino/wpa_supplicant/src/utils/wpabuf.c
-        third_party/beken_armino/wpa_supplicant/wpa_supplicant/bssid_ignore.c
-        third_party/beken_armino/wpa_supplicant/wpa_supplicant/bss.c
-        third_party/beken_armino/wpa_supplicant/wpa_supplicant/config.c
-        third_party/beken_armino/wpa_supplicant/wpa_supplicant/config_none.c
-        third_party/beken_armino/wpa_supplicant/wpa_supplicant/events.c
-        third_party/beken_armino/wpa_supplicant/wpa_supplicant/notify.c
-        third_party/beken_armino/wpa_supplicant/wpa_supplicant/op_classes.c
-        third_party/beken_armino/wpa_supplicant/wpa_supplicant/sme.c
-        third_party/beken_armino/wpa_supplicant/wpa_supplicant/wmm_ac.c
-        third_party/beken_armino/wpa_supplicant/wpa_supplicant/wpa_scan.c
-        third_party/beken_armino/wpa_supplicant/wpa_supplicant/wpa_supplicant.c
-        third_party/beken_armino/wpa_supplicant/wpa_supplicant/wpas_glue.c
-        third_party/beken_armino/wpa_supplicant/wpa_supplicant/wnm_sta.c
+        armino/wpa_supplicant/src/common/ieee802_11_common.c
+        armino/wpa_supplicant/src/common/wpa_common.c
+        armino/wpa_supplicant/src/common/wpa_psk_cache.c
+        armino/wpa_supplicant/src/drivers/driver_beken.c
+        armino/wpa_supplicant/src/drivers/driver_common.c
+        armino/wpa_supplicant/src/drivers/drivers.c
+        armino/wpa_supplicant/src/l2_packet/l2_packet_none.c
+        armino/wpa_supplicant/src/rsn_supp/pmksa_cache.c
+        armino/wpa_supplicant/src/rsn_supp/wpa.c
+        armino/wpa_supplicant/src/rsn_supp/wpa_ie.c
+        armino/wpa_supplicant/src/utils/common.c
+        armino/wpa_supplicant/src/utils/crc32.c
+        armino/wpa_supplicant/src/utils/os_none.c
+        armino/wpa_supplicant/src/utils/wpa_debug.c
+        armino/wpa_supplicant/src/utils/wpabuf.c
+        armino/wpa_supplicant/wpa_supplicant/bssid_ignore.c
+        armino/wpa_supplicant/wpa_supplicant/bss.c
+        armino/wpa_supplicant/wpa_supplicant/config.c
+        armino/wpa_supplicant/wpa_supplicant/config_none.c
+        armino/wpa_supplicant/wpa_supplicant/events.c
+        armino/wpa_supplicant/wpa_supplicant/notify.c
+        armino/wpa_supplicant/wpa_supplicant/op_classes.c
+        armino/wpa_supplicant/wpa_supplicant/sme.c
+        armino/wpa_supplicant/wpa_supplicant/wmm_ac.c
+        armino/wpa_supplicant/wpa_supplicant/wpa_scan.c
+        armino/wpa_supplicant/wpa_supplicant/wpa_supplicant.c
+        armino/wpa_supplicant/wpa_supplicant/wpas_glue.c
+        armino/wpa_supplicant/wpa_supplicant/wnm_sta.c
         # Crypto closure, mirroring the SDK's own gating. CONFIG_USE_MBEDTLS,
         # CONFIG_PSA_MBEDTLS and CONFIG_WPA3 are all unset in this profile, so
         # the SDK selects its internal implementations instead of the
         # mbedtls/wolfssl variants. These files were already vendored but never
         # listed here - the same build-set omission class as rwnx_utils.c.
-        third_party/beken_armino/wpa_supplicant/src/crypto/aes-siv.c
-        third_party/beken_armino/wpa_supplicant/src/crypto/aes-unwrap.c
-        third_party/beken_armino/wpa_supplicant/src/crypto/aes-wrap.c
-        third_party/beken_armino/wpa_supplicant/src/crypto/dh_group5.c
-        third_party/beken_armino/wpa_supplicant/src/crypto/dh_groups.c
-        third_party/beken_armino/wpa_supplicant/src/crypto/sha1-prf.c
-        third_party/beken_armino/wpa_supplicant/src/crypto/sha256-kdf.c
-        third_party/beken_armino/wpa_supplicant/src/crypto/sha256-prf.c
-        third_party/beken_armino/wpa_supplicant/src/crypto/sha384-kdf.c
-        third_party/beken_armino/wpa_supplicant/src/crypto/sha384-prf.c
-        third_party/beken_armino/wpa_supplicant/src/crypto/sha512-kdf.c
-        third_party/beken_armino/wpa_supplicant/src/crypto/sha512-prf.c
-        third_party/beken_armino/wpa_supplicant/src/crypto/tls_none.c
+        armino/wpa_supplicant/src/crypto/aes-siv.c
+        armino/wpa_supplicant/src/crypto/aes-unwrap.c
+        armino/wpa_supplicant/src/crypto/aes-wrap.c
+        armino/wpa_supplicant/src/crypto/dh_group5.c
+        armino/wpa_supplicant/src/crypto/dh_groups.c
+        armino/wpa_supplicant/src/crypto/sha1-prf.c
+        armino/wpa_supplicant/src/crypto/sha256-kdf.c
+        armino/wpa_supplicant/src/crypto/sha256-prf.c
+        armino/wpa_supplicant/src/crypto/sha384-kdf.c
+        armino/wpa_supplicant/src/crypto/sha384-prf.c
+        armino/wpa_supplicant/src/crypto/sha512-kdf.c
+        armino/wpa_supplicant/src/crypto/sha512-prf.c
+        armino/wpa_supplicant/src/crypto/tls_none.c
         # Internal crypto branch (CONFIG_USE_MBEDTLS unset).
-        third_party/beken_armino/wpa_supplicant/src/crypto/aes-cbc.c
-        third_party/beken_armino/wpa_supplicant/src/crypto/aes-ctr.c
-        third_party/beken_armino/wpa_supplicant/src/crypto/aes-internal.c
-        third_party/beken_armino/wpa_supplicant/src/crypto/aes-internal-dec.c
-        third_party/beken_armino/wpa_supplicant/src/crypto/aes-internal-enc.c
-        third_party/beken_armino/wpa_supplicant/src/crypto/aes-omac1.c
-        third_party/beken_armino/wpa_supplicant/src/crypto/crypto_internal-modexp.c
-        third_party/beken_armino/wpa_supplicant/src/crypto/md5.c
-        third_party/beken_armino/wpa_supplicant/src/crypto/md5-internal.c
-        third_party/beken_armino/wpa_supplicant/src/crypto/rc4.c
-        third_party/beken_armino/wpa_supplicant/src/crypto/sha1.c
-        third_party/beken_armino/wpa_supplicant/src/crypto/sha1-internal.c
-        third_party/beken_armino/wpa_supplicant/src/crypto/sha1-pbkdf2.c
-        third_party/beken_armino/wpa_supplicant/src/crypto/sha384.c
-        third_party/beken_armino/wpa_supplicant/src/crypto/sha384-internal.c
-        third_party/beken_armino/wpa_supplicant/src/crypto/sha512.c
-        third_party/beken_armino/wpa_supplicant/src/crypto/sha512-internal.c
+        armino/wpa_supplicant/src/crypto/aes-cbc.c
+        armino/wpa_supplicant/src/crypto/aes-ctr.c
+        armino/wpa_supplicant/src/crypto/aes-internal.c
+        armino/wpa_supplicant/src/crypto/aes-internal-dec.c
+        armino/wpa_supplicant/src/crypto/aes-internal-enc.c
+        armino/wpa_supplicant/src/crypto/aes-omac1.c
+        armino/wpa_supplicant/src/crypto/crypto_internal-modexp.c
+        armino/wpa_supplicant/src/crypto/md5.c
+        armino/wpa_supplicant/src/crypto/md5-internal.c
+        armino/wpa_supplicant/src/crypto/rc4.c
+        armino/wpa_supplicant/src/crypto/sha1.c
+        armino/wpa_supplicant/src/crypto/sha1-internal.c
+        armino/wpa_supplicant/src/crypto/sha1-pbkdf2.c
+        armino/wpa_supplicant/src/crypto/sha384.c
+        armino/wpa_supplicant/src/crypto/sha384-internal.c
+        armino/wpa_supplicant/src/crypto/sha512.c
+        armino/wpa_supplicant/src/crypto/sha512-internal.c
         # CONFIG_WPA3 unset, so sha256 comes from the internal set too.
-        third_party/beken_armino/wpa_supplicant/src/crypto/sha256.c
-        third_party/beken_armino/wpa_supplicant/src/crypto/sha256-internal.c)
+        armino/wpa_supplicant/src/crypto/sha256.c
+        armino/wpa_supplicant/src/crypto/sha256-internal.c)
     # These wpa_supplicant units are compiled verbatim.  bk_prelude.h, which
     # reproduces the definitions upstream injects globally, is force-included
     # through the aux library's own compile options instead of a generated
@@ -210,27 +210,27 @@ if(CONFIG_BK7258_WIFI)
         ${ARCH_SUBDIR_ARM}
         ${BK7258_WIFI_INCLUDES})
     list(APPEND SRCS
-         third_party/beken_armino/wpa_supplicant/bk_patch/fake_socket.c
-         third_party/beken_armino/wpa_supplicant/src/utils/eloop.c
-         third_party/beken_armino/wpa_supplicant/bk_patch/signal.c
-         third_party/beken_armino/wpa_supplicant/bk_patch/sk_intf.c
+         armino/wpa_supplicant/bk_patch/fake_socket.c
+         armino/wpa_supplicant/src/utils/eloop.c
+         armino/wpa_supplicant/bk_patch/signal.c
+         armino/wpa_supplicant/bk_patch/sk_intf.c
          # The WPA <-> MAC ioctl bridge and its transport. Both are STA
          # providers: driver_beken.c reaches hapd_intf_ioctl() through
          # ddrv.c:ioctl_inet(), and hapd_intf_ke_rx_handle() is what actually
          # transmits the STA MLME/EAPOL frames queued by wpa_supplicant.
          # They depend on the WPA socket contract, so they stay runtime-only.
-         third_party/beken_armino/wpa_supplicant/bk_patch/ddrv.c
-         third_party/beken_armino/glue/bk_wifi/src/hostapd_intf.c
+         armino/wpa_supplicant/bk_patch/ddrv.c
+         armino/glue/bk_wifi/src/hostapd_intf.c
          # STA association command, called by hostapd_intf.c:974
          # (wpa_send_assoc_req). Runtime-only because its only consumer is.
-         third_party/beken_armino/glue/bk_wifi/src/sa_station.c
+         armino/glue/bk_wifi/src/sa_station.c
          # Team-owned WPA handler queue object + accessors. Upstream keeps these
          # in hostapd/main_none.c, but compiling that file would drag in the
          # whole hostapd provider closure; the queue itself is shared by
          # wpa_supplicant and hostapd, so we own the four primitives instead.
-         glue/wpa_queue_shim.c
-         third_party/beken_armino/wpa_supplicant/wpa_supplicant/ctrl_iface.c
-         third_party/beken_armino/wpa_supplicant/wpa_supplicant/main_supplicant.c)
+         hal_port/wpa_queue_shim.c
+         armino/wpa_supplicant/wpa_supplicant/ctrl_iface.c
+         armino/wpa_supplicant/wpa_supplicant/main_supplicant.c)
   endif()
 
   target_sources(arch PRIVATE ${SRCS})

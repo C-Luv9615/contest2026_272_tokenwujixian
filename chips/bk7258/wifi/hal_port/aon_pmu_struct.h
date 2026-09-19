@@ -1,5 +1,5 @@
 /* Direct authority BK7258 generated register-structure import. */
-#include "../../aon_pmu/authority/middleware/soc/bk7258/soc/aon_pmu_struct.h"
+#include "../../aon_pmu/armino/middleware/soc/bk7258/soc/aon_pmu_struct.h"
 
 #if 0
 #ifndef __HP_AON_PMU_STRUCT_H_GUARD

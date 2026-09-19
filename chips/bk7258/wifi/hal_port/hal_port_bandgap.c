@@ -14,7 +14,7 @@
  * value rather than at whatever reset left in the register.
  *
  * This port never ran that step.  Until 2026-09-09 that was invisible because
- * sys_drv_set_bgcalm() was a log-only stub in glue/analog_shim.c: the PHY's
+ * sys_drv_set_bgcalm() was a log-only stub in hal_port/analog_shim.c: the PHY's
  * own bandgap writes went nowhere either, so the register simply kept its
  * reset value throughout.  Making sys_drv_set_bgcalm() real without also
  * running this init produced a worse state than the stub -- the PHY can now
@@ -30,14 +30,14 @@
  *
  * Preconditions, all verified before writing this file:
  *   - CONFIG_SOC_BK7236XX and CONFIG_OTP_V1 are both 1 here
- *     (glue/include/common/sys_config.h:21,101), matching the authority
+ *     (hal_port/include/common/sys_config.h:21,101), matching the authority
  *     BK7258 CP config, so the guarded body below is live and not compiled
  *     out.
  *   - sys_drv_get_bgcalm()/sys_drv_set_bgcalm() reach the verbatim register
  *     sequence in hal_port_lpdoze.c (sys_hal.c:1938,1943) instead of the
  *     former stubs.
  *   - bk_otp_apb_read() is the imported authority driver
- *     (otp/authority/.../otp_driver_v1_1.c:288) and does not require
+ *     (otp/armino/.../otp_driver_v1_1.c:288) and does not require
  *     bk_otp_driver_init(): it brackets its own access with OTP_ACTIVE()/
  *     OTP_SLEEP().  Confirmed on hardware -- libbk_phy.a reads the die
  *     temperature through the same entry point and logs a sane value

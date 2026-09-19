@@ -13,15 +13,15 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[3]
 CHIP = ROOT / "chips" / "bk7258"
-SYS_CONFIG = CHIP / "wifi/glue/include/common/sys_config.h"
+SYS_CONFIG = CHIP / "wifi/hal_port/include/common/sys_config.h"
 SARADC_PORT = CHIP / "saradc/nuttx_port/nuttx_port.c"
 BACKEND = CHIP / "mb_ipc/bk_mailbox_rpmsg.c"
 AP_RTOS = CHIP / "mb_ipc/bk_mailbox_rpmsg_ap_rtos.c"
-CP_AUTHORITY = CHIP / "mb_ipc/authority/middleware/driver/mailbox"
-AP_AUTHORITY = CHIP / "mb_ipc/authority_ap/middleware/driver/mailbox"
+CP_AUTHORITY = CHIP / "mb_ipc/armino/middleware/driver/mailbox"
+AP_AUTHORITY = CHIP / "mb_ipc/armino_ap/middleware/driver/mailbox"
 CP_SOURCE = Path("/home/czp/armino/bk_avdk_smp/cp/middleware/driver/mailbox")
 AP_SOURCE = Path("/home/czp/armino/bk_avdk_smp/ap/middleware/driver/mailbox")
-PHY_ADAPTER = CHIP / "wifi/third_party/beken_armino/glue/bk_phy/src/bk_phy_adapter.c"
+PHY_ADAPTER = CHIP / "wifi/armino/glue/bk_phy/src/bk_phy_adapter.c"
 PHY_ADAPTER_AUTHORITY = Path(
     "/home/czp/armino/bk_avdk_smp/cp/components/bk_phy/src/bk_phy_adapter.c"
 )

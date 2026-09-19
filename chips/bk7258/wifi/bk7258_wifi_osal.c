@@ -479,7 +479,7 @@ static int bk7258_wifi_osal_sem_wait_raw(FAR sem_t *sem,
    *
    * NuttX's nxsem_wait()/nxsem_tickwait() add a third outcome, -EINTR, when a
    * signal reaches the waiting thread (sem_wait.c:67).  Our wrapper in
-   * glue/rtos_compat_shim.c collapses every negative return to BK_FAIL, so a
+   * hal_port/rtos_compat_shim.c collapses every negative return to BK_FAIL, so a
    * spurious wakeup was indistinguishable from a real timeout.  The
    * _uninterruptible forms retry on EINTR, and the timed one recomputes the
    * remaining delay from the original deadline (semaphore.h:1048-1071) so the

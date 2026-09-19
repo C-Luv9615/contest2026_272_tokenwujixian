@@ -330,7 +330,7 @@ int board_start_cpu(int cpuid)
    *
    * sys_hal_module_power_ctrl() rather than bk_pm_module_vote_power_ctrl() for
    * the same reason as the PSRAM domain in bk7258_psram.c: the vote function in
-   * this port (glue/platform_shim.c:188) has no CPU1 branch and would answer
+   * this port (hal_port/platform_shim.c:188) has no CPU1 branch and would answer
    * BK_ERR_NOT_SUPPORT, and it is built only under CONFIG_BK7258_WIFI.  The HAL
    * entry is authority code under pm/ and compiles unconditionally.  When
    * platform_shim's vote layer is replaced by the authority's pm.c this becomes

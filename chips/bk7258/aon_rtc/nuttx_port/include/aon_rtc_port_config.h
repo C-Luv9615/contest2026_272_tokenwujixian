@@ -12,8 +12,8 @@
  * a per-module force-include.  That is deliberate: CONFIG_AON_RTC_64BIT selects
  * the rtc_tick_t typedef and AON_RTC_ROUND_TICK width in the authority
  * <driver/aon_rtc_types.h>, and that header is also included by
- * wifi/bk7258_wifi_adapter.c, wifi/glue/hw_driver_shim.c,
- * wifi/glue/platform_shim.c, aon_pmu/authority aon_pmu_driver.c and the
+ * wifi/bk7258_wifi_adapter.c, wifi/hal_port/hw_driver_shim.c,
+ * wifi/hal_port/platform_shim.c, aon_pmu/armino aon_pmu_driver.c and the
  * third_party bk_wifi_adapter.c.
  * A module-local definition would give the driver a 64-bit rtc_tick_t and every
  * other translation unit a 32-bit one, silently disagreeing on the alarm_info_t
@@ -41,7 +41,7 @@
 
 /* Authority BK7258 CP: CONFIG_SYSTEM_CTRL=y.  Selects the
  * sys_drv_int_group2_enable/disable route for the RTC interrupt, which this
- * port already provides (wifi/glue/hw_driver_shim.c:192,197).  Already defined
+ * port already provides (wifi/hal_port/hw_driver_shim.c:192,197).  Already defined
  * in sys_config.h; guarded so this header can also be read standalone. */
 
 #ifndef CONFIG_SYSTEM_CTRL
@@ -88,7 +88,7 @@
  * pull in the Armino spinlock.h and a second critical-section implementation).
  * sys_config.h already omits it deliberately for the same reason; do not add it
  * here either.  The rtos_disable_int/rtos_enable_int critical section that the
- * driver falls back to is provided by wifi/glue/rtos_compat_shim.c:264,269.
+ * driver falls back to is provided by wifi/hal_port/rtos_compat_shim.c:264,269.
  *
  * #define CONFIG_FREERTOS_SMP      <- must stay commented out
  */

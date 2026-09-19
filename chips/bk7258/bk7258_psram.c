@@ -119,7 +119,7 @@ static void bk7258_psram_power_clock_enable(void)
    * PSRAM's claim on the domain explicit, the way upstream has it.
    *
    * sys_hal_module_power_ctrl() rather than bk_pm_module_vote_power_ctrl():
-   * the vote function in this port is glue/platform_shim.c:188, which handles
+   * the vote function in this port is hal_port/platform_shim.c:188, which handles
    * only WIFIP_MAC, the BAKP submodules and the PHY submodules and answers
    * BK_ERR_NOT_SUPPORT for everything else -- an AHBP vote there would be a
    * no-op today.  It also lives under if(CONFIG_BK7258_WIFI), and this file is

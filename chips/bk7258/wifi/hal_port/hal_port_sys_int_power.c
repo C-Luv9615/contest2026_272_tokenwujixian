@@ -51,7 +51,7 @@
 #include <syslog.h>
 
 /* bk_include.h first: modules/pm.h uses the vendor int32/uint32 aliases
- * that bk_typedef.h defines (same order as glue/platform_shim.c). */
+ * that bk_typedef.h defines (same order as hal_port/platform_shim.c). */
 #include <common/bk_include.h>
 #include <common/bk_err.h>
 #include <modules/pm.h>
@@ -59,7 +59,7 @@
 #include "hal_port_sys_all.h"
 
 /* PM_MODULE_SUB_POWER_DOMAIN_MAX and the PHY submodule ids come from
- * glue/include/common/sys_config.h via the vendor pm.h chain. */
+ * hal_port/include/common/sys_config.h via the vendor pm.h chain. */
 
 /* ------------------------------------------------------------------ */
 /* MAC / modem interrupt enables (sys_hal.c:1704-1732)                 */

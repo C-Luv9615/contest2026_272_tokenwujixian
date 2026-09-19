@@ -43,7 +43,7 @@
 #include <syslog.h>
 
 /* bk_include.h first: modules/pm.h uses the vendor int32/uint32 aliases
- * that bk_typedef.h defines (same order as glue/platform_shim.c). */
+ * that bk_typedef.h defines (same order as hal_port/platform_shim.c). */
 #include <common/bk_include.h>
 #include <common/bk_err.h>
 #include <modules/pm.h>
@@ -155,7 +155,7 @@ static uint32_t hp_sys_hal_vdddig_h_vol_get(void)
 /* bk_phy_adapter.c:653-654 binds ._sys_drv_set_vdd_value /            */
 /* ._sys_drv_get_vdd_value with no CONFIG_SOC_BK7256XX guard, so these  */
 /* are live calls from libbk_phy.a.  They previously resolved to        */
-/* log-only stubs in glue/analog_shim.c (return 0 / BK_FAIL, no         */
+/* log-only stubs in hal_port/analog_shim.c (return 0 / BK_FAIL, no         */
 /* hardware access).  Upstream set_vdd_value is exactly a call to       */
 /* sys_hal_ctrl_vdddig_h_vol(), which this file already ports verbatim  */
 /* and which is hardware-verified: the post-init readback reports       */

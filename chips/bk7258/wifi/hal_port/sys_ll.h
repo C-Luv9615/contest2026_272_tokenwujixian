@@ -1,6 +1,6 @@
 /* Legacy Wi-Fi include path.  The full generated SYS LL is imported once
  * from the AON authority module, avoiding duplicate static-inline bodies. */
-#include "../../aon_pmu/authority/middleware/soc/bk7258/hal/sys_ll.h"
+#include "../../aon_pmu/armino/middleware/soc/bk7258/hal/sys_ll.h"
 
 #if 0
 // Copyright 2022-2023 Beken

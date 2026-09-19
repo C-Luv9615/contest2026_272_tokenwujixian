@@ -19,27 +19,27 @@
  * authority capability header is included verbatim rather than restated.
  * Included by relative path so this boundary does not depend on the order of
  * the per-module authority include directories. */
-#include "../../../../aon_rtc/authority/include/soc/bk7258/aon_rtc_cap.h"
+#include "../../../../aon_rtc/armino/include/soc/bk7258/aon_rtc_cap.h"
 
 /* Same contract for GPIO: SOC_GPIO_NUM and SOC_GPIO_SYSTEM_GROUP_NUM are real
  * array dimensions inside the authority register description
  * (gpio_struct.h:44,133) and GPIO_PERI_FUNC_NUM dimensions the per-pin device
  * table (gpio_hal.h:37), so the authority capability header is included
  * verbatim rather than restated. */
-#include "../../../../gpio/authority/include/soc/bk7258/gpio_cap.h"
+#include "../../../../gpio/armino/include/soc/bk7258/gpio_cap.h"
 
 /* Same contract for the timer block: SOC_TIMER_GROUP_NUM,
  * SOC_TIMER_CHAN_NUM_PER_UNIT and SOC_TIMER_CHAN_NUM_PER_GROUP are consumed as
  * real dimensions by the authority timer LL that sys_hal.c reaches through
  * timer_hal.h. */
-#include "../../../../pm/authority/include/soc/bk7258/timer_cap.h"
+#include "../../../../pm/armino/include/soc/bk7258/timer_cap.h"
 
 /* Authority soc/bk7258/soc.h:17 pulls in soc/soc_port.h, which supplies the
  * BK_WHILE / BK_DO_WHILE / BK_WHILE_DO bounded busy-wait contract used by the
  * imported LL headers (timer_ll.h:170, adc_hal.c:173).  CONFIG_BK_WHILE is not
  * set in the authority BK7258 CP config, so the plain loop variants apply and
  * the macros pull in nothing beyond components/log.h. */
-#include "../../../../pm/authority/include/soc/soc_port.h"
+#include "../../../../pm/armino/include/soc/soc_port.h"
 
 #define SOC_ADDR_OFFSET       0
 #define SOC_SYS_REG_BASE      BK7258_SYS_BASE
