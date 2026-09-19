@@ -536,64 +536,6 @@ static struct rwnx_txq *rwnx_select_txq(struct sk_buff *skb)
 		skb->priority = 0xFF;
 		skb->ac = AC_BE;
 	}
-#if 0 /* HIDDEN 2026-09-04 -- question answered; flip to 1 to re-enable */
-	/* Answered: across 12 injected unicast data frames (0904-open-1.log 4,
-	 * 0904-open-2.log 8) and 18 EAPOL M2 frames (0904-wap-2.log) this printed
-	 * `arm=qos active=1 sta_idx=0 capa=00000007` every single time, with
-	 * prio/ac differing only as expected (0/1 at tid=0, 7/3 at tid=7).  The
-	 * QoS arm is always taken -- the BC/MC-leak hypothesis below is dead, and
-	 * `done=1 acked=0 retry=0` turned out to be a normal confirmation shape
-	 * (open-2 frame 0 has it while frames 5-7 reach ack=1 on the same path).
-	 *
-	 * Hidden because it now costs more than it reports: deliberately not rate
-	 * limited, ~120 bytes per frame, and our BK_LOGW lands on a synchronous
-	 * blocking syslog where the authority filters through an async queue --
-	 * order 10 ms of the TX submission path per frame at 115200 baud, i.e. the
-	 * instrument perturbs what it measures.  The live verdict is the paired
-	 * `txcfm` probe in rwnx_txdesc_free() below.  The `l2tx cfm` probe this
-	 * line also used to name was removed once the handshake closed.
-	 *
-	 * Original reasoning kept verbatim below.
-	 *
-	 * Which arm above ran is the one unmeasured step left on the EAPOL M2
-	 * failure.  Every M2 comes back DONE without ACKNOWLEDGED and, decisively,
-	 * without RETRY_REQUIRED -- the MAC did not even want a retransmission,
-	 * which is how it treats a frame that needs no ACK.  The "Non Qos: BC/MC"
-	 * arm produces exactly that shape: priority 0xFF reaches the hardware as
-	 * host->tid (:728) although the only legal TIDs are 0..7.
-	 *
-	 * The association IEs say that arm should NOT be taken: our Assoc Request
-	 * carried the WMM Information Element and the AP's Assoc Response carried
-	 * the WMM Parameter Element (both 221 / 00:50:f2 type 2), so QoS was
-	 * negotiated on air and STA_QOS_CAPA is expected to be set.  If the probe
-	 * shows it clear, the sta_info the closed lib fills and the one we read
-	 * disagree; if it shows QoS taken with tid 0..7, this whole hypothesis is
-	 * dead and the descriptor probe below carries the answer instead.
-	 *
-	 * capa_flags is read a second time here rather than hoisted into a local:
-	 * the branch condition stays byte-identical to the authority copy, so the
-	 * probe cannot be what changes the decision it is measuring.
-	 *
-	 * Rate limit prints the first 24 in full -- a WPA2 run makes only 15 M2
-	 * attempts, so none are lost -- then samples, which keeps an open-AP run
-	 * with real data traffic from flooding the port. */
-	{
-		static uint32_t selq_seq;
-		uint32_t capa = sta ? mac_sta_mgmt_get_capa_flags(sta) : 0;
-		uint32_t n = selq_seq++;
-
-		if (n < 24 || (n & 0x1F) == 0)
-			RWNX_LOGW("selq seq=%u arm=%s active=%d sta=%p sta_idx=%u "
-					  "capa=%08x qos=%d prio=%u ac=%u ethertype=%04x\n",
-					  n,
-					  !sta ? "none" : (capa & STA_QOS_CAPA) ? "qos" : "bcmc",
-					  mac_vif_mgmt_get_active(rwnx_vif) ? 1 : 0,
-					  sta, skb->sta_idx, capa,
-					  (capa & STA_QOS_CAPA) ? 1 : 0,
-					  skb->priority, skb->ac,
-					  PP_HTONS(eth_hdr_ptr->e_proto));
-	}
-#endif
 	if (txq) {
 		if (!txq->hwq) {
 			RWNX_LOGD("%s: vif_idx %d, rwnx_vif %p, dst mac %pm, sta %p\n",
@@ -843,60 +785,6 @@ __ITCM_N int rwnx_start_xmit(uint8_t vif_idx, struct pbuf *p, BUS_MSG_T *msg)
 	if (msg->type == BMSG_SPECIAL_TX_TYPE)
 		host->flags |= TXU_CNTRL_IS_SPECIAL_FRAME;
 
-#if 0 /* HIDDEN 2026-09-04 -- fields confirmed legal; flip to 1 to re-enable */
-	/* Answered: over 12 unicast data frames and 18 M2 frames every field came
-	 * back legal and stable -- tid in 0..7, staid=0 (never INVALID), vif=0,
-	 * fl=0, len = skblen - 14.  No descriptor-corruption signal exists here,
-	 * so this now prints ~200 bytes per frame onto a synchronous syslog for no
-	 * discriminating power.  See the note at the hidden selq probe (:487).
-	 *
-	 * Original reasoning kept verbatim below.
-	 *
-	 * The descriptor as the firmware will read it, sampled after every field
-	 * is final and before fhost_txdesc_init() consumes it.  This is the last
-	 * host-side state that crosses into the closed lib on the M2 path, so if
-	 * the selq probe above shows the QoS arm was taken correctly then the
-	 * answer to "DONE but never ACKNOWLEDGED" has to be visible here.
-	 *
-	 * What each field is being read for:
-	 *   tid    -- 0..7 legal; 0xFF means the BC/MC arm leaked through and the
-	 *             MAC was told this frame needs no ACK, which matches retry=0
-	 *   staid  -- 0xFF (INVALID_STA_IDX) would mean the frame has no peer to
-	 *             be acknowledged by; note this is skb->sta_idx from :667,
-	 *             a *separate* lookup from the one rwnx_select_txq() did
-	 *   vif_idx-- must be the STA vif, not a stale or AP one
-	 *   ethertype -- raw, still network order: 0x888E as stored means the
-	 *             host wrote it byte-swapped, 0x8E88 means native order
-	 *   packet_addr/len -- the DMA source; addr must be 4-byte aligned and
-	 *             len must be the frame minus the 14-byte Ethernet header
-	 *   flags  -- TXU_CNTRL_* set so far (the memset at :692 zeroed it, so
-	 *             every bit here was set deliberately on this path)
-	 *
-	 * host->hostid/buf is skipped: NX_VERSION is 6.8.2.0 here so the #else
-	 * arm above stores skb, and printing it adds nothing the seq does not. */
-	{
-		static uint32_t desc_seq;
-		uint32_t n = desc_seq++;
-		/* Resolved before the call, not inside the argument list: a #if
-		 * directive between the parentheses of a function-like macro is
-		 * undefined behaviour and gcc rejects it outright. */
-#if NX_AMSDU_TX || NX_VERSION >= NX_VERSION_PACK(6, 22, 0, 0)
-		unsigned int paddr = (unsigned int)host->packet_addr[0];
-		unsigned int plen  = (unsigned int)host->packet_len[0];
-#else
-		unsigned int paddr = (unsigned int)host->packet_addr;
-		unsigned int plen  = (unsigned int)host->packet_len;
-#endif
-
-		if (n < 24 || (n & 0x1F) == 0)
-			RWNX_LOGW("desc seq=%u tid=%u vif=%u staid=%u ethertype=%04x "
-					  "addr=%08x len=%u aligned=%d flags=%08x skblen=%u\n",
-					  n, host->tid, host->vif_idx, host->staid,
-					  host->ethertype, paddr, plen, (paddr & 0x3) == 0,
-					  (unsigned int)host->flags, (unsigned int)skb->len);
-	}
-#endif
-
 	if (fhost_txdesc_init(txdesc, seg_addr, seg_len, seg_cnt))
 		goto exit;
 
@@ -908,44 +796,6 @@ __ITCM_N int rwnx_start_xmit(uint8_t vif_idx, struct pbuf *p, BUS_MSG_T *msg)
 					  host->vif_idx, host->staid, host->flags);
 	}
 
-/* HIDDEN 2026-09-04 -- host-side descriptor confirmed correct; flip to 1 to
- * re-enable.  Over 12 unicast data frames and 18 EAPOL M2 frames this printed
- * a fully legal descriptor every time (kind=data, tid 0 or 7, sta=0, fl=0,
- * pay4=0, len = skblen - 14, eth/dst/src all correct).  It cannot discriminate
- * any remaining hypothesis, and at ~230 bytes per frame on a synchronous
- * syslog it measurably slows the submission path.  See the note at :487.
- */
-#if 0 /* M2 final hostdesc, paired with management probe below */
-	{
-		static uint32_t data_final_seq;
-		uint32_t n = data_final_seq++;
-		uint8_t *dst = (uint8_t *)&host->eth_dest_addr;
-		uint8_t *src = (uint8_t *)&host->eth_src_addr;
-		unsigned int payload = (unsigned int)(uintptr_t)p->payload;
-#if NX_UMAC_PRESENT && !NX_FULLY_HOSTED
-		unsigned int saddr = (unsigned int)host->status_desc_addr;
-#else
-		unsigned int saddr = 0;
-#endif
-#if NX_AMSDU_TX || NX_VERSION >= NX_VERSION_PACK(6, 22, 0, 0)
-		unsigned int paddr = (unsigned int)host->packet_addr[0];
-		unsigned int plen = (unsigned int)host->packet_len[0];
-#else
-		unsigned int paddr = (unsigned int)host->packet_addr;
-		unsigned int plen = (unsigned int)host->packet_len;
-#endif
-
-		if (n < 24 || (n & 0x1f) == 0)
-			RWNX_LOGW("txfinal seq=%u kind=data q=%u tid=%u vif=%u sta=%u "
-					  "fl=%08x pay=%08x pay4=%u addr=%08x data4=%u len=%u "
-					  "saddr=%08x eth=%04x dst="MACSTR" src="MACSTR"\n",
-					  n, txq->idx, host->tid, host->vif_idx, host->staid,
-					  (unsigned int)host->flags, payload, payload & 0x3,
-					  paddr, paddr & 0x3, plen,
-					  saddr, host->ethertype,
-					  MAC2STR(dst), MAC2STR(src));
-	}
-#endif
 
 	// Set skb jiffies
 	skb->jiffies = bk_get_tick();
@@ -1093,43 +943,6 @@ void rwnx_start_xmit_mgmt(struct sk_buff *skb)
 
 	// fill lmac desc
 	fhost_txdesc_mgmt_init(txdesc, (uint32_t)skb->msdu_ptr, skb->len);
-
-/* HIDDEN 2026-09-04 -- established that this path is never taken; flip to 1 to
- * re-enable.  `kind=mgmt` has zero hits in every board log to date: auth and
- * assoc frames go through the closed SM_CONNECT/SM_AUTH LMAC command path
- * ([wifid] [KW:]auth_send / assoc_req_send), not through rwnx_start_xmit_mgmt.
- * That is a durable finding, already recorded in the audit docs, so the probe
- * has nothing left to report.  See the note at :487.
- */
-#if 0 /* management final hostdesc, paired with data M2 probe above */
-	{
-		static uint32_t mgmt_final_seq;
-		uint32_t n = mgmt_final_seq++;
-#if NX_UMAC_PRESENT && !NX_FULLY_HOSTED
-		unsigned int saddr = (unsigned int)host->status_desc_addr;
-#else
-		unsigned int saddr = 0;
-#endif
-#if NX_AMSDU_TX || NX_VERSION >= NX_VERSION_PACK(6, 22, 0, 0)
-		unsigned int paddr = (unsigned int)host->packet_addr[0];
-		unsigned int plen = (unsigned int)host->packet_len[0];
-#else
-		unsigned int paddr = (unsigned int)host->packet_addr;
-		unsigned int plen = (unsigned int)host->packet_len;
-#endif
-
-		if (n < 24 || (n & 0x1f) == 0)
-			RWNX_LOGW("txfinal seq=%u kind=mgmt q=%u tid=%u vif=%u sta=%u "
-					  "fl=%08x msdu=%08x msdu4=%u addr=%08x data4=%u len=%u "
-					  "saddr=%08x\n",
-					  n, txq->idx, host->tid, host->vif_idx, host->staid,
-					  (unsigned int)host->flags,
-					  (unsigned int)(uintptr_t)skb->msdu_ptr,
-					  (unsigned int)(uintptr_t)skb->msdu_ptr & 0x3,
-					  paddr, paddr & 0x3, plen,
-					  saddr);
-	}
-#endif
 
 	// VO for all mgmt frames
 	skb->ac = AC_VO;
