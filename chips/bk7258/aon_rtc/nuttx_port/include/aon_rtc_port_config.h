@@ -13,8 +13,8 @@
  * the rtc_tick_t typedef and AON_RTC_ROUND_TICK width in the authority
  * <driver/aon_rtc_types.h>, and that header is also included by
  * wifi/bk7258_wifi_adapter.c, wifi/glue/hw_driver_shim.c,
- * wifi/glue/platform_shim.c, aon_pmu/authority aon_pmu_driver.c,
- * temp_detect/authority temp_detect.c and the third_party bk_wifi_adapter.c.
+ * wifi/glue/platform_shim.c, aon_pmu/authority aon_pmu_driver.c and the
+ * third_party bk_wifi_adapter.c.
  * A module-local definition would give the driver a 64-bit rtc_tick_t and every
  * other translation unit a 32-bit one, silently disagreeing on the alarm_info_t
  * layout and on the published API prototypes.

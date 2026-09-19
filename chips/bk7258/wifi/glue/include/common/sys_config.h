@@ -140,8 +140,7 @@
  * width in the authority <driver/aon_rtc_types.h>, and that header is also
  * included by translation units outside the module: bk7258_wifi_adapter.c,
  * glue/hw_driver_shim.c, glue/platform_shim.c, aon_pmu authority
- * aon_pmu_driver.c, temp_detect authority temp_detect.c, and the third_party
- * bk_wifi_adapter.c.  All of them must agree on the tick width, the
+ * aon_pmu_driver.c, and the third_party bk_wifi_adapter.c.  All of them must agree on the tick width, the
  * alarm_info_t/alarm_node_t layout and the published prototypes. */
 #include "../../../../aon_rtc/nuttx_port/include/aon_rtc_port_config.h"
 
