@@ -46,7 +46,7 @@ CHIP_CSRCS += third_party/beken_armino/glue/bk_wifi/src/rwnx_rx.c
 CHIP_CSRCS += glue/vendor_sources/rw_task.c
 CHIP_CSRCS += third_party/beken_armino/glue/bk_wifi/src/wifi_v2.c
 CHIP_CSRCS += third_party/beken_armino/glue/bk_wifi/src/wifi_config.c
-CHIP_CSRCS += glue/vendor_sources/net_param.c
+CHIP_CSRCS += third_party/beken_armino/glue/bk_wifi/src/net_param.c
 CHIP_CSRCS += third_party/beken_armino/glue/bk_wifi/src/rw_msg_tx.c
 CHIP_CSRCS += third_party/beken_armino/glue/bk_wifi/src/rw_msg_rx.c
 CHIP_CSRCS += glue/vendor_sources/wifi_init.c
@@ -57,19 +57,19 @@ CHIP_CSRCS += third_party/beken_armino/glue/bk_wifi/src/skbuff.c
 ifeq ($(CONFIG_BK7258_WIFI_VENDOR_RUNTIME),y)
 CHIP_CSRCS += third_party/beken_armino/wpa_supplicant/bk_patch/fake_socket.c
 CHIP_CSRCS += third_party/beken_armino/wpa_supplicant/src/utils/eloop.c
-CHIP_CSRCS += glue/vendor_sources/wpa_signal.c
+CHIP_CSRCS += third_party/beken_armino/wpa_supplicant/bk_patch/signal.c
 CHIP_CSRCS += third_party/beken_armino/wpa_supplicant/bk_patch/sk_intf.c
 # WPA <-> MAC ioctl bridge and its transport; STA providers, runtime-only
 # because they depend on the WPA socket contract.
 CHIP_CSRCS += third_party/beken_armino/wpa_supplicant/bk_patch/ddrv.c
 CHIP_CSRCS += third_party/beken_armino/glue/bk_wifi/src/hostapd_intf.c
 # STA association command, called by hostapd_intf.c (wpa_send_assoc_req).
-CHIP_CSRCS += glue/vendor_sources/sa_station.c
+CHIP_CSRCS += third_party/beken_armino/glue/bk_wifi/src/sa_station.c
 # Team-owned WPA handler queue object + accessors (upstream keeps these in
 # hostapd/main_none.c, which would pull in the whole hostapd closure).
 CHIP_CSRCS += glue/wpa_queue_shim.c
-CHIP_CSRCS += glue/vendor_sources/wpa_ctrl_iface.c
-CHIP_CSRCS += glue/vendor_sources/wpas_main_supplicant.c
+CHIP_CSRCS += third_party/beken_armino/wpa_supplicant/wpa_supplicant/ctrl_iface.c
+CHIP_CSRCS += third_party/beken_armino/wpa_supplicant/wpa_supplicant/main_supplicant.c
 endif
 
 CHIP_CSRCS += third_party/beken_armino/glue/bk_phy/src/bk_rf_adapter.c

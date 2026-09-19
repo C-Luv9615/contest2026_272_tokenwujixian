@@ -8,6 +8,30 @@ if(CONFIG_BK7258_WIFI)
   set(BK7258_ARMINO_WPA ${BK7258_ARMINO_ROOT}/wpa_supplicant)
   set(BK7258_WIFI_GLUE ${BK7258_WIFI_ROOT}/glue)
 
+  # Include directories shared by `arch` and the bk7258_wpa aux library.
+  set(BK7258_WIFI_INCLUDES
+      ${BK7258_WIFI_ROOT}
+      ${BK7258_WIFI_ROOT}/hal_port
+      ${BK7258_WIFI_ROOT}/../aon_pmu
+      ${BK7258_WIFI_GLUE}/include
+      ${BK7258_WIFI_GLUE}/include/wpa_compat
+      ${BK7258_ARMINO_ROOT}/include
+      ${BK7258_ARMINO_ROOT}/include/common
+      ${BK7258_ARMINO_ROOT}/glue/bk_phy/include
+      ${BK7258_ARMINO_WIFI}/include
+      ${BK7258_ARMINO_WIFI}/include/bk_private
+      ${BK7258_ARMINO_WIFI}/include/generated
+      ${BK7258_ARMINO_WPA}/src/common
+      ${BK7258_ARMINO_WPA}/src/ap
+      ${BK7258_ARMINO_WPA}/src/utils
+      ${BK7258_ARMINO_WPA}/src/drivers
+      ${BK7258_ARMINO_WPA}/src
+      ${BK7258_ARMINO_WPA}/wpa_supplicant
+      ${BK7258_ARMINO_WPA}/hostapd
+      ${BK7258_ARMINO_ROOT}/board/bk7258/vnd_cal/include
+      ${BK7258_ARMINO_WPA}
+      ${CMAKE_CURRENT_SOURCE_DIR}/../../../../board/bk7258-devkit/include)
+
   set(SRCS
       bk7258_wifi_lower.c
       bk7258_wifi_osal.c
@@ -68,7 +92,7 @@ if(CONFIG_BK7258_WIFI)
       glue/vendor_sources/rw_task.c
       third_party/beken_armino/glue/bk_wifi/src/wifi_v2.c
       third_party/beken_armino/glue/bk_wifi/src/wifi_config.c
-      glue/vendor_sources/net_param.c
+      third_party/beken_armino/glue/bk_wifi/src/net_param.c
       third_party/beken_armino/glue/bk_wifi/src/rw_msg_tx.c
       third_party/beken_armino/glue/bk_wifi/src/rw_msg_rx.c
       glue/vendor_sources/wifi_init.c
@@ -82,7 +106,7 @@ if(CONFIG_BK7258_WIFI)
 
   # These source-backed WPA units require the complete Armino eloop/socket
   # contract and are relevant only when runtime bring-up is explicitly
-  # selected.  Keep their wrappers available without forcing that incomplete
+  # selected.  Keep them available without forcing that incomplete
   # contract into the default, runtime-disabled CP image.
   if(CONFIG_BK7258_WIFI_VENDOR_RUNTIME)
     set(BK7258_WPA_STA_SOURCES
@@ -153,18 +177,42 @@ if(CONFIG_BK7258_WIFI)
         # CONFIG_WPA3 unset, so sha256 comes from the internal set too.
         third_party/beken_armino/wpa_supplicant/src/crypto/sha256.c
         third_party/beken_armino/wpa_supplicant/src/crypto/sha256-internal.c)
-    foreach(wpa_source ${BK7258_WPA_STA_SOURCES})
-      string(REPLACE "/" "_" wpa_name ${wpa_source})
-      set(wpa_generated ${CMAKE_CURRENT_BINARY_DIR}/bk7258_wpa/${wpa_name})
-      set(BK7258_WPA_SOURCE ${BK7258_WIFI_ROOT}/${wpa_source})
-      configure_file(${BK7258_WIFI_ROOT}/glue/vendor_sources/wpa_source_wrapper.c.in
-                     ${wpa_generated} @ONLY)
-      list(APPEND SRCS ${wpa_generated})
-    endforeach()
+    # These wpa_supplicant units are compiled verbatim.  bk_prelude.h, which
+    # reproduces the definitions upstream injects globally, is force-included
+    # through the aux library's own compile options instead of a generated
+    # wrapper translation unit.
+    #
+    # Why an aux library and not per-source COMPILE_OPTIONS on `arch`: source
+    # file properties are only visible in the directory scope that created the
+    # target (nuttx/arch for `arch`, this file lives below it), and on CMake
+    # 3.22 set_source_files_properties ... DIRECTORY from a descendant scope
+    # silently attaches nothing.  nuttx_add_aux_library exists for exactly
+    # this limitation (see its comment in cmake/nuttx_add_library.cmake): the
+    # objects are created here where the options apply, and the library is
+    # linked into `arch` below.
+    #
+    # Do NOT add the prelude to the `arch` target's own compile options: that
+    # would alter every NuttX architecture translation unit.
+    nuttx_add_aux_library(bk7258_wpa ${BK7258_WPA_STA_SOURCES})
+    target_compile_options(bk7258_wpa PRIVATE
+        -include ${BK7258_WIFI_GLUE}/include/bk_prelude.h)
+    # bk_prelude.h reaches <arm_internal.h> -> <chip.h> and the Armino soc
+    # headers, which the `arch` target carries as PRIVATE include dirs (see
+    # chips/bk7258/CMakeLists.txt and nuttx/arch/arm/src/CMakeLists.txt:30);
+    # this library is linked INTO arch, so it must add the same directories
+    # itself.  The variables are visible here because chips/bk7258 is
+    # add_subdirectory'd from that very scope.
+    target_include_directories(bk7258_wpa PRIVATE
+        ${BK7258_CHIP_MODULE_INCLUDES}
+        ${NUTTX_CHIP_ABS_DIR}
+        ${CMAKE_SOURCE_DIR}/arch/arm/src/common
+        ${ARCH_SUBDIR}
+        ${ARCH_SUBDIR_ARM}
+        ${BK7258_WIFI_INCLUDES})
     list(APPEND SRCS
          third_party/beken_armino/wpa_supplicant/bk_patch/fake_socket.c
          third_party/beken_armino/wpa_supplicant/src/utils/eloop.c
-         glue/vendor_sources/wpa_signal.c
+         third_party/beken_armino/wpa_supplicant/bk_patch/signal.c
          third_party/beken_armino/wpa_supplicant/bk_patch/sk_intf.c
          # The WPA <-> MAC ioctl bridge and its transport. Both are STA
          # providers: driver_beken.c reaches hapd_intf_ioctl() through
@@ -175,39 +223,21 @@ if(CONFIG_BK7258_WIFI)
          third_party/beken_armino/glue/bk_wifi/src/hostapd_intf.c
          # STA association command, called by hostapd_intf.c:974
          # (wpa_send_assoc_req). Runtime-only because its only consumer is.
-         glue/vendor_sources/sa_station.c
+         third_party/beken_armino/glue/bk_wifi/src/sa_station.c
          # Team-owned WPA handler queue object + accessors. Upstream keeps these
          # in hostapd/main_none.c, but compiling that file would drag in the
          # whole hostapd provider closure; the queue itself is shared by
          # wpa_supplicant and hostapd, so we own the four primitives instead.
          glue/wpa_queue_shim.c
-         glue/vendor_sources/wpa_ctrl_iface.c
-         glue/vendor_sources/wpas_main_supplicant.c)
+         third_party/beken_armino/wpa_supplicant/wpa_supplicant/ctrl_iface.c
+         third_party/beken_armino/wpa_supplicant/wpa_supplicant/main_supplicant.c)
   endif()
 
   target_sources(arch PRIVATE ${SRCS})
-  target_include_directories(arch PRIVATE
-                             ${BK7258_WIFI_ROOT}
-                             ${BK7258_WIFI_ROOT}/hal_port
-                             ${BK7258_WIFI_ROOT}/../aon_pmu
-                             ${BK7258_WIFI_GLUE}/include
-                             ${BK7258_WIFI_GLUE}/include/wpa_compat
-                             ${BK7258_ARMINO_ROOT}/include
-                             ${BK7258_ARMINO_ROOT}/include/common
-                             ${BK7258_ARMINO_ROOT}/glue/bk_phy/include
-                             ${BK7258_ARMINO_WIFI}/include
-                             ${BK7258_ARMINO_WIFI}/include/bk_private
-                             ${BK7258_ARMINO_WIFI}/include/generated
-                             ${BK7258_ARMINO_WPA}/src/common
-                             ${BK7258_ARMINO_WPA}/src/ap
-                             ${BK7258_ARMINO_WPA}/src/utils
-                             ${BK7258_ARMINO_WPA}/src/drivers
-                             ${BK7258_ARMINO_WPA}/src
-                             ${BK7258_ARMINO_WPA}/wpa_supplicant
-                             ${BK7258_ARMINO_WPA}/hostapd
-                             ${BK7258_ARMINO_ROOT}/board/bk7258/vnd_cal/include
-                             ${BK7258_ARMINO_WPA}
-                             ${CMAKE_CURRENT_SOURCE_DIR}/../../../../board/bk7258-devkit/include)
+  target_include_directories(arch PRIVATE ${BK7258_WIFI_INCLUDES})
+  if(CONFIG_BK7258_WIFI_VENDOR_RUNTIME)
+    target_link_libraries(arch PRIVATE bk7258_wpa)
+  endif()
 
   # The wrapper translation units establish the Armino/WPA configuration
   # contract locally. Do not add its macros or forced includes to `arch`, which

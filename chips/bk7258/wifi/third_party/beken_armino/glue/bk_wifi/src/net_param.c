@@ -1,3 +1,18 @@
+/* NuttX port: the prologue below came from a wrapper translation unit
+ * at wifi/glue/vendor_sources/net_param.c, which existed only to include
+ * this file.  The build lists this file directly now.
+ */
+/* Wi-Fi-only translation unit: establish Armino's global build contract. */
+#include <bk_prelude.h>
+
+/* Rename the info-item accessors for the duration of this translation
+ * unit: the vendored source defines save_info_item/get_info_item, and the
+ * rename keeps those definitions local to this unit's symbol namespace
+ * the way the vendor build's link order did.
+ */
+#define save_info_item armino_save_info_item
+#define get_info_item armino_get_info_item
+
 #include <common/bk_include.h>
 #include <os/mem.h>
 #include "bk_drv_model.h"
