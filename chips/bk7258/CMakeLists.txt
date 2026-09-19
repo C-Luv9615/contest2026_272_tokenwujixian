@@ -85,54 +85,59 @@ if(CONFIG_BK7258_WIFI)
 endif()
 
 target_sources(arch PRIVATE ${SRCS})
-target_include_directories(arch PRIVATE
-                           ${NUTTX_CHIP_ABS_DIR}/include
-                           ${NUTTX_CHIP_ABS_DIR}/aon_pmu/nuttx_port/include
-                           ${NUTTX_CHIP_ABS_DIR}/saradc/nuttx_port/include
-                           ${NUTTX_CHIP_ABS_DIR}/saradc/middleware/soc/common/hal/include
-                           ${NUTTX_CHIP_ABS_DIR}/saradc/middleware/soc/common/soc/include
-                           ${NUTTX_CHIP_ABS_DIR}/saradc/middleware/soc/bk7258/hal
-                           ${NUTTX_CHIP_ABS_DIR}/saradc/middleware/soc/bk7258/soc
-                           ${NUTTX_CHIP_ABS_DIR}/saradc/middleware/driver/saradc
-                           ${NUTTX_CHIP_ABS_DIR}/otp/authority/include
-                           ${NUTTX_CHIP_ABS_DIR}/otp/authority/include/driver
-                           ${NUTTX_CHIP_ABS_DIR}/otp/authority/middleware/driver/otp
-                           ${NUTTX_CHIP_ABS_DIR}/otp/authority/middleware/soc/common/hal/include
-                           ${NUTTX_CHIP_ABS_DIR}/otp/authority/middleware/soc/bk7258/hal
-                           ${NUTTX_CHIP_ABS_DIR}/otp/authority/middleware/soc/bk7258/soc
-                           ${NUTTX_CHIP_ABS_DIR}/saradc/nuttx_port/include
-                           ${NUTTX_CHIP_ABS_DIR}/aon_rtc/authority/include
-                           ${NUTTX_CHIP_ABS_DIR}/aon_rtc/authority/middleware/driver/rtc
-                           ${NUTTX_CHIP_ABS_DIR}/aon_rtc/authority/middleware/soc/common/hal/include
-                           ${NUTTX_CHIP_ABS_DIR}/aon_rtc/authority/middleware/soc/common/soc/include
-                           ${NUTTX_CHIP_ABS_DIR}/aon_rtc/authority/middleware/soc/bk7258/hal
-                           ${NUTTX_CHIP_ABS_DIR}/aon_rtc/authority/middleware/soc/bk7258/soc
-                           ${NUTTX_CHIP_ABS_DIR}/trng/authority/include
-                           ${NUTTX_CHIP_ABS_DIR}/trng/authority/include/driver
-                           ${NUTTX_CHIP_ABS_DIR}/trng/authority/middleware/driver/trng
-                           ${NUTTX_CHIP_ABS_DIR}/trng/authority/middleware/soc/common/hal/include
-                           ${NUTTX_CHIP_ABS_DIR}/trng/authority/middleware/soc/common/soc/include
-                           ${NUTTX_CHIP_ABS_DIR}/trng/authority/middleware/soc/bk7258/hal
-                           ${NUTTX_CHIP_ABS_DIR}/trng/authority/middleware/soc/bk7258/soc
-                           ${NUTTX_CHIP_ABS_DIR}/gpio/authority/include
-                           ${NUTTX_CHIP_ABS_DIR}/gpio/authority/include/driver
-                           ${NUTTX_CHIP_ABS_DIR}/gpio/authority/middleware/driver/gpio
-                           ${NUTTX_CHIP_ABS_DIR}/gpio/authority/middleware/driver/bk7258
-                           ${NUTTX_CHIP_ABS_DIR}/gpio/authority/middleware/driver/include/bk_private
-                           ${NUTTX_CHIP_ABS_DIR}/gpio/authority/middleware/soc/common/hal/include
-                           ${NUTTX_CHIP_ABS_DIR}/gpio/authority/middleware/soc/common/soc/include
-                           ${NUTTX_CHIP_ABS_DIR}/gpio/authority/middleware/soc/bk7258/hal
-                           ${NUTTX_CHIP_ABS_DIR}/gpio/authority/middleware/soc/bk7258/soc
-                           ${NUTTX_CHIP_ABS_DIR}/pm/nuttx_port/include
-                           ${NUTTX_CHIP_ABS_DIR}/pm/authority/include
-                           ${NUTTX_CHIP_ABS_DIR}/pm/authority/include/cmsis
-                           ${NUTTX_CHIP_ABS_DIR}/pm/authority/include/soc/bk7258
-                           ${NUTTX_CHIP_ABS_DIR}/pm/authority/middleware/driver/include/bk_private
-                           ${NUTTX_CHIP_ABS_DIR}/pm/authority/middleware/soc/common/hal/include
-                           ${NUTTX_CHIP_ABS_DIR}/pm/authority/middleware/soc/common/soc/include
-                           ${NUTTX_CHIP_ABS_DIR}/pm/authority/middleware/soc/bk7258/hal
-                           ${NUTTX_CHIP_ABS_DIR}/pm/authority/middleware/soc/bk7258/soc
-                           ${NUTTX_CHIP_ABS_DIR}/pm/authority/middleware/driver/pwr_clk)
+
+# Include directories shared by `arch` and the per-module aux libraries
+# created below it (e.g. wifi's bk7258_wpa).  Kept as a variable so the aux
+# libraries compile against the same headers arch does.
+set(BK7258_CHIP_MODULE_INCLUDES
+    ${NUTTX_CHIP_ABS_DIR}/include
+    ${NUTTX_CHIP_ABS_DIR}/aon_pmu/nuttx_port/include
+    ${NUTTX_CHIP_ABS_DIR}/saradc/nuttx_port/include
+    ${NUTTX_CHIP_ABS_DIR}/saradc/middleware/soc/common/hal/include
+    ${NUTTX_CHIP_ABS_DIR}/saradc/middleware/soc/common/soc/include
+    ${NUTTX_CHIP_ABS_DIR}/saradc/middleware/soc/bk7258/hal
+    ${NUTTX_CHIP_ABS_DIR}/saradc/middleware/soc/bk7258/soc
+    ${NUTTX_CHIP_ABS_DIR}/saradc/middleware/driver/saradc
+    ${NUTTX_CHIP_ABS_DIR}/otp/authority/include
+    ${NUTTX_CHIP_ABS_DIR}/otp/authority/include/driver
+    ${NUTTX_CHIP_ABS_DIR}/otp/authority/middleware/driver/otp
+    ${NUTTX_CHIP_ABS_DIR}/otp/authority/middleware/soc/common/hal/include
+    ${NUTTX_CHIP_ABS_DIR}/otp/authority/middleware/soc/bk7258/hal
+    ${NUTTX_CHIP_ABS_DIR}/otp/authority/middleware/soc/bk7258/soc
+    ${NUTTX_CHIP_ABS_DIR}/aon_rtc/authority/include
+    ${NUTTX_CHIP_ABS_DIR}/aon_rtc/authority/middleware/driver/rtc
+    ${NUTTX_CHIP_ABS_DIR}/aon_rtc/authority/middleware/soc/common/hal/include
+    ${NUTTX_CHIP_ABS_DIR}/aon_rtc/authority/middleware/soc/common/soc/include
+    ${NUTTX_CHIP_ABS_DIR}/aon_rtc/authority/middleware/soc/bk7258/hal
+    ${NUTTX_CHIP_ABS_DIR}/aon_rtc/authority/middleware/soc/bk7258/soc
+    ${NUTTX_CHIP_ABS_DIR}/trng/authority/include
+    ${NUTTX_CHIP_ABS_DIR}/trng/authority/include/driver
+    ${NUTTX_CHIP_ABS_DIR}/trng/authority/middleware/driver/trng
+    ${NUTTX_CHIP_ABS_DIR}/trng/authority/middleware/soc/common/hal/include
+    ${NUTTX_CHIP_ABS_DIR}/trng/authority/middleware/soc/common/soc/include
+    ${NUTTX_CHIP_ABS_DIR}/trng/authority/middleware/soc/bk7258/hal
+    ${NUTTX_CHIP_ABS_DIR}/trng/authority/middleware/soc/bk7258/soc
+    ${NUTTX_CHIP_ABS_DIR}/gpio/authority/include
+    ${NUTTX_CHIP_ABS_DIR}/gpio/authority/include/driver
+    ${NUTTX_CHIP_ABS_DIR}/gpio/authority/middleware/driver/gpio
+    ${NUTTX_CHIP_ABS_DIR}/gpio/authority/middleware/driver/bk7258
+    ${NUTTX_CHIP_ABS_DIR}/gpio/authority/middleware/driver/include/bk_private
+    ${NUTTX_CHIP_ABS_DIR}/gpio/authority/middleware/soc/common/hal/include
+    ${NUTTX_CHIP_ABS_DIR}/gpio/authority/middleware/soc/common/soc/include
+    ${NUTTX_CHIP_ABS_DIR}/gpio/authority/middleware/soc/bk7258/hal
+    ${NUTTX_CHIP_ABS_DIR}/gpio/authority/middleware/soc/bk7258/soc
+    ${NUTTX_CHIP_ABS_DIR}/pm/nuttx_port/include
+    ${NUTTX_CHIP_ABS_DIR}/pm/authority/include
+    ${NUTTX_CHIP_ABS_DIR}/pm/authority/include/cmsis
+    ${NUTTX_CHIP_ABS_DIR}/pm/authority/include/soc/bk7258
+    ${NUTTX_CHIP_ABS_DIR}/pm/authority/middleware/driver/include/bk_private
+    ${NUTTX_CHIP_ABS_DIR}/pm/authority/middleware/soc/common/hal/include
+    ${NUTTX_CHIP_ABS_DIR}/pm/authority/middleware/soc/common/soc/include
+    ${NUTTX_CHIP_ABS_DIR}/pm/authority/middleware/soc/bk7258/hal
+    ${NUTTX_CHIP_ABS_DIR}/pm/authority/middleware/soc/bk7258/soc
+    ${NUTTX_CHIP_ABS_DIR}/pm/authority/middleware/driver/pwr_clk)
+
+target_include_directories(arch PRIVATE ${BK7258_CHIP_MODULE_INCLUDES})
 
 if(CONFIG_BK7258_MB_IPC_RPMSG)
   target_include_directories(arch PRIVATE

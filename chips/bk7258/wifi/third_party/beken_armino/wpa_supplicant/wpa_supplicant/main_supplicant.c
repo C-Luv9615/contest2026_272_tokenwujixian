@@ -1,3 +1,15 @@
+/* NuttX port: the prologue below came from a wrapper translation unit
+ * at wifi/glue/vendor_sources/wpas_main_supplicant.c, which existed only
+ * to include this file.  The build lists this file directly now.
+ */
+/* Wi-Fi-only translation unit: establish Armino's global build contract. */
+#include <bk_prelude.h>
+#include <wpa_compat/main_none.h>
+
+/* The NuttX netdev name this port registers; the vendor default names a
+ * socket interface that does not exist here. */
+#define bss_iface BK7258_WIFI_WPA_STA_IFNAME
+
 /*
  * WPA Supplicant / main() function for UNIX like OSes and MinGW
  * Copyright (c) 2003-2013, Jouni Malinen <j@w1.fi>
