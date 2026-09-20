@@ -4,10 +4,10 @@
 
 将 Beken BK7258 DevKit（Cortex-M33 三核 AMP：CP=CPU0，AP=CPU1/2）完整适配到 openvela/NuttX，并在其上跑通 AI Agent。本作品交付从裸板到 AI 应用的全链路：
 
-- **Wi-Fi 通信核（CP）**：闭源 `libwifi.a` + Armino 权威源码导入的 STA 链路，扫描 / WPA2-CCMP 关联 / 四次握手 / DHCP / DNS / 公网可达全部真机验证
+- **Wi-Fi 通信核（CP）**：闭源 `libwifi.a` + Armino 源码移植的 STA 链路，扫描 / WPA2-CCMP 关联 / 四次握手 / DHCP / DNS / 公网可达全部真机验证
 - **应用核（AP）跨核上网**：NuttX/Vela 原生 `usrsock over RPMsg`——AP 上的普通 socket 经共享内存与 mailbox 转移到 CP 执行，经 CP 的 wlan0 出网；AP 侧应用零改动
 - **PSRAM 双核分割**：16MB PSRAM 软分区（CP 下半 / AP 上半各 8MB），AP 堆从 244KB SRAM 扩到 8.4MB
-- **AI Agent on AP**：minimal ai_agent 在 AP 完整自举（tmpfs 存储 / 20 工具 / CLI），配置 OpenAI 兼容端点后完成首个真实 LLM 对话——**消息从 AP 发出，经跨核 usrsock 与 CP 的 Wi-Fi 抵达云端模型并返回回复**
+- **AI Agent on AP**：minimal ai_agent 在 AP 完整自举（tmpfs 存储 / 20 工具 / CLI / LLM 路由），LLM 请求路径已打通至 OpenAI 兼容端点（HTTP 请求经跨核 usrsock 与 CP 的 Wi-Fi 出网）；完整对话闭环尚依赖 Wi-Fi 链路稳定性收尾（已知问题见下）
 
 ## 二、选题方向
 
@@ -17,7 +17,7 @@
 
 | 目录 | 内容 |
 | --- | --- |
-| `chips/bk7258/` | 芯片层：约 550 个 .c。`armino/` 为 Armino 权威源码导入（保留上游目录结构与 provenance，`cmp` 逐字节对齐），`hal_port/` 为团队适配层（OSAL shim、vnd_cal、诊断探针、usrsock 客户端接入） |
+| `chips/bk7258/` | 芯片层：约 550 个 .c。`armino/` 为移植的 Armino 无线/驱动栈（保留上游目录结构与出处），`hal_port/` 为团队适配层（OSAL shim、vnd_cal、诊断探针、usrsock 客户端接入） |
 | `board/bk7258-devkit/` | 板级：9 个 defconfig（`cp`/`ap`/`ap-net`/`psram-*` 等）、RPTUN/mailbox/PSRAM 接线、L2 打包脚本（线性 CRC + 独立解码校验）、烧录工具与回归测试 |
 | `app/` | `bk7258_platform_test`（平台验证）、`bk7258_gdma_test`（DMA）、`deskmate`（DeskMate 客户端骨架） |
 | `evidence-2026*/` | 真机证据日志（关联、DHCP、DNS、公网 ping、AP 跨核上网，PSK 均已脱敏为 `<PSK-REDACTED>`） |
@@ -62,7 +62,7 @@ ask 你好                        # LLM 端到端（需先 set_llm 配置端点�
 
 - **跨核上网采用 NuttX/Vela 原生 usrsock，而非自研转发**：AP 应用使用普通 socket 零改动；期间试验的 `NET_RPMSG_DRV` netdev 桥因对称端点创建死锁而废弃（过程与证据在提交历史），最终仅用上游既有机制，`nuttx/`/`apps/` 零改动
 - **PSRAM 无 MPU 下的软件分半**：CP 先启动跑器件 bring-up（探测只写器件头 10KB，属 CP 半区），AP 不重跑初始化、仅添加上半区，两个内核分配器互不越界
-- **Wi-Fi 闭源库适配以"权威对齐"为纪律**：Armino 源码逐字节导入（`cmp` 验证），bring-up 期手写 shim 全部清除，偏离权威的每处差异都被证明是 bug（复盘记录了 20 个根因）
+- **Wi-Fi 闭源库适配以"行为与官方实现对齐"为纪律**：将 Armino 无线栈移植到 NuttX/双核环境（FreeRTOS 语义 → NuttX OSAL、时钟/电源/中断边界逐一适配），bring-up 期手写垫片全部清除，每处与官方行为不一致的地方最终都以查清官方行为、修正我方实现对齐告终（复盘记录了 20 个根因）
 - **RPMsg 载荷几何按 usrsock 需求定容**：4×2048B buffer + NIOVEC=16，单请求重组上限 ~30KB（LLM POST 实测 10.6KB）
 
 ## 六、AI Coding 使用说明
