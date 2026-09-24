@@ -9,6 +9,7 @@
 
 #include <nuttx/config.h>
 #include <nuttx/arch.h>
+#include <nuttx/board.h>
 #include <nuttx/clock.h>
 
 #include <stdio.h>
@@ -18,6 +19,8 @@
 
 #include "components/system.h"
 #include "driver/uart.h"
+#include "os/os.h"
+#include <modules/pm.h>
 
 /****************************************************************************
  * MAC
@@ -37,17 +40,36 @@
 
 /****************************************************************************
  * Reboot
+ *
+ * Authority parity (cp/components/bk_system/reboot.c): bk_reboot_ex
+ * downclocks to 60M, masks interrupts, then arms the AON WDT for a
+ * PMU-level chip reset -- the Wi-Fi power domain resets WITH the chip.
+ * The old shim called up_systemreset() (SYSRESETREQ): CPU0 only, the
+ * Wi-Fi MAC survived the reset carrying live state and the next boot's
+ * init collided with it (assoc confirms timed out, stale output after
+ * the reset button).  board_reset() on this port is the same AON WDT
+ * sequence with the vendor warm tag for a planned reboot.
  ****************************************************************************/
 
 void bk_reboot(void)
 {
-  up_systemreset();
+  bk_reboot_ex(RESET_SOURCE_REBOOT);
 }
 
 void bk_reboot_ex(uint32_t reset_reason)
 {
+  static uint32_t entry_cnt = 0;
+
   (void)reset_reason;
-  up_systemreset();
+
+  if (entry_cnt == 0)
+    {
+      entry_cnt++;
+      bk_pm_module_vote_cpu_freq(PM_DEV_ID_DEFAULT, PM_CPU_FRQ_60M);
+      rtos_disable_int();
+    }
+
+  board_reset(0);
 }
 
 /****************************************************************************
