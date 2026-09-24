@@ -222,7 +222,6 @@ def main() -> int:
             "bk7258_ap_reset_for_rptun",
             "bk7258_ap_start_monitor",
             "board_reset",
-            "up_systemreset",
             "bk7258_ap_record_prepare",
             "bk7258_rptun_initialize",
             "bk7258_mbox_init",

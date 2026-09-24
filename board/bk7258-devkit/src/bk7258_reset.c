@@ -76,16 +76,27 @@ static inline void bk7258_reg_wr(uintptr_t addr, uint32_t value)
   *(volatile uint32_t *)addr = value;
 }
 
+/* Vendor reset_reason.h REBOOT_TAG_REQ: a set tag makes the BootROM warm
+ * fast-jump into the running app's startup trampoline (planned reboot);
+ * a cleared tag plus a WATCHDOG reason runs the full cold chain so BL2
+ * opens the download window. */
+
+#define BK7258_REBOOT_TAG_REQ    0xaa55aa55ul
+
 #ifdef CONFIG_BK7258_COMPONENT_CP
 /****************************************************************************
- * Name: bk7258_enter_bootloader_reset
+ * Name: bk7258_aon_wdt_chip_reset
  *
  * Description:
- *   Force a chip-level reset through the AON WDT with the vendor reboot
- *   tag cleared, so the BootROM runs the full cold chain and BL2 opens the
- *   serial download handshake window.  Mirrors wdt_hal_force_reboot() minus
- *   set_reboot_tag() and minus the NMI WDT arming (this port registers no
- *   NMI handler; the AON WDT alone resets the whole chip).
+ *   Force a chip-level reset through the AON WDT.  Mirrors
+ *   wdt_hal_force_reboot(); the only difference between a planned reboot
+ *   and a bootloader entry is the warm tag and the recorded reset reason.
+ *
+ *   SYSRESETREQ (up_systemreset) is not usable on this AMP part: it only
+ *   resets CPU0 and leaves CPU1/RPTUN/shared-device state behind, which
+ *   wedges the reboot chain ("Rptun driver reset remote ap" is the last
+ *   line).  The AON WDT resets the device at the PMU level like the reset
+ *   button, so both cores restart cleanly.
  *
  *   The RPTUN reboot notifier has already reset the AP by the time the
  *   reboot chain reaches board_reset(); this chip reset covers CPU1 again
@@ -93,27 +104,35 @@ static inline void bk7258_reg_wr(uintptr_t addr, uint32_t value)
  *
  ****************************************************************************/
 
-static void bk7258_enter_bootloader_reset(void)
+static void bk7258_aon_wdt_chip_reset(bool enter_bootloader)
 {
   uint32_t val;
 
-  /* Clear the vendor warm fast-jump tag: with no tag the BootROM treats
-   * the coming WDT reset like a recover-from-hung-firmware boot. */
+  if (enter_bootloader)
+    {
+      /* Clear the vendor warm fast-jump tag and record
+       * RESET_SOURCE_WATCHDOG (0x2): BootROM runs the full cold chain and
+       * BL2 opens the serial download handshake window.  The AON PMU
+       * survives the chip reset, so the reason written here is what the
+       * ROM/BL2 reads to classify the next boot; without it the ROM keeps
+       * skipping BL2 even though the tag is gone.  AP reason lives in R0
+       * bits[24:30] (7 bits), CP reason in bits[4:11] (8 bits). */
 
-  bk7258_reg_wr(BK7258_REBOOT_TAG_ADDR, 0ul);
+      bk7258_reg_wr(BK7258_REBOOT_TAG_ADDR, 0ul);
 
-  /* Vendor bk_misc_set_ap_reset_reason()/bk_misc_set_cp_reset_reason():
-   * record RESET_SOURCE_WATCHDOG (0x2) as the reset reason.  The AON PMU
-   * survives the chip reset, so this is what the BootROM/BL2 reads on the
-   * next boot to classify it; the previous boot leaves a stale software
-   * value there (this port never writes the field), and without this write
-   * the ROM keeps skipping BL2 even though the tag is gone.  AP reason
-   * lives in R0 bits[24:30] (7 bits), CP reason in bits[4:11] (8 bits). */
+      val = bk7258_reg_rd(BK7258_AON_PMU_R0_ADDR);
+      val &= ~((0x7ful << 24) | (0xfful << 4));
+      val |= (0x2ul << 24) | (0x2ul << 4);
+      bk7258_reg_wr(BK7258_AON_PMU_R0_ADDR, val);
+    }
+  else
+    {
+      /* Vendor planned reboot: set the warm tag so the BootROM fast-jumps
+       * back into the startup trampoline.  The PMU-level reset is what
+       * makes this path safe on AMP where SYSRESETREQ is not. */
 
-  val = bk7258_reg_rd(BK7258_AON_PMU_R0_ADDR);
-  val &= ~((0x7ful << 24) | (0xfful << 4));
-  val |= (0x2ul << 24) | (0x2ul << 4);
-  bk7258_reg_wr(BK7258_AON_PMU_R0_ADDR, val);
+      bk7258_reg_wr(BK7258_REBOOT_TAG_ADDR, BK7258_REBOOT_TAG_REQ);
+    }
 
   /* Vendor aon_pmu_drv_wdt_change_not_rosc_clk(): select clk_DIVD as the
    * WDT LPO source so the emergency period bites deterministically. */
@@ -147,28 +166,30 @@ static void bk7258_enter_bootloader_reset(void)
  * Name: board_reset
  *
  * Description:
- *   Reset the board.  Every status keeps the architecture-provided
- *   SYSRESETREQ path (the reset vector re-enters the normal BK7258 startup
- *   trampoline), except ENTER_BOOTLOADER on the CP, which takes the AON WDT
- *   chip-level reset so the BootROM/BL2 download window can be reached.
- *   This is not a CPU1/RPTUN lifecycle operation: the RPTUN reboot notifier
- *   runs earlier in the reboot chain and resets the AP independently of
- *   which physical reset is chosen here.
+ *   Reset the board.  On the CP every status takes the AON WDT chip-level
+ *   reset: a planned reboot warm fast-jumps back into the startup
+ *   trampoline via the vendor tag, ENTER_BOOTLOADER runs the cold chain so
+ *   the BL2 download window opens.  SYSRESETREQ is not used -- it hangs
+ *   this AMP part.  This is not a CPU1/RPTUN lifecycle operation: the
+ *   RPTUN reboot notifier runs earlier in the reboot chain and resets the
+ *   AP independently of which physical reset is chosen here.
  *
  ****************************************************************************/
 
 int board_reset(int status)
 {
 #ifdef CONFIG_BK7258_COMPONENT_CP
-  if (status == (int)BOARDIOC_SOFTRESETCAUSE_ENTER_BOOTLOADER)
-    {
-      bk7258_enter_bootloader_reset();
-    }
+  /* Every CP reset takes the AON WDT chip-level path; only the warm tag
+   * and reset-reason recording distinguish a planned reboot from a
+   * bootloader entry.  up_systemreset() (SYSRESETREQ) hangs this AMP part
+   * and is not used. */
+
+  bk7258_aon_wdt_chip_reset(status == (int)BOARDIOC_SOFTRESETCAUSE_ENTER_BOOTLOADER);
 #else
   (void)status;
+  up_systemreset();
 #endif
 
-  up_systemreset();
   return 0;
 }
 
