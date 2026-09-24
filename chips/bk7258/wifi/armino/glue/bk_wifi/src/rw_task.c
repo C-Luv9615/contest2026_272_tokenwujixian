@@ -1242,13 +1242,17 @@ int rwnx_intf_init(void)
 #if CONFIG_PM_V2 && CONFIG_STA_PS && (CONFIG_SOC_BK7256XX || CONFIG_SOC_BK7236XX || CONFIG_SOC_BK7239XX || CONFIG_SOC_BK7286XX)
 	if (!ate_is_enabled())
 	{
-		/* Board-tested: this vendor stack only works with the PS trio
-		 * enabled at init.  All three PS-off variants (bare
-		 * ps_env_set_ps_on(false), skipping the block entirely, and
-		 * rwnxl_sleep()+set(false)) wedge the PMK/connect path
-		 * (wifi_supplicant_start fails or its commands go unanswered).
-		 * Keep the authority behavior here; experiment with PS-off via
-		 * the runtime SIOCSIWPWSAVE hook (wapi power_save) after boot. */
+		/* Authority trio, board-factored 2026-09-24.  The PS machinery and
+		 * the doze switch are welded together in the closed lib:
+		 *   init + set(true)  -- the only working cell (this one)
+		 *   STA_PS=0          -- confirms return, lib drops every result
+		 *                        upload (recv_cnt>0 upload_cnt=0)
+		 *   init + set(false) -- stack overflow in the connect path
+		 *   runtime set(false)-- same as STA_PS=0 for the scan
+		 * The remaining known defect is doze-wake degradation after warm
+		 * cycles (SCANU_START_CFM stops arriving); everything else --
+		 * stacks, event model, sta latch, log pressure, rlk clear --
+		 * is fixed around it. */
 		rwnxl_sleep();
 		ps_env_set_ps_on(true);
 		ps_env_set_cmd_ps_on(true);

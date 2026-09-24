@@ -73,6 +73,14 @@
 #define CONFIG_PM_SUPER_DEEP_SLEEP   1
 #define CONFIG_DEFAULT_LPO_SRC       2
 
+/* Authority parity (0904-armino-verbose.log): the official connect path is
+ * fast_connect -- the channel and keys are restored from flash after the
+ * first full handshake, the rescan is single-channel (43 ms vs 1.8 s) and
+ * the whole reconnect is ~180 ms.  The feature shim derives
+ * bk_feature_fast_connect_enable() from this gate, so flipping it here is
+ * the single switch the vendor runtime and the supplicant both obey. */
+#define CONFIG_WIFI_FAST_CONNECT     1
+
 /* Authority BK7258 sdkconfig.h enables the PHY temperature-compensation
  * callback.  Without this, bk_feature_temp_detect_enable() returns 0 and the
  * closed PHY bypasses the chip-owned temp_detect implementation entirely. */

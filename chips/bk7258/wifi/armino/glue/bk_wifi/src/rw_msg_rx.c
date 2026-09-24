@@ -260,6 +260,9 @@ UINT32 mr_kmsg_fwd(struct ke_msg *msg)
 {
 	GLOBAL_INT_DECLARATION();
 
+	if (msg->id == SCANU_START_CFM)
+		syslog(LOG_INFO, "[BK7258-WIFI] probe: fwd SCANU_START_CFM\n");
+
 	GLOBAL_INT_DISABLE();
 	co_list_push_back(&rw_msg_rx_head, &msg->hdr);
 	GLOBAL_INT_RESTORE();
@@ -1540,6 +1543,8 @@ void rwnx_handle_recv_msg(struct ke_msg *rx_msg)
 	/**************************************************************************/
 	case SCANU_START_CFM:
 		/* scan complete */
+		syslog(LOG_INFO, "[BK7258-WIFI] probe: handle SCANU_START_CFM rlk=%u\n",
+		       (unsigned)rwnx_get_wifi_rlk_start());
 		bk7258_scan_diag_record(BK7258_SCAN_DIAG_LMAC_COMPLETE);
 		if (scan_rst_set_ptr) {
 			/* scan activity has valid result*/
@@ -1554,9 +1559,11 @@ void rwnx_handle_recv_msg(struct ke_msg *rx_msg)
 
 		if (rwnx_get_wifi_rlk_start())
 		{
+			syslog(LOG_INFO, "[BK7258-WIFI] probe: CFM diverted to rlk\n");
 			rwnx_wifi_rlk_trigger_scan_process();
 		}
 		else {
+			syslog(LOG_INFO, "[BK7258-WIFI] probe: CFM to supplicant\n");
 			wpa_ctrl_event(WPA_CTRL_EVENT_SCAN_RESULTS, NULL);
 		}
 
@@ -1618,6 +1625,16 @@ void rwnx_handle_recv_msg(struct ke_msg *rx_msg)
 		ind = (struct sm_disconnect_ind *)msg_ptr->param;
 
 		RWNX_LOGV("disconnect\r\n");
+
+		/* The rlk module sets wifi_rlk_start on connect through the
+		 * adapter table and nothing ever cleared it on link-down, so the
+		 * next SCANU_START_CFM was diverted to
+		 * rwnx_wifi_rlk_trigger_scan_process() (a no-op when its cfm
+		 * callback is unregistered) instead of wpa_ctrl_event
+		 * (WPA_CTRL_EVENT_SCAN_RESULTS).  The supplicant then never saw
+		 * the scan complete and every reconnect stalled.  Link-down must
+		 * return the flag to 0. */
+		rwnx_set_wifi_rlk_start(0);
 
 #if defined(CONFIG_IEEE80211R) || defined(CONFIG_WNM)
 				if (!ind->reassoc)
