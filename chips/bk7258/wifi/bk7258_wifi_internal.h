@@ -210,6 +210,9 @@ struct bk7258_wifi_s
   uint32_t scan_start_tick;
   uint8_t scan_count;
   struct bk7258_wifi_scan_ap_s scan_aps[BK7258_WIFI_SCAN_MAX_APS];
+
+  bool ps_on;
+  bool sta_started;
 };
 
 int bk7258_wifi_lower_init(struct bk7258_wifi_s *priv);

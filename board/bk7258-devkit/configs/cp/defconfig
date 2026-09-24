@@ -103,6 +103,12 @@ CONFIG_BK7258_PSRAM=y
 CONFIG_BK7258_WIFI=y
 CONFIG_BK7258_WIFI_VENDOR_LINK=y
 CONFIG_BK7258_WIFI_VENDOR_RUNTIME=y
+# CONFIG_WPA_PSK_CACHE stays off: the pskc worker delivers its PMK through
+# a synchronous wpa_ctrl_request(WPA_CTRL_CMD_STA_GEN_PSK) from its own
+# thread while the connect flow waits for that PMK -- a cross-thread
+# deadlock (Set PMK never arrives, supplicant wedges in SCANNING).  The
+# 2048-word/8192-byte pskc stack fix is kept; the remaining work is the
+# delivery handshake.  See T2.
 CONFIG_WIRELESS_WAPI=y
 CONFIG_WIRELESS_WAPI_CMDTOOL=y
 CONFIG_WIRELESS_WAPI_STACKSIZE=8192

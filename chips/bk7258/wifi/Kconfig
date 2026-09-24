@@ -120,6 +120,19 @@ config BK7258_WIFI_MSDU_RESV_DESC_LENGTH
 		The lower half and packet shim must verify that these reserves are
 		not exceeded at runtime.
 
+config WPA_PSK_CACHE
+	bool "Cache WPA-PSK (PBKDF2) derivations across connects"
+	default n
+	depends on BK7258_WIFI_VENDOR_RUNTIME
+	help
+		Derive the PMK once per (SSID, passphrase) in a worker thread and
+		reuse it on reconnects, skipping the multi-second PBKDF2 run.  The
+		worker self-deletes via rtos_delete_thread(NULL); the NuttX OSAL
+		maps that to pthread_exit(), so the vendor's self-delete contract
+		is satisfied.  Note: enabling this also activates the vendor's
+		2 ms/100-iteration yield inside PBKDF2, which matters only while
+		the cache is being filled.
+
 endif # BK7258_WIFI
 
 endmenu

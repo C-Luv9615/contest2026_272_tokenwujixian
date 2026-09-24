@@ -44,35 +44,23 @@
 
 #include <syslog.h>
 
-/* Plain boundary marker: "[initseq] <text>". */
+/* QUIETED (authority-parity log pressure): these markers print at
+ * LOG_WARNING on purpose (immune to the 0xbf logmask trick below) and one
+ * OSAL init emits several, so a single connect flooded the 115200 UART and
+ * the core thread spent its scan-critical window blocked inside syslog().
+ * The macros stay as no-ops so call sites keep their value as documentation;
+ * flip the bodies back to syslog() for a dedicated capture build. */
 
 #define BK7258_INITSEQ(text) \
-  syslog(LOG_WARNING, "[initseq] " text "\n")
-
-/* Boundary marker carrying one integer result, for the "returned, but with
- * what?" boundaries (an OSAL call that fails is a different diagnosis than one
- * that blocks).
- */
+  do { } while (0)
 
 #define BK7258_INITSEQ_RET(text, value) \
-  syslog(LOG_WARNING, "[initseq] " text " ret=%d\n", (int)(value))
-
-/* Markers carrying the OSAL object name.
- *
- * The Armino FreeRTOS OSAL emitted one "os:D(100):create <name>" line per
- * thread.  This port replaced that layer with NuttX pthreads, so those lines
- * never existed here -- their absence in our captures is not evidence of a
- * failed thread creation.  These macros restore the same per-object visibility
- * from inside our own shim, which is why the four OSAL creators reached from
- * rwnx_intf_init() need no markers at their authority call sites.
- */
+  do { } while (0)
 
 #define BK7258_INITSEQ_NAMED(text, name) \
-  syslog(LOG_WARNING, "[initseq] " text " '%s'\n", \
-         (name) != NULL ? (name) : "?")
+  do { } while (0)
 
 #define BK7258_INITSEQ_NAMED_RET(text, name, value) \
-  syslog(LOG_WARNING, "[initseq] " text " '%s' ret=%d\n", \
-         (name) != NULL ? (name) : "?", (int)(value))
+  do { } while (0)
 
 #endif /* __BK7258_WIFI_GLUE_BK7258_INITSEQ_H */

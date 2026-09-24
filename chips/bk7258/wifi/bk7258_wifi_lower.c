@@ -963,6 +963,63 @@ static int bk7258_wifi_range(FAR struct netdev_lowerhalf_s *lower,
   return -ENOSYS;
 }
 
+/* Vendor PS control from the lmac glue; declared locally instead of
+ * pulling the generated lmac_msg.h into the lower half. */
+
+extern void ps_env_set_ps_on(bool value);
+extern void ps_env_set_cmd_ps_on(bool value);
+extern void rwnxl_sleep(void);
+
+/* wapi power_save <ifname> <on|off> lands here via SIOCSIWPWSAVE (a
+ * private wext cmd; netdev_ioctl falls back to d_ioctl for it).  Boot
+ * default is OFF -- see the PS block in rw_task.c -- because MAC doze
+ * intermittently swallows EAPOL frames during the 4-way.  Note that
+ * enabling PS at runtime revives the doze-MMIO hazard class: nothing in
+ * this driver may read a gated MAC register while the MAC can sleep. */
+
+static int bk7258_wifi_ps_ioctl(FAR struct netdev_lowerhalf_s *lower,
+                                int cmd, unsigned long arg)
+{
+  FAR struct bk7258_wifi_s *priv = (FAR struct bk7258_wifi_s *)lower;
+  FAR struct iwreq *iwr = (FAR struct iwreq *)arg;
+
+  switch (cmd)
+    {
+      case SIOCSIWPWSAVE:
+        {
+          bool on = iwr->u.power.flags != 0;
+
+          if (on)
+            {
+              /* Full enable trio, as rwnx_intf_init() used to run it.
+               * ps_env_set_ps_on() must not be called before this init. */
+
+              rwnxl_sleep();
+              ps_env_set_ps_on(true);
+              ps_env_set_cmd_ps_on(true);
+            }
+          else if (priv->ps_on)
+            {
+              /* Only touch the PS env after a successful enable (its
+               * init lives in rwnxl_sleep()); a cold-off is a no-op. */
+
+              ps_env_set_ps_on(false);
+              ps_env_set_cmd_ps_on(false);
+            }
+
+          priv->ps_on = on;
+          return OK;
+        }
+
+      case SIOCGIWPWSAVE:
+        iwr->u.power.flags = priv->ps_on;
+        return OK;
+
+      default:
+        return -ENOTTY;
+    }
+}
+
 /****************************************************************************
  * Ops tables
  ****************************************************************************/
@@ -974,6 +1031,9 @@ static const struct netdev_ops_s g_bk7258_net_ops =
   .transmit = bk7258_wifi_transmit,
   .receive  = bk7258_wifi_receive,
   .reclaim  = bk7258_wifi_reclaim,
+#ifdef CONFIG_NETDEV_IOCTL
+  .ioctl    = bk7258_wifi_ps_ioctl,
+#endif
 };
 
 static const struct wireless_ops_s g_bk7258_iw_ops =
@@ -2008,6 +2068,14 @@ int bk7258_wifi_sta_connect(FAR const char *ssid, FAR const char *psk)
    * set_config disconnects first and re-connects on its own
    * (wifi_v2.c:2983-3010). */
 
+  /* sta_start is init-once: while WIFI_STA_STARTED_BIT is set it returns
+   * BK_OK with "sta already started, ignored" (wifi_v2.c:2428) and only
+   * sta_stop clears that bit -- a wapi disconnect keeps the bit set, so
+   * every connect after the first silently did nothing.  The vendor's
+   * repeat-connect shape is set_config (which re-pushes the SSID/PSK via
+   * wifi_sta_set_wpa_config when already started, wifi_v2.c:3007) plus
+   * bk_wifi_sta_connect(); sta_start only on the first connect. */
+
   ret = bk_wifi_sta_set_config(&config);
   if (ret != BK_OK)
     {
@@ -2016,10 +2084,28 @@ int bk7258_wifi_sta_connect(FAR const char *ssid, FAR const char *psk)
       return -EIO;
     }
 
-  ret = bk_wifi_sta_start();
+  /* sta_start is init-once (wifi_v2.c:2428 early-returns "already
+   * started"); only sta_stop clears that bit and wapi disconnect keeps
+   * it.  The vendor's repeat-connect shape is set_config (which re-pushes
+   * SSID/PSK to the supplicant when started, wifi_v2.c:3007) plus
+   * bk_wifi_sta_connect().  Board-validated need: second and later
+   * connects died instantly on the latch without this. */
+
+  if (g_bk7258_wifi.sta_started)
+    {
+      ret = bk_wifi_sta_connect();
+    }
+  else
+    {
+      ret = bk_wifi_sta_start();
+      if (ret == BK_OK)
+        {
+          g_bk7258_wifi.sta_started = true;
+        }
+    }
   if (ret != BK_OK)
     {
-      syslog(LOG_ERR, "[BK7258-WIFI] connect: sta_start failed=%d\n",
+      syslog(LOG_ERR, "[BK7258-WIFI] connect: sta_start/connect failed=%d\n",
              (int)ret);
       return -EIO;
     }

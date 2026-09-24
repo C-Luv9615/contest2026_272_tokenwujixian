@@ -92,6 +92,10 @@ int pbkdf2_sha1(const char *passphrase, const u8 *ssid, size_t ssid_len,
 #if (CONFIG_SOC_BK7236XX)
 	bk_pm_module_vote_cpu_freq(PM_DEV_ID_WPAS, PM_CPU_FRQ_240M);
 #else
+	/* BK7258: keep the 320M tier.  A 240M-tier vote (faster on paper for
+	 * the CPU0-bound loop) was board-tested and kills the EAPOL exchange:
+	 * association and M1 arrive, the 4-way then dies with no M2.  The
+	 * cpu0:160m cost of the 320M tier is the working configuration. */
 	bk_pm_module_vote_cpu_freq(PM_DEV_ID_WPAS, PM_CPU_FRQ_320M);
 #endif
 	while (left > 0) {

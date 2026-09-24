@@ -57,7 +57,13 @@
 #define BK_LOGW(tag, fmt, ...) syslog(LOG_WARNING, "[%s] " fmt, tag, ##__VA_ARGS__)
 #define BK_LOGI(tag, fmt, ...) syslog(LOG_INFO, "[%s] " fmt, tag, ##__VA_ARGS__)
 #define BK_LOGD(tag, fmt, ...) syslog(LOG_DEBUG, "[%s] " fmt, tag, ##__VA_ARGS__)
-#define BK_LOGV(tag, fmt, ...) syslog(LOG_DEBUG, "[%s] " fmt, tag, ##__VA_ARGS__)
+/* Authority parity: the Armino build compiles BK_LOGV out at its default
+ * log level 3.  Routing it to LOG_DEBUG instead flooded the UART and the
+ * core thread then spent its time blocked in syslog() during scan-critical
+ * windows (scanu_start_req went out, scanu_confirm never surfaced).
+ * Compiled out like the authority; flip this one line when the 4-way
+ * state trace is needed for a capture build. */
+#define BK_LOGV(tag, fmt, ...) do { } while (0)
 #define BK_LOG_RAW(tag, fmt, ...) syslog(LOG_DEBUG, "[%s] " fmt, tag, ##__VA_ARGS__)
 #define BK_MAC_FORMAT "%02x:%02x:%02x:%02x:%02x:%02x"
 #define BK_MAC_STR(a) ((a)[0]), ((a)[1]), ((a)[2]), ((a)[3]), ((a)[4]), ((a)[5])
