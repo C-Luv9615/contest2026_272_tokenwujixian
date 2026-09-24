@@ -989,20 +989,20 @@ static int bk7258_wifi_ps_ioctl(FAR struct netdev_lowerhalf_s *lower,
         {
           bool on = iwr->u.power.flags != 0;
 
+          /* The PS env is initialized at boot (rwnxl_sleep() runs in the
+           * rwnx_intf_init PS trio), so off is always safe to execute.
+           * Tracking priv->ps_on from the ioctl only made the first off a
+           * no-op and left the boot-enabled PS in place -- the idle doze
+           * then ate the next scan's completion after a disconnect. */
+
           if (on)
             {
-              /* Full enable trio, as rwnx_intf_init() used to run it.
-               * ps_env_set_ps_on() must not be called before this init. */
-
               rwnxl_sleep();
               ps_env_set_ps_on(true);
               ps_env_set_cmd_ps_on(true);
             }
-          else if (priv->ps_on)
+          else
             {
-              /* Only touch the PS env after a successful enable (its
-               * init lives in rwnxl_sleep()); a cold-off is a no-op. */
-
               ps_env_set_ps_on(false);
               ps_env_set_cmd_ps_on(false);
             }
@@ -2077,6 +2077,8 @@ int bk7258_wifi_sta_connect(FAR const char *ssid, FAR const char *psk)
    * bk_wifi_sta_connect(); sta_start only on the first connect. */
 
   ret = bk_wifi_sta_set_config(&config);
+  syslog(LOG_INFO, "[BK7258-WIFI] connect: set_config ret=%d t=%u\n",
+         (int)ret, (unsigned)clock_systime_ticks());
   if (ret != BK_OK)
     {
       syslog(LOG_ERR, "[BK7258-WIFI] connect: set_config failed=%d\n",
@@ -2093,16 +2095,22 @@ int bk7258_wifi_sta_connect(FAR const char *ssid, FAR const char *psk)
 
   if (g_bk7258_wifi.sta_started)
     {
+      syslog(LOG_INFO, "[BK7258-WIFI] connect: repeat -> sta_connect t=%u\n",
+             (unsigned)clock_systime_ticks());
       ret = bk_wifi_sta_connect();
     }
   else
     {
+      syslog(LOG_INFO, "[BK7258-WIFI] connect: first -> sta_start t=%u\n",
+             (unsigned)clock_systime_ticks());
       ret = bk_wifi_sta_start();
       if (ret == BK_OK)
         {
           g_bk7258_wifi.sta_started = true;
         }
     }
+  syslog(LOG_INFO, "[BK7258-WIFI] connect: trigger ret=%d t=%u\n",
+         (int)ret, (unsigned)clock_systime_ticks());
   if (ret != BK_OK)
     {
       syslog(LOG_ERR, "[BK7258-WIFI] connect: sta_start/connect failed=%d\n",
