@@ -317,12 +317,15 @@ bk_err_t bk_event_post(event_module_t module, int event_id, void *data,
       return BK_ERR_EVENT_MOD;
     }
 
-  if (up_interrupt_context())
-    {
-      return bk7258_event_defer_from_isr(module, event_id, data, data_size);
-    }
+  /* Authority parity: the vendor event_post is a queued hand-off (the
+   * timeout argument exists to bound that enqueue) and callbacks run on
+   * the event thread, never inside the poster.  Dispatching inline here
+   * re-entered the poster's thread instead: a callback that issued
+   * wpa_ctrl_request() re-entered the supplicant in the middle of its own
+   * event processing.  Always defer; the ring + LPWORK worker is safe
+   * from any context. */
 
-  return bk7258_event_dispatch(module, event_id, data);
+  return bk7258_event_defer_from_isr(module, event_id, data, data_size);
 }
 
 bk_err_t bk_event_dump(void)
