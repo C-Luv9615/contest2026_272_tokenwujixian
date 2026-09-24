@@ -2091,6 +2091,11 @@ void wlan_read_fast_connect_info(struct wlan_fast_connect_info *fci)
 		//get_net_info(FAST_CONNECT_ITEM, (UINT8 *)fci, NULL, NULL);
 		#if (CONFIG_EASY_FLASH && CONFIG_EASY_FLASH_V4)
 		bk_get_env_enhance("fast_connect_id", (void *)fci, sizeof(struct wlan_fast_connect_info));
+		#else
+		/* EasyFlash absent: fall back to the RAM copy instead of
+		 * silently leaving *fci zeroed (that made every re-eval report
+		 * "fast_connect not matched"). */
+		os_memcpy((UINT8 *)fci, &g_fci, sizeof(struct wlan_fast_connect_info));
 		#endif
 	}
 	else
@@ -2127,6 +2132,11 @@ void wlan_write_fast_connect_info(struct wlan_fast_connect_info *fci)
 		//save_net_info(FAST_CONNECT_ITEM, (UINT8 *)fci, NULL, NULL);
 		#if (CONFIG_EASY_FLASH && CONFIG_EASY_FLASH_V4)
 		bk_set_env_enhance("fast_connect_id", (void *)fci, sizeof(struct wlan_fast_connect_info));
+		#else
+		/* Mirror of the read fallback: store to the RAM copy when the
+		 * flash env backend is not built. "writed fci to flash" below is
+		 * then a RAM write; EasyFlash vendoring upgrades it to persistence. */
+		os_memcpy(&g_fci, (UINT8 *)fci, sizeof(struct wlan_fast_connect_info));
 		#endif
 	}
 	else
@@ -2147,6 +2157,8 @@ void wlan_clear_fast_connect_info(struct wlan_fast_connect_info *fci)
 			//save_net_info(FAST_CONNECT_ITEM, (UINT8 *)fci, NULL, NULL);
 			#if (CONFIG_EASY_FLASH && CONFIG_EASY_FLASH_V4)
 			bk_set_env_enhance("fast_connect_id", (void *)fci, sizeof(struct wlan_fast_connect_info));
+			#else
+			os_memset(&g_fci, 0, sizeof(struct wlan_fast_connect_info));
 			#endif
 		}
 		else
