@@ -119,7 +119,14 @@ int bk7258_wifi_osal_thread_create(uintptr_t *handle, int prio,
     }
 
   param.sched_priority = bk7258_wifi_native_priority(prio);
-  ret = pthread_attr_setstacksize(&attr, stack_size);
+  /* Beken rtos_create_thread() stack_size counts 32-bit words (FreeRTOS
+   * usStackDepth); pthread_attr_setstacksize() takes bytes.  Passing the
+   * count through raw left every vendor thread 4x undersized -- the
+   * pskc worker overflowed inside PBKDF2 and the supplicant dies
+   * intermittently in init and during the 4-way depending on heap
+   * layout.  Convert at the single funnel. */
+
+  ret = pthread_attr_setstacksize(&attr, stack_size * 4);
   if (ret == 0)
     {
       ret = pthread_attr_setinheritsched(&attr, PTHREAD_EXPLICIT_SCHED);
