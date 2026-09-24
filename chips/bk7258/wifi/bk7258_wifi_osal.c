@@ -538,8 +538,23 @@ int bk7258_wifi_osal_sem_delete(uintptr_t handle)
 
 void bk7258_wifi_osal_delay_ms(uint32_t ms)
 {
-  useconds_t us = (useconds_t)ms * 1000;
-  nxsig_usleep(us);
+  /* FreeRTOS vTaskDelay is an uninterruptible tick sleep; bare nxsig_usleep
+   * returns early on EINTR.  Same contract divergence class as
+   * bk7258_wifi_osal_sem_wait_raw() above: the pinned library paces
+   * hardware wake/retry loops with this delay and counts on the full
+   * period elapsing.  Sleep until the deadline no matter how many
+   * interruptions arrive. */
+
+  struct timespec req;
+  struct timespec rem;
+
+  req.tv_sec = ms / 1000u;
+  req.tv_nsec = (long)(ms % 1000u) * 1000000L;
+
+  while (nanosleep(&req, &rem) != 0 && errno == EINTR)
+    {
+      req = rem;
+    }
 }
 
 void bk7258_wifi_osal_delay_us(uint32_t us)
