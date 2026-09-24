@@ -10,6 +10,7 @@
  */
 
 #include <nuttx/config.h>
+#include <nuttx/clock.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/net/net.h>
 #include <nuttx/net/netdev.h>
@@ -738,6 +739,31 @@ static int bk7258_wifi_country(FAR struct netdev_lowerhalf_s *lower,
   return -ENOSYS;
 }
 
+/* Reclaim a scan latch whose completion event never arrived (scan failed
+ * below the glue, or EVENT_WIFI_SCAN_DONE was lost).  Without this the only
+ * clearer, bk7258_wifi_scan_done(), leaves scan_in_progress set forever and
+ * every later scan returns -EBUSY.  4 s: past a healthy ~2 s survey, inside
+ * wapi_scan_results_cmd()'s 5 s poll budget. */
+
+#define BK7258_SCAN_STALE_MSEC 4000
+
+static void bk7258_wifi_scan_reclaim_stale(FAR struct bk7258_wifi_s *priv)
+{
+  if (!priv->scan_in_progress ||
+      (int32_t)(clock_systime_ticks() - priv->scan_start_tick) <
+        MSEC2TICK(BK7258_SCAN_STALE_MSEC))
+    {
+      return;
+    }
+
+  syslog(LOG_WARNING, "[BK7258-WIFI] scan latch stale (id=%08x), reclaim\n",
+         (unsigned)priv->scan_id);
+  priv->scan_in_progress = false;
+  priv->scan_complete = true;
+  priv->scan_status = -ETIMEDOUT;
+  priv->scan_count = 0;
+}
+
 static int bk7258_wifi_scan(FAR struct netdev_lowerhalf_s *lower,
                             FAR struct iwreq *iwr, bool set)
 {
@@ -758,14 +784,19 @@ static int bk7258_wifi_scan(FAR struct netdev_lowerhalf_s *lower,
       nxmutex_lock(&priv->scan_lock);
       if (priv->scan_in_progress)
         {
-          nxmutex_unlock(&priv->scan_lock);
-          return -EBUSY;
+          bk7258_wifi_scan_reclaim_stale(priv);
+          if (priv->scan_in_progress)
+            {
+              nxmutex_unlock(&priv->scan_lock);
+              return -EBUSY;
+            }
         }
 
       /* bk_wifi_scan_start() records this exact caller token in its scan
        * request, then returns it in wifi_event_scan_done_t.scan_id. */
 
       priv->scan_id = (uint32_t)(uintptr_t)rtos_get_current_thread();
+      priv->scan_start_tick = clock_systime_ticks();
       priv->scan_in_progress = true;
       priv->scan_complete = false;
       priv->scan_status = -EAGAIN;
@@ -819,14 +850,18 @@ static int bk7258_wifi_scan(FAR struct netdev_lowerhalf_s *lower,
   nxmutex_lock(&priv->scan_lock);
   if (priv->scan_in_progress)
     {
-      nxmutex_unlock(&priv->scan_lock);
-      return -EAGAIN;
+      bk7258_wifi_scan_reclaim_stale(priv);
+      if (priv->scan_in_progress)
+        {
+          nxmutex_unlock(&priv->scan_lock);
+          return -EAGAIN;
+        }
     }
 
   if (!priv->scan_complete)
     {
       nxmutex_unlock(&priv->scan_lock);
-      return -EINVAL;
+      return -EAGAIN;
     }
 
   if (priv->scan_status < 0)
@@ -1092,9 +1127,16 @@ static bk_err_t bk7258_wifi_scan_done(void *arg, event_module_t module,
   nxmutex_lock(&priv->scan_lock);
   if (!priv->scan_in_progress || done->scan_id != priv->scan_id)
     {
+      syslog(LOG_INFO,
+             "[BK7258-WIFI] scan_done drop: in_progress=%d id=%08x want=%08x\n",
+             priv->scan_in_progress, (unsigned)done->scan_id,
+             (unsigned)priv->scan_id);
       nxmutex_unlock(&priv->scan_lock);
       return BK_OK;
     }
+
+  syslog(LOG_INFO, "[BK7258-WIFI] scan_done match id=%08x\n",
+         (unsigned)done->scan_id);
   nxmutex_unlock(&priv->scan_lock);
 
   bk7258_scan_diag_record(BK7258_SCAN_DIAG_COMPLETION_CALLBACK);

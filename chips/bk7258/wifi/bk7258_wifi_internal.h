@@ -207,6 +207,7 @@ struct bk7258_wifi_s
   bool scan_complete;
   int scan_status;
   uint32_t scan_id;
+  uint32_t scan_start_tick;
   uint8_t scan_count;
   struct bk7258_wifi_scan_ap_s scan_aps[BK7258_WIFI_SCAN_MAX_APS];
 };
