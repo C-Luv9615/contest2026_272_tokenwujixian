@@ -2093,6 +2093,19 @@ int bk7258_wifi_sta_connect(FAR const char *ssid, FAR const char *psk)
    * bk_wifi_sta_connect().  Board-validated need: second and later
    * connects died instantly on the latch without this. */
 
+  /* Pre-raise the DVFS tier before the RF window.  The closed lib votes
+   * PM_CPU_FRQ_320M (module WPAS) between lmac_connect_req and auth_send;
+   * our shim applies that vote as a synchronous VDDDIG/clock transition --
+   * right inside the auth TX window.  The apply is idempotent, so voting
+   * the same tier here turns the lib's mid-window vote into a no-op and
+   * the clock is settled before any frame goes out.  Same sequencing
+   * discipline as the authority's bk_reboot (downclock before arming the
+   * WDT, never during).  Board evidence: auth_send:seq1 immediately after
+   * "dvfs: high-tier VDDDIG/clock" then Authentication timed out. */
+  extern bk_err_t bk_pm_module_vote_cpu_freq(uint32_t dev, uint32_t frq);
+  bk_pm_module_vote_cpu_freq(26 /* PM_DEV_ID_WPAS */,
+                             5 /* PM_CPU_FRQ_320M */);
+
   if (g_bk7258_wifi.sta_started)
     {
       syslog(LOG_INFO, "[BK7258-WIFI] connect: repeat -> sta_connect t=%u\n",
