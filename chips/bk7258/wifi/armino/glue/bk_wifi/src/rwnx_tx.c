@@ -1130,6 +1130,21 @@ void fhost_tx_cfm_push(uint8_t queue_idx, struct txdesc *txdesc)
 	struct sk_buff *skb;
 #endif
 
+	/* Single-shot ISR-context probe.  Armino's rtos_set_semaphore /
+	 * rtos_push_to_queue use portEND_SWITCHING_ISR from ISR context;
+	 * ours use nxsem_post which defers the switch.  If this prints
+	 * isr=1, the ISR-context path needs the NuttX equivalent of
+	 * portEND_SWITCHING_ISR (up_switch_context).  If isr=0, the
+	 * deferred switch is already correct. */
+	{
+		static uint32_t cfm_isr_probe;
+
+		if (cfm_isr_probe++ < 4)
+			syslog(LOG_WARNING, "[rwnx] cfmctx isr=%d n=%u\n",
+			       (int)up_interrupt_context(),
+			       (unsigned)cfm_isr_probe);
+	}
+
 	/* One-shot-per-frame entry probe at WARNING level: if this line is
 	 * missing for a frame that __l2_packet_send waited on, the MAC never
 	 * delivered its TX-complete (the closed-lib side of face B). */
