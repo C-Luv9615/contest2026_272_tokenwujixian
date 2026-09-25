@@ -155,7 +155,7 @@ int bk7258_wifi_osal_thread_create(uintptr_t *handle, int prio,
 
   if (ret == 0)
     {
-      ret = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+      ret = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
     }
 
   if (ret != 0)
@@ -181,8 +181,14 @@ int bk7258_wifi_osal_thread_delete(uintptr_t handle)
 {
   int ret = pthread_cancel((pthread_t)handle);
 
-  /* FreeRTOS treats an already-finished target as successfully deleted. */
+  /* Join after cancel so the TCB is only freed once the thread has
+   * actually exited.  FreeRTOS's vTaskDelete frees the TCB at any
+   * instruction; NuttX's sched_releasetcb asserts if the TCB is still
+   * referenced (e.g. linked in a semaphore wait queue).  Joining closes
+   * the window between cancel-requested and cancel-completed. */
+  pthread_join((pthread_t)handle, NULL);
 
+  /* FreeRTOS treats an already-finished target as successfully deleted. */
   return ret == ESRCH ? 0 : -ret;
 }
 
