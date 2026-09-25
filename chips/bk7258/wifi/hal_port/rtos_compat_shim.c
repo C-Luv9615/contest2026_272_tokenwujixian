@@ -12,6 +12,11 @@
 #include "bk7258_wifi_internal.h"
 #include "os/os.h"
 
+/* Saved IRQ state for the ISR-context mutex fallback in rtos_lock_mutex.
+ * Not reentrant across concurrent ISRs, but the only ISR caller is the
+ * MAC's TX-complete path which is single-threaded within one ISR. */
+irqstate_t rtos_compat_mutex_irq_state;
+
 /* TEMPORARY BRING-UP DIAGNOSTIC -- see hal_port/include/bk7258_initseq.h for the
  * rationale and the removal recipe.  The markers below stand in for the Armino
  * FreeRTOS OSAL's "os:D(100):create <name>" lines, which this port never
@@ -150,6 +155,22 @@ bk_err_t rtos_deinit_mutex(beken_mutex_t *mutex)
 
 bk_err_t rtos_lock_mutex(beken_mutex_t *mutex)
 {
+  /* nxmutex_lock is not ISR-safe (it can sleep).  The MAC delivers
+   * TX-completes from ISR context through fhost_tx_cfm_push ->
+   * rwnx_tx_confirm -> l2_packet_tx_cb, which takes l2_mutex.  On
+   * FreeRTOS xSemaphoreTake from ISR is a no-op/assert; on NuttX
+   * nxmutex_lock from ISR is undefined behaviour that starves the
+   * MAC's ISR and kills every subsequent CFM (face B + disconnect
+   * timeouts).  In ISR context fall back to a critical section --
+   * the same nestable interrupt-disable the FreeRTOS contract gives
+   * via vPortEnterCritical. */
+  if (up_interrupt_context())
+    {
+      extern irqstate_t rtos_compat_mutex_irq_state;
+      rtos_compat_mutex_irq_state = enter_critical_section();
+      return BK_OK;
+    }
+
   return mutex != NULL && *mutex != NULL &&
          bk7258_wifi_osal_mutex_lock((uintptr_t)*mutex) == 0 ?
          BK_OK : BK_FAIL;
@@ -157,6 +178,13 @@ bk_err_t rtos_lock_mutex(beken_mutex_t *mutex)
 
 bk_err_t rtos_unlock_mutex(beken_mutex_t *mutex)
 {
+  if (up_interrupt_context())
+    {
+      extern irqstate_t rtos_compat_mutex_irq_state;
+      leave_critical_section(rtos_compat_mutex_irq_state);
+      return BK_OK;
+    }
+
   return mutex != NULL && *mutex != NULL &&
          bk7258_wifi_osal_mutex_unlock((uintptr_t)*mutex) == 0 ?
          BK_OK : BK_FAIL;
