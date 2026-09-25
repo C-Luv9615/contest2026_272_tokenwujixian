@@ -843,6 +843,24 @@ __ITCM_N int rwnx_start_xmit(uint8_t vif_idx, struct pbuf *p, BUS_MSG_T *msg)
 	if (PP_HTONS(host->ethertype) == ETH_P_PAE)
 	{
 		rwnx_eapol_cfm_probe_submit(txdesc);
+
+		/* Rate-limited EAPOL TX-entry probe at WARNING level.  Paired
+		 * with cfmentry: if this prints but cfmentry does not, the MAC
+		 * accepted the frame but never confirmed it (closed-lib side).
+		 * If this does not print, the frame was dropped before the MAC
+		 * (our glue side). */
+		{
+			static uint32_t eapol_tx_seq;
+
+			if ((eapol_tx_seq++ & 0x03) == 0)
+				syslog(LOG_WARNING, "[rwnx] eapol-tx n=%u vif=%u "
+				       "sta=%u tid=%u q=%u\n",
+				       (unsigned)eapol_tx_seq,
+				       (unsigned)host->vif_idx,
+				       (unsigned)host->staid,
+				       (unsigned)host->tid,
+				       (unsigned)txq->idx);
+		}
 	}
 	// Queue skb
 	if (rwnx_txq_queue_skb(skb, txq, 0, NULL))
