@@ -294,7 +294,16 @@ static void rwnx_tx_confirm(void *param)
 
 		// callback for mgmt frame tx
 		if (cb && skb->args)
-			cb(skb->args, !!(cfm->status & TX_STATUS_ACKNOWLEDGED));
+			{
+				/* Probe at WARNING level: resolve the cfmentry-vs-send-failed
+				 * contradiction.  If this prints but cfmentry does not, the
+				 * confirm is reaching us through a path other than
+				 * fhost_tx_cfm_push. */
+				syslog(LOG_WARNING, "[rwnx] txcb cb=%p args=%p ack=%d\n",
+				       (void *)cb, skb->args,
+				       (int)!!(cfm->status & TX_STATUS_ACKNOWLEDGED));
+				cb(skb->args, !!(cfm->status & TX_STATUS_ACKNOWLEDGED));
+			}
 
 		bk_null_printf("flush_desc: node %p, pbuf %p\n", skb, skb->p);
 
