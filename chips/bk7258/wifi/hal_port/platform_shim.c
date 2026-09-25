@@ -304,20 +304,13 @@ bk_err_t bk_pm_module_vote_power_ctrl(pm_power_module_name_e module,
               return BK_OK;
             }
 
-          /* Authority behaviour (pm.c:655-660): the ON vote calls
-           * sys_drv_module_power_ctrl(PM_POWER_MODULE_NAME_PHY, ON) which is
-           * a no-op for the PHY domain (sys_hal.c else-branch).  When the PHY
-           * is already powered (state 0x0), skip bk7258_phy_power() so no
-           * register write fires before phy_wakeup_reinit -- the extra write
-           * to BK7258_SYS_POWER_WAKEUP broke the data RX path when
-           * phy_wakeup_reinit ran on a warm PHY (auth timeout, RX counters
-           * all zero). */
-          if (sys_drv_module_power_state_get(PM_POWER_MODULE_NAME_PHY) != 0x0)
+          /* Always power on: the register write is what mac_wakeup_and_pwr_update
+           * in the closed lib observes to decide the MAC is awake.  Skipping it
+           * on a warm PHY (336fa61) left the MAC in doze so SCANU_START_CFM
+           * never came back on reconnect (32.log). */
+          if (bk7258_phy_power(true) != OK)
             {
-              if (bk7258_phy_power(true) != OK)
-                {
-                  return BK_FAIL;
-                }
+              return BK_FAIL;
             }
 
           if (sys_drv_module_power_state_get(PM_POWER_MODULE_NAME_PHY) == 0x0 &&
