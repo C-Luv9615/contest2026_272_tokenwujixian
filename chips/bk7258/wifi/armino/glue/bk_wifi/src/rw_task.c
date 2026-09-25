@@ -913,8 +913,13 @@ static void core_thread_main(void *arg)
 
 			ke_evt_core_scheduler();
 		}
-		////check if mac need sleep
-		mac_sleep_check();
+		/* mac_sleep_check() sends the MAC into doze.  After a
+		 * disconnect/reconnect cycle mac_wakeup_and_pwr_update fails to
+		 * wake it and every subsequent CFM (SCANU_START_CFM,
+		 * ME_STA_DEL_CFM, MM_SET_VIF_STATE_CFM) is lost.  Skipping the
+		 * doze entry keeps the MAC awake; the authority also calls this
+		 * but its FreeRTOS scheduling keeps the wake path alive. */
+		/* mac_sleep_check(); */
 	}
 }
 
