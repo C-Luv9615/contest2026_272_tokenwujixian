@@ -1259,12 +1259,14 @@ int rwnx_intf_init(void)
 		 * stacks, event model, sta latch, log pressure, rlk clear --
 		 * is fixed around it. */
 		rwnxl_sleep();
-		ps_env_set_ps_on(true);
-		/* Command-level PS lets the MAC doze between commands.  On NuttX
-		 * the wake path (mac_wakeup_and_pwr_update) does not recover
-		 * from that doze, so the second EAPOL after a reconnect loses
-		 * its TX-complete (face B, 38.log).  Disable command PS so the
-		 * MAC stays awake between commands. */
+		/* Disable PS entirely.  mac_sleep_check() is commented out and
+		 * cmd_ps is off, but ps_env_set_ps_on(true) still enables other
+		 * PS paths that let the MAC doze after warm cycles (44.log:
+		 * 3 connect/disconnect cycles green, 4th disconnect hits
+		 * rw_msg_send timeout for 39).  Turning PS off keeps the MAC
+		 * awake; revisit when the wake path is fixed at the OSAL
+		 * contract level. */
+		ps_env_set_ps_on(false);
 		ps_env_set_cmd_ps_on(false);
 	}
 #endif
