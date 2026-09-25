@@ -87,6 +87,18 @@ static FAR void *bk7258_wifi_thread_trampoline(FAR void *arg)
   FAR void *entry_arg = bundle->arg;
 
   kmm_free(bundle);
+
+  /* Authority rtos_delete_thread() is vTaskDelete(): asynchronous
+   * termination at any instruction.  pthread_cancel's default deferred mode
+   * only fires at cancellation points, and every vendor thread parks in
+   * uninterruptible queue/semaphore waits that are none, so a live thread
+   * could never be deleted and kept consuming its shared queue as a zombie
+   * after the lib's own teardown/restart paths "deleted" it (rw_task.c:1149
+   * core thread, wpa_psk_cache.c:496 pskc, sa_station.c reconnect).  Switch
+   * to asynchronous cancellation right before entry; a cancel queued while
+   * still deferred fires at this transition, after the bundle is freed. */
+  pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
+
   entry(entry_arg);
   return NULL;
 }
@@ -605,12 +617,21 @@ void bk7258_wifi_osal_exit_critical(uint32_t flags)
 
 uint32_t bk7258_wifi_osal_disable_irq(void)
 {
-  return up_irq_save();
+  /* Authority rtos_disable_int() maps the task path to vPortEnterCritical()
+   * (bk_rtos/freertos/v10/rtos_pub.c): a nestable critical section that
+   * excludes task switches, not just interrupts.  The vendor's
+   * GLOBAL_INT_DISABLE/RESTORE pairs assume that atomicity; a raw
+   * up_irq_save() left the scheduler free to hop away mid-window whenever an
+   * OS call inside woke a higher-priority task.  NuttX
+   * enter_critical_section() is the same contract and is legal from both
+   * task and interrupt context on this single-core image, so one path
+   * covers both, and the final leave releases any switch pended inside. */
+  return enter_critical_section();
 }
 
 void bk7258_wifi_osal_enable_irq(uint32_t level)
 {
-  up_irq_restore(level);
+  leave_critical_section(level);
 }
 
 uint64_t bk7258_wifi_osal_time_ms(void)

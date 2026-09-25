@@ -7,7 +7,10 @@
  */
 
 #include <nuttx/config.h>
+#include <nuttx/arch.h>
 #include <nuttx/kmalloc.h>
+#include <assert.h>
+#include <syslog.h>
 
 #include <stdarg.h>
 #include <stddef.h>
@@ -25,6 +28,18 @@
 void *os_malloc_debug(const char *func_name, int line, size_t size,
                       int need_zero)
 {
+  /* Authority mem_arch.c treats heap ops from interrupt context as a bug
+   * ("malloc_risk" + BK_ASSERT): the pinned library is designed to never
+   * allocate in ISR, and kmm_malloc is not ISR-safe on NuttX either.  Keep
+   * the loud contract instead of letting a violation corrupt the kernel
+   * heap silently. */
+  if (up_interrupt_context())
+    {
+      syslog(LOG_ERR, "os_malloc_debug: malloc_risk %s:%d\n",
+             func_name, line);
+      DEBUGASSERT(0);
+    }
+
   (void)func_name;
   (void)line;
   return need_zero ? kmm_zalloc(size) : kmm_malloc(size);
@@ -32,8 +47,21 @@ void *os_malloc_debug(const char *func_name, int line, size_t size,
 
 void os_free_debug(const char *func_name, int line, void *pv)
 {
-  (void)func_name;
-  (void)line;
+  if (up_interrupt_context())
+    {
+      syslog(LOG_ERR, "os_free_debug: free_risk %s:%d\n", func_name, line);
+      DEBUGASSERT(0);
+    }
+
+  if (pv == NULL)
+    {
+      return;
+    }
+
+  /* Authority os_free validates the pointer against the heap and asserts on
+   * foreign ones (mem_arch.c:292, os_check_heap_range).  NuttX has no range
+   * query, but mm_free()'s own DEBUGASSERT on the node's allocation state is
+   * the same double-free/foreign-free guard when assertions are enabled. */
   kmm_free(pv);
 }
 
