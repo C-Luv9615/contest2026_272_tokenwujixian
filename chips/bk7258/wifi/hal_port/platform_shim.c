@@ -351,16 +351,18 @@ bk_err_t bk_pm_module_vote_power_ctrl(pm_power_module_name_e module,
 
       if (g_phy_submodule_state == 0x0)
         {
-          /* Authority behaviour (pm.c:815-830): the OFF vote only clears
-           * the calibration state so the next ON vote replays
-           * phy_wakeup_reinit().  The authority's sys_drv_module_power_ctrl()
-           * for the PHY domain is a no-op, so the PHY is never gated off.
-           * Gating it off here caused doze-wake degradation after warm
-           * reconnect cycles (SCANU_START_CFM stops arriving). */
+          /* Restore the PHY power-off on last-release.  Board evidence
+           * (25.log): keeping the PHY powered across disconnect made the
+           * MAC's ke_msg path stall -- rw_msg_send timeout for 39 x3, 20s
+           * to disconnect, and kmsgfwd shows zero messages during the
+           * window.  Powering off resets the MAC so the next connect
+           * starts clean.  The ON path still skips the register write on
+           * a warm PHY (the 5d208dd regression), so phy_wakeup_reinit
+           * only ever runs after a real power-on. */
 
           g_phy_calibration_state = 0x0;
           spin_unlock_irqrestore(&g_phy_power_lock, flags);
-          return BK_OK;
+          return bk7258_phy_power(false) == OK ? BK_OK : BK_FAIL;
         }
 
       spin_unlock_irqrestore(&g_phy_power_lock, flags);
