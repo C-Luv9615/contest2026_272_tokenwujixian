@@ -4883,9 +4883,21 @@ static void wpas_event_rx_mgmt_action(struct wpa_supplicant *wpa_s,
 	__maybe_unused_var(category);
 	__maybe_unused_var(plen);
 	__maybe_unused_var(mgmt);
-	wpa_dbg(wpa_s, MSG_DEBUG, "Received Action frame: SA=" MACSTR
-		" Category=%u DataLen=%d freq=%d MHz",
-		MAC2STR(mgmt->sa), category, (int) plen, freq);
+	/* Rate-limited: some APs (phone hotspots) spam public-action frames at
+	 * tens per second and every copy went to the UART at MSG_DEBUG, which
+	 * saturated the console and tripped the known
+	 * nuttx/drivers/serial/serial.c:2064 assert.  Keep a 1/64 sample with a
+	 * running total so the spam stays visible as evidence; no control flow
+	 * changes. */
+	{
+		static uint32_t rx_action_log_cnt;
+
+		if ((rx_action_log_cnt++ & 0x3f) == 0)
+			wpa_dbg(wpa_s, MSG_DEBUG, "Received Action frame: SA=" MACSTR
+				" Category=%u DataLen=%d freq=%d MHz (total=%u)",
+				MAC2STR(mgmt->sa), category, (int) plen, freq,
+				(unsigned int) rx_action_log_cnt);
+	}
 
 #ifdef CONFIG_FULL_SUPPLICANT
 	if (category == WLAN_ACTION_WMM) {
@@ -5482,13 +5494,14 @@ void wpa_supplicant_event_sta(void *ctx, enum wpa_event_type event,
 
 #ifndef CONFIG_NO_STDOUT_DEBUG
 	if (event == EVENT_RX_MGMT && data->rx_mgmt.frame_len >= 24) {
-		const struct ieee80211_hdr *hdr;
-		u16 fc;
-		hdr = (const struct ieee80211_hdr *) data->rx_mgmt.frame;
-		fc = le_to_host16(hdr->frame_control);
-		if (WLAN_FC_GET_TYPE(fc) == WLAN_FC_TYPE_MGMT &&
-		    WLAN_FC_GET_STYPE(fc) == WLAN_FC_STYPE_BEACON)
-			level = MSG_EXCESSIVE;
+		/* Extend the vendor's beacon demotion to every RX_MGMT frame.
+		 * mgmt frames arrive at radio rate (an AP can push tens per
+		 * second) and the generic event line at MSG_DEBUG drowned the
+		 * console.  Per-frame detail is kept, rate-limited, at the
+		 * "Received Action frame" print in the handler below;
+		 * MSG_EXCESSIVE is under the MSG_DEBUG runtime threshold so
+		 * this line is dropped. */
+		level = MSG_EXCESSIVE;
 	}
 
 	wpa_dbg(wpa_s, level, "Event %s (%d) received",
