@@ -312,6 +312,27 @@ void ethernetif_input(int iface, struct pbuf *p, uint8_t dst_idx)
         }
     }
 
+  /* Non-EAPOL frame entry probe at WARNING level: rate-limited 1/32.
+   * If a DHCP reply never appears here, it died in the MAC or the
+   * event bridge.  If it appears but dhcp fails, the bug is in the
+   * UDP/DHCP client layer above us. */
+  {
+    static uint32_t rx_frame_cnt;
+
+    if ((rx_frame_cnt++ & 0x1f) == 0)
+      {
+        FAR const uint8_t *eth = (FAR const uint8_t *)p->payload;
+        uint16_t ethtype = ((uint16_t)eth[BK7258_ETH_TYPE_OFFSET] << 8) |
+                            (uint16_t)eth[BK7258_ETH_TYPE_OFFSET + 1u];
+
+        syslog(LOG_WARNING, "[BK7258-WIFI] rx frame eth=%04x len=%u "
+               "src=%02x:%02x:%02x:%02x:%02x:%02x n=%u\n",
+               (unsigned)ethtype, (unsigned)p->tot_len,
+               eth[6], eth[7], eth[8], eth[9], eth[10], eth[11],
+               (unsigned)rx_frame_cnt);
+      }
+  }
+
   vpkt = bk7258_vpkt_alloc(p->tot_len, true);
   if (vpkt == NULL)
     {
