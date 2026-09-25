@@ -1260,7 +1260,12 @@ int rwnx_intf_init(void)
 		 * is fixed around it. */
 		rwnxl_sleep();
 		ps_env_set_ps_on(true);
-		ps_env_set_cmd_ps_on(true);
+		/* Command-level PS lets the MAC doze between commands.  On NuttX
+		 * the wake path (mac_wakeup_and_pwr_update) does not recover
+		 * from that doze, so the second EAPOL after a reconnect loses
+		 * its TX-complete (face B, 38.log).  Disable command PS so the
+		 * MAC stays awake between commands. */
+		ps_env_set_cmd_ps_on(false);
 	}
 #endif
 
