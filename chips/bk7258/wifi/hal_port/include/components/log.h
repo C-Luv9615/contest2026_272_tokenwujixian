@@ -56,7 +56,7 @@
 #define BK_LOGE(tag, fmt, ...) syslog(LOG_ERR, "[%s] " fmt, tag, ##__VA_ARGS__)
 #define BK_LOGW(tag, fmt, ...) syslog(LOG_WARNING, "[%s] " fmt, tag, ##__VA_ARGS__)
 #define BK_LOGI(tag, fmt, ...) syslog(LOG_INFO, "[%s] " fmt, tag, ##__VA_ARGS__)
-#define BK_LOGD(tag, fmt, ...) syslog(LOG_DEBUG, "[%s] " fmt, tag, ##__VA_ARGS__)
+#define BK_LOGD(tag, fmt, ...) syslog(LOG_INFO, "[%s] " fmt, tag, ##__VA_ARGS__)
 /* Authority parity: the Armino build compiles BK_LOGV out at its default
  * log level 3.  Routing it to LOG_DEBUG instead flooded the UART and the
  * core thread then spent its time blocked in syslog() during scan-critical

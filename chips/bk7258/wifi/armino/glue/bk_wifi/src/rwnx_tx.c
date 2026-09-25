@@ -721,6 +721,17 @@ __ITCM_N int rwnx_start_xmit(uint8_t vif_idx, struct pbuf *p, BUS_MSG_T *msg)
 	// Select TXQ
 	txq = rwnx_select_txq(skb);
 	if (!txq || skb->priority == PRIO_STA_NULL) {
+		/* Rate-limited silent-drop probe: the goto exit below is the
+		 * known EAPOL M2 killer when sta lookup fails or vif is
+		 * inactive.  WARNING level so it survives the hexdump flood. */
+		static uint32_t drop_seq;
+
+		if ((drop_seq++ & 0x07) == 0)
+			syslog(LOG_WARNING, "[rwnx] xmit drop: txq=%p prio=%02x "
+			       "sta=%u vif=%u n=%u\n",
+			       (void *)txq, (unsigned)skb->priority,
+			       (unsigned)skb->sta_idx, (unsigned)skb->vif_idx,
+			       (unsigned)drop_seq);
 		goto exit;
 	}
 	// TXQ not initialized
@@ -1091,6 +1102,19 @@ void fhost_tx_cfm_push(uint8_t queue_idx, struct txdesc *txdesc)
 	struct rwnx_txq *txq;
 	struct sk_buff *skb;
 #endif
+
+	/* One-shot-per-frame entry probe at WARNING level: if this line is
+	 * missing for a frame that __l2_packet_send waited on, the MAC never
+	 * delivered its TX-complete (the closed-lib side of face B). */
+	{
+		static uint32_t cfm_entry_seq;
+		uint32_t n = cfm_entry_seq++;
+
+		if (n < 64 || (n & 0x3f) == 0)
+			syslog(LOG_WARNING, "[rwnx] cfmentry q=%u st=%08x n=%u\n",
+			       (unsigned)queue_idx, (unsigned)cfm->status,
+			       (unsigned)n);
+	}
 
 	if (cfm->status & TX_STATUS_DONE) {
 		if (PP_HTONS(txdesc->host.ethertype) == ETH_P_PAE)
