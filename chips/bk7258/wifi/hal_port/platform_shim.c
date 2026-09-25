@@ -304,9 +304,20 @@ bk_err_t bk_pm_module_vote_power_ctrl(pm_power_module_name_e module,
               return BK_OK;
             }
 
-          if (bk7258_phy_power(true) != OK)
+          /* Authority behaviour (pm.c:655-660): the ON vote calls
+           * sys_drv_module_power_ctrl(PM_POWER_MODULE_NAME_PHY, ON) which is
+           * a no-op for the PHY domain (sys_hal.c else-branch).  When the PHY
+           * is already powered (state 0x0), skip bk7258_phy_power() so no
+           * register write fires before phy_wakeup_reinit -- the extra write
+           * to BK7258_SYS_POWER_WAKEUP broke the data RX path when
+           * phy_wakeup_reinit ran on a warm PHY (auth timeout, RX counters
+           * all zero). */
+          if (sys_drv_module_power_state_get(PM_POWER_MODULE_NAME_PHY) != 0x0)
             {
-              return BK_FAIL;
+              if (bk7258_phy_power(true) != OK)
+                {
+                  return BK_FAIL;
+                }
             }
 
           if (sys_drv_module_power_state_get(PM_POWER_MODULE_NAME_PHY) == 0x0 &&
@@ -340,9 +351,16 @@ bk_err_t bk_pm_module_vote_power_ctrl(pm_power_module_name_e module,
 
       if (g_phy_submodule_state == 0x0)
         {
+          /* Authority behaviour (pm.c:815-830): the OFF vote only clears
+           * the calibration state so the next ON vote replays
+           * phy_wakeup_reinit().  The authority's sys_drv_module_power_ctrl()
+           * for the PHY domain is a no-op, so the PHY is never gated off.
+           * Gating it off here caused doze-wake degradation after warm
+           * reconnect cycles (SCANU_START_CFM stops arriving). */
+
           g_phy_calibration_state = 0x0;
           spin_unlock_irqrestore(&g_phy_power_lock, flags);
-          return bk7258_phy_power(false) == OK ? BK_OK : BK_FAIL;
+          return BK_OK;
         }
 
       spin_unlock_irqrestore(&g_phy_power_lock, flags);
