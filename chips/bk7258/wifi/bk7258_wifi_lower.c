@@ -319,7 +319,7 @@ void ethernetif_input(int iface, struct pbuf *p, uint8_t dst_idx)
   {
     static uint32_t rx_frame_cnt;
 
-    if ((rx_frame_cnt++ & 0x03) == 0)
+    if ((rx_frame_cnt++ & 0x1f) == 0)
       {
         FAR const uint8_t *eth = (FAR const uint8_t *)p->payload;
         uint16_t ethtype = ((uint16_t)eth[BK7258_ETH_TYPE_OFFSET] << 8) |
