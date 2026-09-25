@@ -263,6 +263,19 @@ UINT32 mr_kmsg_fwd(struct ke_msg *msg)
 	if (msg->id == SCANU_START_CFM)
 		syslog(LOG_INFO, "[BK7258-WIFI] probe: fwd SCANU_START_CFM\n");
 
+	/* Rate-limited all-message entry probe at WARNING level.  If a
+	 * rw_msg_send timeout fires but this probe shows no matching id,
+	 * the MAC never delivered the CFM (closed-lib side).  If the id
+	 * appears here but rw_msg_send still times out, the CFM matcher
+	 * is dropping it. */
+	{
+		static uint32_t fwd_seq;
+
+		if ((fwd_seq++ & 0x0f) == 0)
+			syslog(LOG_WARNING, "[rwnx] kmsgfwd id=%u n=%u\n",
+			       (unsigned)msg->id, (unsigned)fwd_seq);
+	}
+
 	GLOBAL_INT_DISABLE();
 	co_list_push_back(&rw_msg_rx_head, &msg->hdr);
 	GLOBAL_INT_RESTORE();
