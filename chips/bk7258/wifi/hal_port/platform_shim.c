@@ -340,9 +340,18 @@ bk_err_t bk_pm_module_vote_power_ctrl(pm_power_module_name_e module,
 
       if (g_phy_submodule_state == 0x0)
         {
+          /* Authority behaviour (pm.c:815-830): when the last PHY submodule
+           * releases, the OFF vote only clears the calibration state so the
+           * next ON vote replays phy_wakeup_reinit().  The authority's
+           * sys_drv_module_power_ctrl() for the PHY domain is a no-op
+           * (sys_hal.c:200 "else { ;//do something }"), so the PHY is never
+           * actually powered off.  We used to call bk7258_phy_power(false)
+           * here, which really gated the PHY and caused doze-wake degradation
+           * after warm reconnect cycles (SCANU_START_CFM stops arriving). */
+
           g_phy_calibration_state = 0x0;
           spin_unlock_irqrestore(&g_phy_power_lock, flags);
-          return bk7258_phy_power(false) == OK ? BK_OK : BK_FAIL;
+          return BK_OK;
         }
 
       spin_unlock_irqrestore(&g_phy_power_lock, flags);
