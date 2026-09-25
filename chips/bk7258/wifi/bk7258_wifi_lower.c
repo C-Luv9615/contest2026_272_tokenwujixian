@@ -82,6 +82,7 @@
 #define BK7258_ETH_SRC_OFFSET    6u
 #define BK7258_ETH_TYPE_OFFSET  12u
 #define BK7258_ETHTYPE_EAPOL    0x888eu
+#define BK7258_ETHTYPE_ARP      0x0806u
 #endif
 
 /* WPA2 passphrase length bounds (wifi_types.h:67 WIFI_PASSWORD_LEN == 64+1).
@@ -147,6 +148,43 @@ static int bk7258_wifi_rx_enqueue(struct bk7258_wifi_s *priv,
   priv->rx_tail = iob;
   leave_critical_section(flags);
   return 0;
+}
+
+/* Drain the pending RX chain back through the netpkt free path so the RX
+ * quota is returned.  Frames that sit in the queue while the consumer is
+ * paused hold quota hostage: netpkt_alloc() fails silently once the quota is
+ * exhausted, so ARP replies and DHCP offers vanished while EAPOL (split off
+ * before this path in ethernetif_input()) kept working, and no later submit
+ * could reach netdev_lower_rxready() to unstick the consumer -- a permanent
+ * data-plane deadlock after a disconnect/reconnect cycle.  iob_free_chain()
+ * used to be the teardown path and leaked quota the same way. */
+static void bk7258_wifi_rx_flush(struct bk7258_wifi_s *priv)
+{
+  FAR struct iob_s *iob;
+  irqstate_t flags;
+
+  for (; ; )
+    {
+      flags = enter_critical_section();
+      iob = priv->rx_head;
+      if (iob != NULL)
+        {
+          priv->rx_head = iob->io_flink;
+          if (priv->rx_head == NULL)
+            {
+              priv->rx_tail = NULL;
+            }
+          iob->io_flink = NULL;
+        }
+      leave_critical_section(flags);
+
+      if (iob == NULL)
+        {
+          break;
+        }
+
+      netpkt_free(PRIV2LOWER(priv), iob, NETPKT_RX);
+    }
 }
 
 /* Armino's connector callback for an Ethernet frame. The vendor pbuf is
@@ -252,9 +290,40 @@ void ethernetif_input(int iface, struct pbuf *p, uint8_t dst_idx)
     }
 #endif /* CONFIG_BK7258_WIFI_VENDOR_RUNTIME */
 
+  /* Self-echo filter for non-EAPOL frames, transcribed from the authority
+   * (wlanif.c:389-394): frames whose source is our own MAC and whose type is
+   * not ARP are our own transmissions looped back by the MAC and must not
+   * re-enter the stack.  ARP is exempted by the authority so that our own
+   * requests/probes are still visible to arp_in(). */
+
+  if (p->len > BK7258_ETH_HDR_LEN)
+    {
+      FAR const uint8_t *eth = (FAR const uint8_t *)p->payload;
+      uint16_t ethtype = ((uint16_t)eth[BK7258_ETH_TYPE_OFFSET] << 8) |
+                          (uint16_t)eth[BK7258_ETH_TYPE_OFFSET + 1u];
+      uint8_t own_mac[6];
+
+      if (ethtype != BK7258_ETHTYPE_ARP &&
+          bk_wifi_sta_get_mac(own_mac) == BK_OK &&
+          memcmp(own_mac, eth + BK7258_ETH_SRC_OFFSET, sizeof(own_mac)) == 0)
+        {
+          pbuf_free(p);
+          return;
+        }
+    }
+
   vpkt = bk7258_vpkt_alloc(p->tot_len, true);
   if (vpkt == NULL)
     {
+      /* Counted, rate-limited: this drop point is silent by contract and was
+       * the data-plane death signature once the heap/quota ran dry. */
+      static uint32_t vpkt_drop_cnt;
+
+      if ((vpkt_drop_cnt++ & 0x3f) == 0)
+        {
+          syslog(LOG_WARNING, "[BK7258-WIFI] rx drop: vpkt alloc fail "
+                              "(total=%u)\n", (unsigned int)vpkt_drop_cnt);
+        }
       pbuf_free(p);
       return;
     }
@@ -1147,14 +1216,7 @@ int bk7258_wifi_lower_uninit(struct bk7258_wifi_s *priv)
       priv->registered = false;
     }
 
-  while (priv->rx_head != NULL)
-    {
-      FAR struct iob_s *iob = bk7258_wifi_receive(PRIV2LOWER(priv));
-      if (iob != NULL)
-        {
-          iob_free_chain(iob);
-        }
-    }
+  bk7258_wifi_rx_flush(priv);
 
   if (priv->scan_lock_ready)
     {
@@ -1584,6 +1646,17 @@ static bk_err_t bk7258_wifi_sta_connected(void *arg, event_module_t module,
          (unsigned)priv->vif_idx);
 
   bk7258_wifi_lower_carrier_on(priv);
+
+  /* Re-kick the upper half when frames are already queued:
+   * netdev_lower_rxready() is only called on submit, so a consumer that
+   * paused while the carrier was down would never be woken for the queue it
+   * left behind -- and with the RX quota held by those frames, no new submit
+   * could ever fire to wake it. */
+  if (priv->rx_head != NULL)
+    {
+      netdev_lower_rxready(PRIV2LOWER(priv));
+    }
+
   return BK_OK;
 }
 
@@ -1618,6 +1691,11 @@ static bk_err_t bk7258_wifi_sta_disconnected(void *arg, event_module_t module,
          info != NULL ? (int)info->local_generated : -1);
 
   bk7258_wifi_lower_carrier_off(priv);
+
+  /* Stale pre-disconnect frames must not keep holding RX quota across the
+   * link cycle; see bk7258_wifi_rx_flush(). */
+  bk7258_wifi_rx_flush(priv);
+
   return BK_OK;
 }
 #endif
@@ -1835,6 +1913,16 @@ void bk7258_wifi_lower_rx_submit(struct bk7258_wifi_s *priv,
   iob = netpkt_alloc(PRIV2LOWER(priv), NETPKT_RX);
   if (iob == NULL)
     {
+      /* Counted, rate-limited: quota exhaustion was the silent killer here --
+       * ARP replies and DHCP offers vanished while EAPOL (split off earlier)
+       * kept working, producing "4-way green but ping/dhcp dead". */
+      static uint32_t quota_drop_cnt;
+
+      if ((quota_drop_cnt++ & 0x3f) == 0)
+        {
+          syslog(LOG_WARNING, "[BK7258-WIFI] rx drop: netpkt quota exhausted "
+                              "(total=%u)\n", (unsigned int)quota_drop_cnt);
+        }
       bk7258_vpkt_free(vpkt);
       return;
     }
