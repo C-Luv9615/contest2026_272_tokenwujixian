@@ -94,10 +94,14 @@ static FAR void *bk7258_wifi_thread_trampoline(FAR void *arg)
    * uninterruptible queue/semaphore waits that are none, so a live thread
    * could never be deleted and kept consuming its shared queue as a zombie
    * after the lib's own teardown/restart paths "deleted" it (rw_task.c:1149
-   * core thread, wpa_psk_cache.c:496 pskc, sa_station.c reconnect).  Switch
-   * to asynchronous cancellation right before entry; a cancel queued while
-   * still deferred fires at this transition, after the bundle is freed. */
-  pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
+   * core thread, wpa_psk_cache.c:496 pskc, sa_station.c reconnect).
+   *
+   * But PTHREAD_CANCEL_ASYNCHRONOUS kills the thread at any instruction,
+   * including inside a semaphore wait queue.  sched_releasetcb.c:77 then
+   * asserts because the TCB is still linked in the queue (39.log,
+   * task: wapi).  Switch to deferred cancel and rely on the EINTR
+   * cancellation point in bk7258_wifi_osal_sem_wait_raw() below. */
+  pthread_setcanceltype(PTHREAD_CANCEL_DEFERRED, NULL);
 
   entry(entry_arg);
   return NULL;
@@ -518,11 +522,26 @@ static int bk7258_wifi_osal_sem_wait_raw(FAR sem_t *sem,
 
   if (timeout_ms == BK7258_WIFI_WAIT_FOREVER)
     {
-      return nxsem_wait_uninterruptible(sem);
+      while (1)
+        {
+          ret = nxsem_wait(sem);
+          if (ret != -EINTR)
+            {
+              return ret;
+            }
+          pthread_testcancel();
+        }
     }
 
-  ret = nxsem_tickwait_uninterruptible(sem, MSEC2TICK(timeout_ms));
-  return ret < 0 ? ret : 0;
+  while (1)
+    {
+      ret = nxsem_tickwait(sem, MSEC2TICK(timeout_ms));
+      if (ret != -EINTR)
+        {
+          return ret < 0 ? ret : 0;
+        }
+      pthread_testcancel();
+    }
 }
 
 int bk7258_wifi_osal_sem_wait(uintptr_t handle, unsigned int timeout_ms)
