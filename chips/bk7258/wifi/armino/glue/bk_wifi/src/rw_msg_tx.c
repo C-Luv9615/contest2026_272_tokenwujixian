@@ -156,17 +156,28 @@ int rw_msg_send(const void *msg_params, int reqcfm, uint16_t reqid, void *cfm)
 
 failed_or_timeout:
 	if (tx_msg) {
-		/* The confirmation worker and timeout path share ownership through
-		 * rw_msg_tx_head.  Do not free a node RX already extracted until RX
-		 * has completed its locked CFM copy and semaphore post. */
+		/* Ownership: if the node is still in rw_msg_tx_head we own it
+		 * (RX never extracted it).  If RX already extracted it, RX has
+		 * copied the CFM and posted the semaphore; we must not free the
+		 * node or destroy its semaphore because RX's post may still be
+		 * in flight.  This is the UAF the lock-inside variant prevented
+		 * by holding the int-lock through copy+post; matching the
+		 * authority's lock-outside shape requires this guard instead.
+		 *
+		 * Rare leak: if RX extracts and the timeout fires before the
+		 * post lands, the node is orphaned.  Safer than a UAF. */
+		bool owned;
+
 		GLOBAL_INT_DISABLE();
-		if (co_list_find(&rw_msg_tx_head, &tx_msg->hdr))
+		owned = co_list_find(&rw_msg_tx_head, &tx_msg->hdr);
+		if (owned)
 			co_list_extract(&rw_msg_tx_head, &tx_msg->hdr);
 		GLOBAL_INT_RESTORE();
 
-		ret = rtos_deinit_semaphore(&tx_msg->semaphore);
-		BK_ASSERT(0 == ret); /* ASSERT VERIFIED */
-		os_free(tx_msg);
+		if (owned) {
+			rtos_deinit_semaphore(&tx_msg->semaphore);
+			os_free(tx_msg);
+		}
 	}
 
 	return err;
