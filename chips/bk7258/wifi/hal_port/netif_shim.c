@@ -6,10 +6,10 @@
 #include <string.h>
 #include "components/netif.h"
 
-/* arp_send() is in NuttX's internal ARP header.  Declare it directly so
- * this shim can send the Armino ARP keepalive without pulling in the
+/* arp_send_async() is in NuttX's internal ARP header.  Declare it directly
+ * so this shim can send the Armino ARP keepalive without pulling in the
  * full internal net stack headers. */
-extern int arp_send(in_addr_t ipaddr);
+extern int arp_send_async(in_addr_t ipaddr, void (*cb)(void));
 
 /* Declares sta_ip_mode_set() below with the vendor's exact signature, so this
  * shim cannot drift from it.  The header is the port-local copy and pulls in
@@ -48,20 +48,21 @@ void net_begin_send_arp_reply(int is_send_arp, int is_allow_send_req)
 {
   /* Armino's ARP keepalive: the MAC receives a beacon, the closed lib
    * sends MM_INDICATE_SEND_ARP_IND, and the host emits an ARP frame so
-   * the AP sees the STA is alive.  Without this, the AP times out the
-   * STA after ~60 s of silence.
+   * the AP sees the STA is alive.
    *
-   * Armino's lwIP version calls net_begin_send_arp_reply to trigger an
-   * ARP reply/request.  NuttX owns ARP (CONFIG_LWIP=0), so we send the
-   * keepalive through NuttX's arp_send() -- the same contract, different
-   * stack.  is_send_arp=true means "send ARP now"; is_allow_send_req
-   * gates whether ARP requests are permitted (we always allow). */
+   * Armino's lwIP ARP is non-blocking (queues the request, returns).
+   * NuttX arp_send() BLOCKS waiting for a reply -- calling it from the
+   * beacon RX callback path (on_beacon_receive → mm_send_arp_ind →
+   * net_begin_send_arp_reply) blocks the kmsg/core thread and causes
+   * hangs (board: arp_wait failed -110, then ping-end hang).
+   *
+   * Use arp_send_async() to match Armino's non-blocking semantics. */
   if (is_send_arp)
     {
       FAR struct net_driver_s *dev = netdev_findbyname("wlan0");
       if (dev != NULL && dev->d_draddr != 0)
         {
-          (void)arp_send(dev->d_draddr);
+          (void)arp_send_async(dev->d_draddr, NULL);
         }
     }
 
