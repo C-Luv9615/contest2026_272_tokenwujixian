@@ -298,15 +298,18 @@ bk_err_t bk_pm_module_vote_power_ctrl(pm_power_module_name_e module,
 
           flags = spin_lock_irqsave(&g_phy_power_lock);
           g_phy_submodule_state |= bit;
-          /* Sample the pre-write power/calibration state: phy_wakeup_reinit
-           * requires a cold (freshly power-gated) PHY (5d208dd), while the
-           * register write below is the wake signal mac_wakeup_and_pwr_update
-           * observes and must fire on every ON (e774188).  The previous
-           * early-return on warm+calibrated skipped BOTH, which starved the
-           * wake path whenever a reconnect hit a still-powered PHY. */
-          need_reinit = (sys_drv_module_power_state_get(
-                           PM_POWER_MODULE_NAME_PHY) != 0x0 ||
-                         g_phy_calibration_state != 0x1);
+          /* phy_wakeup_reinit needs a cold PHY (5d208dd); the register write
+           * below is the wake signal mac_wakeup_and_pwr_update observes and
+           * must fire on every ON (e774188).  Gate reinit on
+           * g_phy_calibration_state alone -- it is cleared only on
+           * last-release power-off -- and claim it here so that every
+           * submodule vote after the first sees it already set.  The earlier
+           * revision keyed on sys_drv_module_power_state_get as well and only
+           * set calib inside the PHY_RF-excluded reinit block, so a PHY_RF
+           * vote first left calib at 0 and every later vote re-ran
+           * phy_wakeup_reinit (board: 12x in 100 ms, then kwork assert). */
+          need_reinit = (g_phy_calibration_state != 0x1);
+          g_phy_calibration_state = 0x1;
           spin_unlock_irqrestore(&g_phy_power_lock, flags);
 
           /* Always power on: the register write is what mac_wakeup_and_pwr_update
@@ -335,10 +338,6 @@ bk_err_t bk_pm_module_vote_power_ctrl(pm_power_module_name_e module,
                      "[BK7258-WIFI] pmq: phy_wakeup_reinit done\n");
 
               g_phy_reinit = true;
-
-              flags = spin_lock_irqsave(&g_phy_power_lock);
-              g_phy_calibration_state = 0x1;
-              spin_unlock_irqrestore(&g_phy_power_lock, flags);
             }
 
           return BK_OK;
