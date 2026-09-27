@@ -299,23 +299,15 @@ bk_err_t bk_pm_module_vote_power_ctrl(pm_power_module_name_e module,
           flags = spin_lock_irqsave(&g_phy_power_lock);
           g_phy_submodule_state |= bit;
           g_phy_calibration_state = 0x1;
-          /* One-shot init gate: set the flag here (not inside the PHY_RF
-           * exclusion) so a PHY_RF vote first cannot leave it clear and
-           * let every later PHY_WIFI vote replay phy_wakeup_reinit. */
           first_init = !g_phy_reinit;
           g_phy_reinit = true;
           spin_unlock_irqrestore(&g_phy_power_lock, flags);
 
-          /* Always power on: the register write is what mac_wakeup_and_pwr_update
-           * in the closed lib observes to decide the MAC is awake. */
-          if (bk7258_phy_power(true) != OK)
-            {
-              return BK_FAIL;
-            }
+          /* Armino sys_hal.c:135-200: sys_drv_module_power_ctrl for the
+           * PHY domain is a complete no-op (else-branch `;//do something`).
+           * The PHY is never powered off; ON/OFF are bookkeeping only.
+           * Matching that here: no register writes, just state tracking. */
 
-          /* Armino pm.c:627-680: phy_wakeup_reinit runs once at init.
-           * Armino's sys_drv_module_power_ctrl is a no-op so PHY is never
-           * power-gated; reinit runs when calib is first claimed. */
           if (first_init &&
               module != (pm_power_module_name_e)POWER_SUB_MODULE_NAME_PHY_RF)
             {
