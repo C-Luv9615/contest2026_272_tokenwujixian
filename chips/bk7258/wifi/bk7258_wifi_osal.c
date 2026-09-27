@@ -80,16 +80,13 @@ static int bk7258_wifi_native_priority(int priority)
                BK7258_WIFI_BEKEN_PRIO_MAX);
 }
 
-static void bk7258_wifi_thread_bundle_free(void *ptr)
-{
-  kmm_free(ptr);
-}
-
 static FAR void *bk7258_wifi_thread_trampoline(FAR void *arg)
 {
   FAR struct bk7258_wifi_thread_bundle_s *bundle = arg;
   FAR void (*entry)(FAR void *) = bundle->entry;
   FAR void *entry_arg = bundle->arg;
+
+  kmm_free(bundle);
 
   /* Authority rtos_delete_thread() is vTaskDelete(): asynchronous
    * termination at any instruction.  pthread_cancel's default deferred mode
@@ -106,10 +103,7 @@ static FAR void *bk7258_wifi_thread_trampoline(FAR void *arg)
    * cancellation point in bk7258_wifi_osal_sem_wait_raw() below. */
   pthread_setcanceltype(PTHREAD_CANCEL_DEFERRED, NULL);
 
-  /* Free the bundle on every exit path (normal return or cancel). */
-  pthread_cleanup_push(bk7258_wifi_thread_bundle_free, bundle);
   entry(entry_arg);
-  pthread_cleanup_pop(1);
   return NULL;
 }
 
