@@ -186,16 +186,19 @@ int bk7258_wifi_osal_thread_create(uintptr_t *handle, int prio,
 
 int bk7258_wifi_osal_thread_delete(uintptr_t handle)
 {
-  int ret = pthread_cancel((pthread_t)handle);
+  pthread_t tid = (pthread_t)handle;
 
-  /* FreeRTOS treats an already-finished target as successfully deleted.
-   *
-   * No pthread_join here: the vendor calls rtos_delete_thread from the
-   * core thread (rw_task.c:1149) and a join would block that thread,
-   * starving the MAC of message processing and killing every CFM
-   * (face B, 40/41.log).  Deferred cancel + the sem_wait cancellation
-   * point is sufficient to keep the TCB out of wait queues at exit. */
+  /* Armino rtos_pub.c:175-187 checks xTaskIsTaskFinished before vTaskDelete
+   * and skips the delete when the target already exited.  Detached pthreads
+   * free their TCB at exit, so the handle is stale afterwards; a later
+   * pthread_cancel on it can hit a reused PID and cancel the wrong thread
+   * (sched_releasetcb.c:77 TCB double-release). */
+  if (pthread_kill(tid, 0) == ESRCH)
+    {
+      return 0;
+    }
 
+  int ret = pthread_cancel(tid);
   return ret == ESRCH ? 0 : -ret;
 }
 
@@ -271,7 +274,19 @@ static int bk7258_wifi_osal_queue_send_common(
 
           q->count++;
           spin_unlock_irqrestore(&q->lock, flags);
-          nxsem_post(&q->count_sem);
+          /* Armino rtos_pub.c:483-515: ISR uses xQueueSendToBackFromISR +
+           * portEND_SWITCHING_ISR; Task uses xQueueSendToBack (no switch).
+           * sched_lock defers the switch in Task context to match. */
+          if (up_interrupt_context())
+            {
+              nxsem_post(&q->count_sem);
+            }
+          else
+            {
+              sched_lock();
+              nxsem_post(&q->count_sem);
+              sched_unlock();
+            }
           return 0;
         }
 
@@ -564,7 +579,31 @@ int bk7258_wifi_osal_sem_wait(uintptr_t handle, unsigned int timeout_ms)
 
 int bk7258_wifi_osal_sem_post(uintptr_t handle)
 {
-  return nxsem_post((FAR sem_t *)handle);
+  /* Armino rtos_pub.c:316-338 distinguishes ISR from Task:
+   *   ISR:  xSemaphoreGiveFromISR + portEND_SWITCHING_ISR  (immediate switch)
+   *   Task: xSemaphoreGive                                (no switch, marks ready)
+   *
+   * NuttX nxsem_post() from Task calls nxsched_switch → up_switch_context →
+   * sys_call0(SYS_switch_context) = immediate SVC switch.  If the caller is
+   * inside GLOBAL_INT_DISABLE (enter_critical_section), the SVC handler's
+   * break_critical_section() releases the lock prematurely, breaking the
+   * critical-section semantics the vendor's GLOBAL_INT_DISABLE/RESTORE pairs
+   * depend on.  sched_lock/sched_unlock defers the switch to the unlock,
+   * matching FreeRTOS xSemaphoreGive's deferred-switch contract. */
+  if (up_interrupt_context())
+    {
+      /* nxsem_post from ISR: arm_doirq switches at IRQ exit. Equivalent
+       * to portEND_SWITCHING_ISR. */
+      return nxsem_post((FAR sem_t *)handle);
+    }
+  else
+    {
+      int ret;
+      sched_lock();
+      ret = nxsem_post((FAR sem_t *)handle);
+      sched_unlock();
+      return ret;
+    }
 }
 
 int bk7258_wifi_osal_sem_delete(uintptr_t handle)
