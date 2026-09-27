@@ -913,13 +913,13 @@ static void core_thread_main(void *arg)
 
 			ke_evt_core_scheduler();
 		}
-		/* mac_sleep_check() sends the MAC into doze.  After a
-		 * disconnect/reconnect cycle mac_wakeup_and_pwr_update fails to
-		 * wake it and every subsequent CFM (SCANU_START_CFM,
-		 * ME_STA_DEL_CFM, MM_SET_VIF_STATE_CFM) is lost.  Skipping the
-		 * doze entry keeps the MAC awake; the authority also calls this
-		 * but its FreeRTOS scheduling keeps the wake path alive. */
-		/* mac_sleep_check(); */
+		/* mac_sleep_check() sends the MAC into doze.  The wake path is
+		 * kept alive by the PHY ON register write (platform_shim.c
+		 * always writes BK7258_SYS_POWER_WAKEUP) that
+		 * mac_wakeup_and_pwr_update observes.  The previous skip was a
+		 * diagnostic workaround for the warm-PHY early-return that
+		 * starved that write. */
+		mac_sleep_check();
 	}
 }
 
@@ -1254,18 +1254,17 @@ int rwnx_intf_init(void)
 		 *                        upload (recv_cnt>0 upload_cnt=0)
 		 *   init + set(false) -- stack overflow in the connect path
 		 *   runtime set(false)-- same as STA_PS=0 for the scan
-		 * The remaining known defect is doze-wake degradation after warm
-		 * cycles (SCANU_START_CFM stops arriving); everything else --
-		 * stacks, event model, sta latch, log pressure, rlk clear --
-		 * is fixed around it. */
+		 * Doze-wake root cause was the PM-vote early-return in
+		 * platform_shim.c that skipped the PHY ON register write on a
+		 * warm+calibrated PHY, starving the wake signal
+		 * mac_wakeup_and_pwr_update observes.  Fixed 2026-09-26. */
 		rwnxl_sleep();
 		ps_env_set_ps_on(true);
-		/* Command-level PS lets the MAC doze between commands.  On NuttX
-		 * the wake path (mac_wakeup_and_pwr_update) does not recover
-		 * from that doze, so the second EAPOL after a reconnect loses
-		 * its TX-complete (face B, 38.log).  Disable command PS so the
-		 * MAC stays awake between commands. */
-		ps_env_set_cmd_ps_on(false);
+		/* Authority trio cell (a): the only board-verified working PS
+		 * configuration.  cmd_ps lets the MAC doze between commands;
+		 * the wake path is the PHY ON register write that
+		 * mac_wakeup_and_pwr_update observes (platform_shim.c). */
+		ps_env_set_cmd_ps_on(true);
 	}
 #endif
 

@@ -294,15 +294,20 @@ bk_err_t bk_pm_module_vote_power_ctrl(pm_power_module_name_e module,
 
       if (enable)
         {
+          bool need_reinit;
+
           flags = spin_lock_irqsave(&g_phy_power_lock);
           g_phy_submodule_state |= bit;
+          /* Sample the pre-write power/calibration state: phy_wakeup_reinit
+           * requires a cold (freshly power-gated) PHY (5d208dd), while the
+           * register write below is the wake signal mac_wakeup_and_pwr_update
+           * observes and must fire on every ON (e774188).  The previous
+           * early-return on warm+calibrated skipped BOTH, which starved the
+           * wake path whenever a reconnect hit a still-powered PHY. */
+          need_reinit = (sys_drv_module_power_state_get(
+                           PM_POWER_MODULE_NAME_PHY) != 0x0 ||
+                         g_phy_calibration_state != 0x1);
           spin_unlock_irqrestore(&g_phy_power_lock, flags);
-
-          if (sys_drv_module_power_state_get(PM_POWER_MODULE_NAME_PHY) == 0x0 &&
-              g_phy_calibration_state == 0x1)
-            {
-              return BK_OK;
-            }
 
           /* Always power on: the register write is what mac_wakeup_and_pwr_update
            * in the closed lib observes to decide the MAC is awake.  Skipping it
@@ -313,7 +318,7 @@ bk_err_t bk_pm_module_vote_power_ctrl(pm_power_module_name_e module,
               return BK_FAIL;
             }
 
-          if (sys_drv_module_power_state_get(PM_POWER_MODULE_NAME_PHY) == 0x0 &&
+          if (need_reinit &&
               module != (pm_power_module_name_e)POWER_SUB_MODULE_NAME_PHY_RF)
             {
               extern void phy_wakeup_reinit(uint8_t is_wifi);
@@ -349,9 +354,9 @@ bk_err_t bk_pm_module_vote_power_ctrl(pm_power_module_name_e module,
            * MAC's ke_msg path stall -- rw_msg_send timeout for 39 x3, 20s
            * to disconnect, and kmsgfwd shows zero messages during the
            * window.  Powering off resets the MAC so the next connect
-           * starts clean.  The ON path still skips the register write on
-           * a warm PHY (the 5d208dd regression), so phy_wakeup_reinit
-           * only ever runs after a real power-on. */
+           * starts clean.  The ON path always writes the wake-signal
+           * register (e774188) and only runs phy_wakeup_reinit after a
+           * real power-on (5d208dd). */
 
           g_phy_calibration_state = 0x0;
           spin_unlock_irqrestore(&g_phy_power_lock, flags);
