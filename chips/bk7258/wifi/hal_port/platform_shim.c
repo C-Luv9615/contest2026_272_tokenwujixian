@@ -294,21 +294,8 @@ bk_err_t bk_pm_module_vote_power_ctrl(pm_power_module_name_e module,
 
       if (enable)
         {
-          bool need_reinit;
-
           flags = spin_lock_irqsave(&g_phy_power_lock);
           g_phy_submodule_state |= bit;
-          /* phy_wakeup_reinit needs a cold PHY (5d208dd); the register write
-           * below is the wake signal mac_wakeup_and_pwr_update observes and
-           * must fire on every ON (e774188).  Gate reinit on
-           * g_phy_calibration_state alone -- it is cleared only on
-           * last-release power-off -- and claim it here so that every
-           * submodule vote after the first sees it already set.  The earlier
-           * revision keyed on sys_drv_module_power_state_get as well and only
-           * set calib inside the PHY_RF-excluded reinit block, so a PHY_RF
-           * vote first left calib at 0 and every later vote re-ran
-           * phy_wakeup_reinit (board: 12x in 100 ms, then kwork assert). */
-          need_reinit = (g_phy_calibration_state != 0x1);
           g_phy_calibration_state = 0x1;
           spin_unlock_irqrestore(&g_phy_power_lock, flags);
 
@@ -321,7 +308,13 @@ bk_err_t bk_pm_module_vote_power_ctrl(pm_power_module_name_e module,
               return BK_FAIL;
             }
 
-          if (need_reinit &&
+          /* Armino pm.c:627-680: phy_wakeup_reinit runs only when
+           * calib was 0 (first ON after init or after OFF bookkeeping).
+           * Armino's sys_drv_module_power_ctrl is a no-op so PHY is
+           * never actually power-gated; reinit runs once at init.
+           * Our port power-gates PHY, so we use a one-shot flag:
+           * reinit runs exactly once at init, never on reconnect. */
+          if (!g_phy_reinit &&
               module != (pm_power_module_name_e)POWER_SUB_MODULE_NAME_PHY_RF)
             {
               extern void phy_wakeup_reinit(uint8_t is_wifi);
@@ -343,25 +336,17 @@ bk_err_t bk_pm_module_vote_power_ctrl(pm_power_module_name_e module,
           return BK_OK;
         }
 
+      /* Armino pm.c:814-828: OFF only does bookkeeping (clear calib,
+       * update on/off modules).  sys_drv_module_power_ctrl is a no-op
+       * so the PHY is never actually powered off.  Matching that here:
+       * keep the PHY powered across disconnect, just clear the calib
+       * flag so the next ON can decide whether to reinit. */
       flags = spin_lock_irqsave(&g_phy_power_lock);
       g_phy_submodule_state &= ~bit;
-
       if (g_phy_submodule_state == 0x0)
         {
-          /* Restore the PHY power-off on last-release.  Board evidence
-           * (25.log): keeping the PHY powered across disconnect made the
-           * MAC's ke_msg path stall -- rw_msg_send timeout for 39 x3, 20s
-           * to disconnect, and kmsgfwd shows zero messages during the
-           * window.  Powering off resets the MAC so the next connect
-           * starts clean.  The ON path always writes the wake-signal
-           * register (e774188) and only runs phy_wakeup_reinit after a
-           * real power-on (5d208dd). */
-
           g_phy_calibration_state = 0x0;
-          spin_unlock_irqrestore(&g_phy_power_lock, flags);
-          return bk7258_phy_power(false) == OK ? BK_OK : BK_FAIL;
         }
-
       spin_unlock_irqrestore(&g_phy_power_lock, flags);
       return BK_OK;
     }
