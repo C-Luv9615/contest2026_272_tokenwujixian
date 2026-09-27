@@ -129,7 +129,13 @@ int rw_msg_send(const void *msg_params, int reqcfm, uint16_t reqid, void *cfm)
 	}
 	if (kNoErr != ret) {
 		RWNX_LOGD("%s failed send %d\n", __FUNCTION__, msg->id);
-		os_free((void *)msg_params);
+		/* ke_msg_free(msg), not os_free(msg_params): msg_params points at
+		 * msg->param, i.e. the middle of the allocation.  Freeing from the
+		 * middle corrupts the NuttX heap (mm_free.c:196 assert observed).
+		 * Authority calls os_free(msg_params) here, but that is safe only
+		 * under FreeRTOS heap_4's pool allocator which has no per-node
+		 * metadata to trash. */
+		ke_msg_free(msg);
 		err = RWNX_ERR_IOCTL_SEND;
 		goto failed_or_timeout;
 	} else if (reqcfm) {
