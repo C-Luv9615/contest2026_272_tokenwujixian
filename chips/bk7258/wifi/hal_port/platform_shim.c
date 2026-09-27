@@ -73,6 +73,10 @@ static pm_lpo_src_e bk7258_wifi_lpo_src_read(void)
  * CONFIG_DEFAULT_LPO_SRC.
  */
 
+extern void hp_sys_hal_clk_pwr_ctrl(uint32_t dev, bool power_up);
+extern void sys_drv_module_power_ctrl(power_module_name_t module,
+                                      power_module_state_t power_state);
+
 bk_err_t bk_pm_clock_ctrl(pm_dev_clk_e module, pm_dev_clk_pwr_e clock_state)
 {
   bool enable;
@@ -117,7 +121,17 @@ bk_err_t bk_pm_clock_ctrl(pm_dev_clk_e module, pm_dev_clk_pwr_e clock_state)
       }
   }
 
-  hp_sys_hal_clk_pwr_ctrl((uint32_t)module, enable);
+  /* Armino bk_pm_clock_ctrl (pm.c:2287-2294) wraps sys_drv_dev_clk_pwr_up
+   * in GLOBAL_INT_DISABLE/RESTORE, and sys_drv_dev_clk_pwr_up itself
+   * (sys_clock_driver.c:20-27) wraps sys_hal_clk_pwr_ctrl in
+   * sys_drv_enter_critical/exit_critical.  The register operation is a
+   * read-modify-write, so both layers exist to make it atomic.
+   * We match the effective critical section: interrupts off around the RMW. */
+  {
+    irqstate_t flags = enter_critical_section();
+    hp_sys_hal_clk_pwr_ctrl((uint32_t)module, enable);
+    leave_critical_section(flags);
+  }
   return BK_OK;
 }
 
