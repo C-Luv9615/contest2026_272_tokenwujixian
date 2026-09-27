@@ -159,6 +159,8 @@ extern int32_t sys_drv_module_power_state_get(power_module_name_t module);
 
 static uint32_t g_phy_submodule_state;
 static uint32_t g_phy_calibration_state;
+static uint32_t g_phy_off_modules;
+static uint32_t g_phy_on_modules;
 static spinlock_t g_phy_power_lock = SP_UNLOCKED;
 static uint32_t g_bakp_submodule_state;
 static spinlock_t g_bakp_power_lock = SP_UNLOCKED;
@@ -294,50 +296,82 @@ bk_err_t bk_pm_module_vote_power_ctrl(pm_power_module_name_e module,
 
       if (enable)
         {
-          bool first_init;
-
+          /* Armino pm.c:627-680, verbatim logic:
+           * 1. Set submodule bit
+           * 2. Idempotent early return if already powered + calibrated
+           * 3. sys_drv_module_power_ctrl (no-op on BK7258)
+           * 4. Check state_get (always 0 for PHY)
+           * 5. phy_wakeup_reinit for non-RF modules
+           * 6. Update calib + on/off modules */
           flags = spin_lock_irqsave(&g_phy_power_lock);
           g_phy_submodule_state |= bit;
-          g_phy_calibration_state = 0x1;
-          first_init = !g_phy_reinit;
-          g_phy_reinit = true;
           spin_unlock_irqrestore(&g_phy_power_lock, flags);
 
-          /* Armino sys_hal.c:135-200: sys_drv_module_power_ctrl for the
-           * PHY domain is a complete no-op (else-branch `;//do something`).
-           * The PHY is never powered off; ON/OFF are bookkeeping only.
-           * Matching that here: no register writes, just state tracking. */
-
-          if (first_init &&
-              module != (pm_power_module_name_e)POWER_SUB_MODULE_NAME_PHY_RF)
+          if ((0x0 == sys_drv_module_power_state_get(PM_POWER_MODULE_NAME_PHY)) &&
+              (g_phy_calibration_state == 0x1))
             {
-              extern void phy_wakeup_reinit(uint8_t is_wifi);
+              /* Already powered and calibrated -- idempotent */
+              return BK_OK;
+            }
 
-              syslog(LOG_INFO,
-                     "[BK7258-WIFI] pmq: phy_wakeup_reinit(is_wifi=%d) enter\n",
-                     module ==
-                     (pm_power_module_name_e)POWER_SUB_MODULE_NAME_PHY_WIFI);
+          sys_drv_module_power_ctrl(PM_POWER_MODULE_NAME_PHY,
+                                    PM_POWER_MODULE_STATE_ON);
 
-              phy_wakeup_reinit(module ==
-                (pm_power_module_name_e)POWER_SUB_MODULE_NAME_PHY_WIFI ? 1 : 0);
+          if (0x0 == sys_drv_module_power_state_get(PM_POWER_MODULE_NAME_PHY))
+            {
+              if (module != (pm_power_module_name_e)POWER_SUB_MODULE_NAME_PHY_RF)
+                {
+                  extern void phy_wakeup_reinit(uint8_t is_wifi);
 
-              syslog(LOG_INFO,
-                     "[BK7258-WIFI] pmq: phy_wakeup_reinit done\n");
+                  syslog(LOG_INFO,
+                         "[BK7258-WIFI] pmq: phy_wakeup_reinit(is_wifi=%d) enter\n",
+                         module ==
+                         (pm_power_module_name_e)POWER_SUB_MODULE_NAME_PHY_WIFI);
+
+                  phy_wakeup_reinit(module ==
+                    (pm_power_module_name_e)POWER_SUB_MODULE_NAME_PHY_WIFI ? 1 : 0);
+
+                  syslog(LOG_INFO,
+                         "[BK7258-WIFI] pmq: phy_wakeup_reinit done\n");
+
+                  g_phy_reinit = true;
+
+                  flags = spin_lock_irqsave(&g_phy_power_lock);
+                  g_phy_calibration_state = 0x1;
+                  g_phy_off_modules &= ~(UINT32_C(1) << PM_POWER_MODULE_NAME_PHY);
+                  g_phy_on_modules |= (UINT32_C(1) << PM_POWER_MODULE_NAME_PHY);
+                  spin_unlock_irqrestore(&g_phy_power_lock, flags);
+                }
+              else
+                {
+                  flags = spin_lock_irqsave(&g_phy_power_lock);
+                  g_phy_off_modules &= ~(UINT32_C(1) << PM_POWER_MODULE_NAME_PHY);
+                  g_phy_on_modules |= (UINT32_C(1) << PM_POWER_MODULE_NAME_PHY);
+                  spin_unlock_irqrestore(&g_phy_power_lock, flags);
+                }
+            }
+          else
+            {
+              return BK_FAIL;
             }
 
           return BK_OK;
         }
 
-      /* Armino pm.c:814-828: OFF only does bookkeeping (clear calib,
-       * update on/off modules).  sys_drv_module_power_ctrl is a no-op
-       * so the PHY is never actually powered off.  Matching that here:
-       * keep the PHY powered across disconnect, just clear the calib
-       * flag so the next ON can decide whether to reinit. */
+      /* Armino pm.c:814-828, verbatim logic:
+       * 1. Clear submodule bit
+       * 2. If all released: sys_drv_module_power_ctrl (no-op), clear calib,
+       *    update on/off modules */
       flags = spin_lock_irqsave(&g_phy_power_lock);
       g_phy_submodule_state &= ~bit;
+
       if (g_phy_submodule_state == 0x0)
         {
+          sys_drv_module_power_ctrl(PM_POWER_MODULE_NAME_PHY,
+                                    PM_POWER_MODULE_STATE_OFF);
           g_phy_calibration_state = 0x0;
+          g_phy_off_modules |= (UINT32_C(1) << PM_POWER_MODULE_NAME_PHY);
+          g_phy_on_modules &= ~(UINT32_C(1) << PM_POWER_MODULE_NAME_PHY);
         }
       spin_unlock_irqrestore(&g_phy_power_lock, flags);
       return BK_OK;

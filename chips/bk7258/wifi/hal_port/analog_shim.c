@@ -200,55 +200,16 @@ void sys_drv_set_ana_reg12_dpfms(uint32_t value)
 void sys_drv_module_power_ctrl(power_module_name_t module,
                                power_module_state_t power_state)
 {
-  bool enable;
-
-  /* This is the raw system-driver callback in Armino's RF function table;
-   * its PM-vote callback is a separate table slot.  Do not fold the two
-   * layers together: a PHY library raw transition must not change PM's
-   * PHY_WIFI reference/initial-calibration state machine.
+  /* Armino sys_hal.c:135-200: sys_hal_module_power_ctrl for Wi-Fi domains
+   * (WIFIP_MAC, WIFI_PHY, OFDM) falls through to `else { ;//do something }`
+   * -- a complete no-op.  The PHY is never power-gated on BK7258.
+   * Matching that exactly: no register writes for Wi-Fi domains.
    *
-   * Armino's BK7258 sys_drv_module_power_ctrl() enters a critical section
-   * then dispatches to sys_hal_module_power_ctrl().  The three Wi-Fi-domain
-   * cases below are the locally supported equivalent gates; each gate does
-   * the register RMW and readback under the same critical-section contract.
-   */
+   * MEM/CPU1/CPU2/TCM1 domains have real implementations in Armino; those
+   * are not on the Wi-Fi path and are not ported here. */
 
-  if (power_state == POWER_MODULE_STATE_ON)
-    {
-      enable = true;
-    }
-  else if (power_state == POWER_MODULE_STATE_OFF)
-    {
-      enable = false;
-    }
-  else
-    {
-      ANALOG_UNPORTED("sys_drv_module_power_ctrl invalid state");
-      return;
-    }
-
-  switch (module)
-    {
-      case POWER_MODULE_NAME_WIFIP_MAC:
-        (void)bk7258_mac_power(enable);
-        break;
-
-      case POWER_MODULE_NAME_WIFI_PHY:
-        (void)bk7258_phy_power(enable);
-        break;
-
-      case POWER_MODULE_NAME_OFDM:
-        (void)bk7258_ofdm_power(enable);
-        break;
-
-      default:
-        /* The RF table exposes the complete system-driver ABI, but this
-         * target port only has verified raw gates for the Wi-Fi domains.
-         * Retain an observable failure instead of silently voting a PM
-         * module or pretending an unrelated domain was controlled. */
-        ANALOG_UNPORTED("sys_drv_module_power_ctrl unsupported module");
-        break;
-    }
+  (void)module;
+  (void)power_state;
 }
 
 /* sys_hal_enter_low_analog()/sys_hal_exit_low_analog() are no longer defined
