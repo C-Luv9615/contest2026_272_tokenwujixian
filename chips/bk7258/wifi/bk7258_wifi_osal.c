@@ -80,13 +80,16 @@ static int bk7258_wifi_native_priority(int priority)
                BK7258_WIFI_BEKEN_PRIO_MAX);
 }
 
+static void bk7258_wifi_thread_bundle_free(void *ptr)
+{
+  kmm_free(ptr);
+}
+
 static FAR void *bk7258_wifi_thread_trampoline(FAR void *arg)
 {
   FAR struct bk7258_wifi_thread_bundle_s *bundle = arg;
   FAR void (*entry)(FAR void *) = bundle->entry;
   FAR void *entry_arg = bundle->arg;
-
-  kmm_free(bundle);
 
   /* Authority rtos_delete_thread() is vTaskDelete(): asynchronous
    * termination at any instruction.  pthread_cancel's default deferred mode
@@ -103,8 +106,23 @@ static FAR void *bk7258_wifi_thread_trampoline(FAR void *arg)
    * cancellation point in bk7258_wifi_osal_sem_wait_raw() below. */
   pthread_setcanceltype(PTHREAD_CANCEL_DEFERRED, NULL);
 
+  /* Free the bundle on every exit path (normal return or cancel). */
+  pthread_cleanup_push(bk7258_wifi_thread_bundle_free, bundle);
   entry(entry_arg);
+  pthread_cleanup_pop(1);
   return NULL;
+}
+
+/* Armino's rtos_delete_thread checks xTaskIsTaskFinished before
+ * vTaskDelete and skips the delete when the target already exited.
+ * Detached pthreads free their TCB at exit, so the handle is stale
+ * afterwards; a later pthread_cancel on it can hit a reused PID and
+ * cancel the wrong thread (sched_releasetcb.c:77 TCB double-release
+ * during reconnect).  pthread_kill(sig=0) is the non-destructive
+ * liveness probe: ESRCH means the thread is gone. */
+static bool bk7258_wifi_thread_alive(pthread_t tid)
+{
+  return pthread_kill(tid, 0) != ESRCH;
 }
 
 int bk7258_wifi_osal_thread_create(uintptr_t *handle, int prio,
@@ -179,7 +197,20 @@ int bk7258_wifi_osal_thread_create(uintptr_t *handle, int prio,
 
 int bk7258_wifi_osal_thread_delete(uintptr_t handle)
 {
-  int ret = pthread_cancel((pthread_t)handle);
+  pthread_t tid = (pthread_t)handle;
+
+  /* Armino's rtos_delete_thread checks xTaskIsTaskFinished before
+   * vTaskDelete and skips the delete when the target already exited.
+   * Detached pthreads free their TCB at exit, so the handle is stale
+   * afterwards; a later pthread_cancel on it can hit a reused PID and
+   * cancel the wrong thread (sched_releasetcb.c:77 TCB double-release
+   * during reconnect). */
+  if (!bk7258_wifi_thread_alive(tid))
+    {
+      return 0;
+    }
+
+  int ret = pthread_cancel(tid);
 
   /* FreeRTOS treats an already-finished target as successfully deleted.
    *
