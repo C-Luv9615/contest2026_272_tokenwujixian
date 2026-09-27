@@ -216,6 +216,26 @@
 #define CONFIG_RWNX_TD              1
 #define CONFIG_RWNX_SW_TXQ          1
 #define CONFIG_SPECIAL_TX_TYPE      1
+/* ALIGNED 2026-09-27: beken_genie bk7258/config/sdkconfig.h has all four of
+ * these at 1 and every gate below is live in a vendored source this port
+ * compiles.  Leaving them undefined silently compiled the wrong TX/RX arms:
+ *
+ *   RWNX_QOS_MSDU: rw_msdu.c:499-548 -- without it the TX path hard-codes
+ *     tid=rwm_get_tid() and queue_idx=AC_VI instead of the per-STA QoS
+ *     mapping the LMAC frame-exchange chain validates (the
+ *     txl_frame_exchange_chain:2083 assert on board).
+ *   PMF: rw_msg_rx.c:1626 drops RXU_MGT_IND entirely; rwnx_config.h:191
+ *     fails to define CFG_MFP so the MAC capability is not advertised.
+ *   MAC_SFRAME_SOFTWARE_RETRY: rwnx_tx.c:194 arms the software-retry
+ *     classifier the closed lib's TX-complete path expects.
+ *   BK_MEM_DYNA_APPLY_EN: rwnx_config.h:1191.
+ *   FAST_CONNECT_INFO_ENC_METHOD: wifi_v2.c, the fast_connect info
+ *     encode/decode path. */
+#define CONFIG_RWNX_QOS_MSDU        1
+#define CONFIG_PMF                  1
+#define CONFIG_MAC_SFRAME_SOFTWARE_RETRY 1
+#define CONFIG_BK_MEM_DYNA_APPLY_EN 1
+#define CONFIG_FAST_CONNECT_INFO_ENC_METHOD 1
 #define CONFIG_WIFI_MAC_SUPPORT_STAS_MAX_NUM 2
 #define CONFIG_WIFI_KMSG_TASK_PRIO  3
 #define CONFIG_WIFI_KMSG_TASK_STACK_SIZE 4096
