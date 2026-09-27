@@ -294,27 +294,29 @@ bk_err_t bk_pm_module_vote_power_ctrl(pm_power_module_name_e module,
 
       if (enable)
         {
+          bool first_init;
+
           flags = spin_lock_irqsave(&g_phy_power_lock);
           g_phy_submodule_state |= bit;
           g_phy_calibration_state = 0x1;
+          /* One-shot init gate: set the flag here (not inside the PHY_RF
+           * exclusion) so a PHY_RF vote first cannot leave it clear and
+           * let every later PHY_WIFI vote replay phy_wakeup_reinit. */
+          first_init = !g_phy_reinit;
+          g_phy_reinit = true;
           spin_unlock_irqrestore(&g_phy_power_lock, flags);
 
           /* Always power on: the register write is what mac_wakeup_and_pwr_update
-           * in the closed lib observes to decide the MAC is awake.  Skipping it
-           * on a warm PHY (336fa61) left the MAC in doze so SCANU_START_CFM
-           * never came back on reconnect (32.log). */
+           * in the closed lib observes to decide the MAC is awake. */
           if (bk7258_phy_power(true) != OK)
             {
               return BK_FAIL;
             }
 
-          /* Armino pm.c:627-680: phy_wakeup_reinit runs only when
-           * calib was 0 (first ON after init or after OFF bookkeeping).
-           * Armino's sys_drv_module_power_ctrl is a no-op so PHY is
-           * never actually power-gated; reinit runs once at init.
-           * Our port power-gates PHY, so we use a one-shot flag:
-           * reinit runs exactly once at init, never on reconnect. */
-          if (!g_phy_reinit &&
+          /* Armino pm.c:627-680: phy_wakeup_reinit runs once at init.
+           * Armino's sys_drv_module_power_ctrl is a no-op so PHY is never
+           * power-gated; reinit runs when calib is first claimed. */
+          if (first_init &&
               module != (pm_power_module_name_e)POWER_SUB_MODULE_NAME_PHY_RF)
             {
               extern void phy_wakeup_reinit(uint8_t is_wifi);
@@ -329,8 +331,6 @@ bk_err_t bk_pm_module_vote_power_ctrl(pm_power_module_name_e module,
 
               syslog(LOG_INFO,
                      "[BK7258-WIFI] pmq: phy_wakeup_reinit done\n");
-
-              g_phy_reinit = true;
             }
 
           return BK_OK;
