@@ -23,6 +23,13 @@ Wi-Fi-enabled profile links `libwifi.a` + `libbk_phy.a` (+ optional
 `libbk_phy_info.a`); `libcom_phy.a` is the Bluetooth-only branch and must not
 be linked unconditionally alongside `libbk_phy.a`.
 
+**2026-09-27: wrong-library bug found and fixed.** `prebuilts/libbk_phy.a` was
+`libcom_phy.a` (sha `208aa99e...`), not `libbk_phy.a` (sha `fb3e8f6a...`).
+Symptom: `nv_init` was a 2-byte no-op (`bx lr`) instead of the real 20-byte
+PHY register init, so `bk7236_cal.c.obj` called a no-op during calibration.
+Fix: replace with the correct `libbk_phy.a` from the authority tree. Verify
+by `nm -S nv_parameters.c.obj | grep nv_init` → size 0x14 (not 0x2).
+
 ## 2. Undefined symbol classification (`libwifi.a`)
 
 `nm -u` reports **899** undefined symbols. Classification:
