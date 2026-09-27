@@ -109,15 +109,10 @@ static FAR void *bk7258_wifi_thread_trampoline(FAR void *arg)
 
 /* Armino's rtos_delete_thread checks xTaskIsTaskFinished before
  * vTaskDelete and skips the delete when the target already exited.
- * Detached pthreads free their TCB at exit, so the handle is stale
- * afterwards; a later pthread_cancel on it can hit a reused PID and
- * cancel the wrong thread (sched_releasetcb.c:77 TCB double-release
- * during reconnect).  pthread_kill(sig=0) is the non-destructive
- * liveness probe: ESRCH means the thread is gone. */
-static bool bk7258_wifi_thread_alive(pthread_t tid)
-{
-  return pthread_kill(tid, 0) != ESRCH;
-}
+ * Equivalent: pthread_kill(sig=0) returns ESRCH for a dead thread.
+ * NOT yet applied -- the 8501818 liveness-check experiment caused a
+ * first-connect ping regression (1/3 loss) and was reverted.  Re-enable
+ * only after the doze-wake baseline is stable. */
 
 int bk7258_wifi_osal_thread_create(uintptr_t *handle, int prio,
                                    const char *name,
@@ -191,20 +186,7 @@ int bk7258_wifi_osal_thread_create(uintptr_t *handle, int prio,
 
 int bk7258_wifi_osal_thread_delete(uintptr_t handle)
 {
-  pthread_t tid = (pthread_t)handle;
-
-  /* Armino's rtos_delete_thread checks xTaskIsTaskFinished before
-   * vTaskDelete and skips the delete when the target already exited.
-   * Detached pthreads free their TCB at exit, so the handle is stale
-   * afterwards; a later pthread_cancel on it can hit a reused PID and
-   * cancel the wrong thread (sched_releasetcb.c:77 TCB double-release
-   * during reconnect). */
-  if (!bk7258_wifi_thread_alive(tid))
-    {
-      return 0;
-    }
-
-  int ret = pthread_cancel(tid);
+  int ret = pthread_cancel((pthread_t)handle);
 
   /* FreeRTOS treats an already-finished target as successfully deleted.
    *
