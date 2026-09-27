@@ -1,9 +1,15 @@
 #include <nuttx/config.h>
 #include <nuttx/net/netdev.h>
+#include <nuttx/net/net.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <string.h>
 #include "components/netif.h"
+
+/* arp_send() is in NuttX's internal ARP header.  Declare it directly so
+ * this shim can send the Armino ARP keepalive without pulling in the
+ * full internal net stack headers. */
+extern int arp_send(in_addr_t ipaddr);
 
 /* Declares sta_ip_mode_set() below with the vendor's exact signature, so this
  * shim cannot drift from it.  The header is the port-local copy and pulls in
@@ -40,11 +46,25 @@ bk_err_t bk_netif_static_ip(netif_ip4_config_t config)
 
 void net_begin_send_arp_reply(int is_send_arp, int is_allow_send_req)
 {
-  /* The vendor indication asks lwIP to emit an active ARP reply. NuttX owns
-   * ARP and this S1/S2 port has no validated carrier/TX/IP lifecycle yet, so
-   * the optimization is deliberately disabled rather than synthesizing a
-   * packet behind the network stack's back. */
-  (void)is_send_arp;
+  /* Armino's ARP keepalive: the MAC receives a beacon, the closed lib
+   * sends MM_INDICATE_SEND_ARP_IND, and the host emits an ARP frame so
+   * the AP sees the STA is alive.  Without this, the AP times out the
+   * STA after ~60 s of silence.
+   *
+   * Armino's lwIP version calls net_begin_send_arp_reply to trigger an
+   * ARP reply/request.  NuttX owns ARP (CONFIG_LWIP=0), so we send the
+   * keepalive through NuttX's arp_send() -- the same contract, different
+   * stack.  is_send_arp=true means "send ARP now"; is_allow_send_req
+   * gates whether ARP requests are permitted (we always allow). */
+  if (is_send_arp)
+    {
+      FAR struct net_driver_s *dev = netdev_findbyname("wlan0");
+      if (dev != NULL && dev->d_draddr != 0)
+        {
+          (void)arp_send(dev->d_draddr);
+        }
+    }
+
   (void)is_allow_send_req;
 }
 
