@@ -1639,16 +1639,6 @@ void rwnx_handle_recv_msg(struct ke_msg *rx_msg)
 
 		RWNX_LOGV("disconnect\r\n");
 
-		/* The rlk module sets wifi_rlk_start on connect through the
-		 * adapter table and nothing ever cleared it on link-down, so the
-		 * next SCANU_START_CFM was diverted to
-		 * rwnx_wifi_rlk_trigger_scan_process() (a no-op when its cfm
-		 * callback is unregistered) instead of wpa_ctrl_event
-		 * (WPA_CTRL_EVENT_SCAN_RESULTS).  The supplicant then never saw
-		 * the scan complete and every reconnect stalled.  Link-down must
-		 * return the flag to 0. */
-		rwnx_set_wifi_rlk_start(0);
-
 #if defined(CONFIG_IEEE80211R) || defined(CONFIG_WNM)
 				if (!ind->reassoc)
 #endif
