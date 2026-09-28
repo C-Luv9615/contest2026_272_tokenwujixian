@@ -1,11 +1,18 @@
 /*
- * Read-only calibration facade for vendor PHY public APIs.
+ * DISABLED 2026-09-28: these no-op stubs overrode the real implementations
+ * in libbk_phy.a (manual_cal_bk7236.c.obj).  The real manual_cal_get_cali_xtal
+ * returns g_xtal (a BSS variable updated at runtime by calibration), while
+ * this stub returned g_default_xtal (a compile-time constant 0x3a).  The real
+ * manual_cal_get_tx_power/set_tx_power have 120/140-byte implementations that
+ * perform actual TX power calibration.  Commenting out these stubs lets the
+ * libbk_phy.a implementations link through.
  *
- * Per-unit OTP/Flash calibration storage is not adapted at this stage. Reads
- * and writes therefore report unsupported.  The BK7258 board vendor-cal table
- * compiled into this image does provide the matching factory crystal trim,
- * which is a safe nonzero fallback for the PHY ABI.
+ * Original comment (kept for provenance):
+ * Read-only calibration facade for vendor PHY public APIs.
+ * Per-unit OTP/Flash calibration storage is not adapted at this stage.
  */
+
+#if 0 /* DISABLED: use libbk_phy.a real implementations instead */
 
 #include <modules/wifi.h>
 #include <syslog.h>
@@ -41,3 +48,5 @@ UINT32 manual_cal_get_cali_xtal(void)
 
   return g_default_xtal;
 }
+
+#endif /* DISABLED */
