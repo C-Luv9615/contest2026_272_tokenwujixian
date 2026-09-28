@@ -1639,13 +1639,15 @@ void rwnx_handle_recv_msg(struct ke_msg *rx_msg)
 
 		RWNX_LOGV("disconnect\r\n");
 
-		/* DISABLED 2026-09-28: wifi_rlk_start is never set to 1.
-		 * CONFIG_BK_RAW_LINK is undefined on both Armino and ours, so
-		 * bk_rlk_init() is never called (it's inside #if CONFIG_BK_RAW_LINK
-		 * in cif_wifi_api.c:710-899).  wifi_rlk_info = {0} initializes
-		 * wifi_rlk_start to 0, and the log confirms rlk=0 at SCANU_START_CFM.
-		 * This workaround was unnecessary. */
-		// rwnx_set_wifi_rlk_start(0);
+		/* The rlk module sets wifi_rlk_start on connect through the
+		 * adapter table and nothing ever cleared it on link-down, so the
+		 * next SCANU_START_CFM was diverted to
+		 * rwnx_wifi_rlk_trigger_scan_process() (a no-op when its cfm
+		 * callback is unregistered) instead of wpa_ctrl_event
+		 * (WPA_CTRL_EVENT_SCAN_RESULTS).  The supplicant then never saw
+		 * the scan complete and every reconnect stalled.  Link-down must
+		 * return the flag to 0. */
+		rwnx_set_wifi_rlk_start(0);
 
 #if defined(CONFIG_IEEE80211R) || defined(CONFIG_WNM)
 				if (!ind->reassoc)
