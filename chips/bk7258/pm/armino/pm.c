@@ -2584,6 +2584,13 @@ int wdt_init(void) { return BK_OK; }
 void smem_reset_lastblock(void) {}
 void sys_drv_enable_bt_wakeup_source(int en) {}
 
+/* Armino sys_ps_driver.c:191 → sys_hal_low_power_hardware_init (sys_pm_hal.c:1508).
+ * Imported in sys_pm_hal.c.  Wire the stub so pm_hardware_init() can call it. */
+extern void sys_hal_low_power_hardware_init(void);
+void sys_drv_low_power_hardware_init(void) {
+	sys_hal_low_power_hardware_init();
+}
+
 /* Armino sys_ps_driver.c:123 → sys_pm_hal.c:1249: set WIFI wakeup bit in
  * AON PMU R41 wakeup_ena field.  Follow Armino exactly. */
 void sys_drv_enable_mac_wakeup_source(int en) {
@@ -2593,7 +2600,14 @@ void sys_drv_enable_mac_wakeup_source(int en) {
 	aon_pmu_ll_set_r41_wakeup_ena(wakeup_ena);
 }
 
-bk_err_t sys_drv_switch_cpu_bus_freq(uint32_t freq) { return BK_OK; }
+/* Armino sys_ps_driver.c:244 → sys_hal_switch_cpu_bus_freq: real DVFS.
+ * hp_sys_drv_switch_cpu_bus_freq (hal_port_dvfs.c:442) does the same DVFS
+ * ladder.  Wire the stub to the real implementation so bk_pm_module_vote_cpu_freq
+ * works. */
+extern bk_err_t hp_sys_drv_switch_cpu_bus_freq(pm_cpu_freq_e cpu_bus_freq);
+bk_err_t sys_drv_switch_cpu_bus_freq(uint32_t freq) {
+	return hp_sys_drv_switch_cpu_bus_freq((pm_cpu_freq_e)freq);
+}
 
 /* sys_drv_dev_clk_pwr_up MUST call the real hp_sys_hal_clk_pwr_ctrl.
  * Stubbing this as a no-op left MAC/PHY clocks unpowered, causing
