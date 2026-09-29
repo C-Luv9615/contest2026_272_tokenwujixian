@@ -214,12 +214,6 @@ void sys_drv_module_power_ctrl(power_module_name_t module,
       bk7258_mac_power(power_state == PM_POWER_MODULE_STATE_ON);
       return;
     }
-  if (module == PM_POWER_MODULE_NAME_PHY)
-    {
-      extern int bk7258_phy_power(bool enable);
-      bk7258_phy_power(power_state == PM_POWER_MODULE_STATE_ON);
-      return;
-    }
 
   (void)module;
   (void)power_state;
