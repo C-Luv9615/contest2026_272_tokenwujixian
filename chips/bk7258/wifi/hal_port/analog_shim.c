@@ -213,6 +213,8 @@ void sys_drv_module_power_ctrl(power_module_name_t module,
   if (module == PM_POWER_MODULE_NAME_WIFIP_MAC)
     {
       extern int bk7258_mac_power(bool enable);
+      syslog(LOG_INFO, "[BK7258-PM] sys_drv_module_power_ctrl MAC %d\n",
+             (int)(power_state == PM_POWER_MODULE_STATE_ON));
       bk7258_mac_power(power_state == PM_POWER_MODULE_STATE_ON);
       return;
     }
