@@ -266,8 +266,65 @@
 #ifndef CONFIG_PM_ENABLE
 #  define CONFIG_PM_ENABLE 1
 #endif
+#ifndef CONFIG_MCU_PS
+#  define CONFIG_MCU_PS 1
+#endif
 #ifndef CONFIG_PM_ENTER_LV_TIME_OUT_PERIOD_MS
 #  define CONFIG_PM_ENTER_LV_TIME_OUT_PERIOD_MS 30000
+#endif
+/* Full Armino beken_genie config alignment for PM/WiFi paths (2026-09-29).
+ * These gate #if branches in pm.c, rw_msg_tx.c, rw_msg_rx.c, rw_task.c.
+ * See https://feishu.cn/docx/JMj8dZ4lDocze7xxti1cIHjlnjh config diff audit. */
+#ifndef CONFIG_MCU_PS
+#  define CONFIG_MCU_PS 1
+#endif
+#ifndef CONFIG_WIFI_ENABLE
+#  define CONFIG_WIFI_ENABLE 1
+#endif
+#ifndef CONFIG_GENERAL_DMA
+#  define CONFIG_GENERAL_DMA 1
+#endif
+#ifndef CONFIG_CPU_CNT
+#  define CONFIG_CPU_CNT 3
+#endif
+#ifndef CONFIG_AON_RTC
+#  define CONFIG_AON_RTC 1
+#endif
+#ifndef CONFIG_BAKP_POWER_DOMAIN_PM_CONTROL
+#  define CONFIG_BAKP_POWER_DOMAIN_PM_CONTROL 1
+#endif
+#ifndef CONFIG_RWNX_QOS_MSDU
+#  define CONFIG_RWNX_QOS_MSDU 1
+#endif
+#ifndef CONFIG_WIFI_CORE_TASK_PRIO
+#  define CONFIG_WIFI_CORE_TASK_PRIO 2
+#endif
+#ifndef CONFIG_WIFI_CORE_TASK_STACK_SIZE
+#  define CONFIG_WIFI_CORE_TASK_STACK_SIZE 2048
+#endif
+#ifndef CONFIG_WIFI_KMSG_TASK_PRIO
+#  define CONFIG_WIFI_KMSG_TASK_PRIO 3
+#endif
+#ifndef CONFIG_WIFI_KMSG_TASK_STACK_SIZE
+#  define CONFIG_WIFI_KMSG_TASK_STACK_SIZE 4096
+#endif
+#ifndef CONFIG_PM_PSRAM_FORCE_ON
+#  define CONFIG_PM_PSRAM_FORCE_ON 1
+#endif
+#ifndef CONFIG_PM_SUPER_DEEP_SLEEP
+#  define CONFIG_PM_SUPER_DEEP_SLEEP 1
+#endif
+#ifndef CONFIG_STA_AUTO_RECONNECT
+#  define CONFIG_STA_AUTO_RECONNECT 1
+#endif
+#ifndef CONFIG_MSDU_RESV_TAIL_LENGTH
+#  define CONFIG_MSDU_RESV_TAIL_LENGTH 16
+#endif
+#ifndef CONFIG_MAC_PHY_BYPASS
+#  define CONFIG_MAC_PHY_BYPASS 1
+#endif
+#ifndef CONFIG_RWNX_FAST_CONNECT
+#  define CONFIG_RWNX_FAST_CONNECT 1
 #endif
 #ifndef CONFIG_STA_PS
 #  define CONFIG_STA_PS 1
