@@ -243,4 +243,88 @@
 #  define CONFIG_WPA_LOG 1
 #endif
 
+/* ---- Armino beken_genie sdkconfig.h alignment (2026-09-28) ----
+ *
+ * The 17 CONFIG_* symbols below gate #if branches in the Armino glue code
+ * (rw_task.c, rw_msg_tx.c, rw_msg_rx.c, rw_ieee80211.c).  In the Armino
+ * build they come from the project's generated sdkconfig.h; here the glue
+ * sources reach them through this prelude (mechanism 2 at the top of this
+ * file) and the wpa closure through the forced include (mechanism 1).
+ *
+ * Values must match bk_solution_ai/projects/beken_genie/build/bk7258/
+ * beken_genie/bk7258/config/sdkconfig.h.  See the config-diff audit at
+ * https://feishu.cn/docx/JMj8dZ4lDocze7xxti1cIHjlnjh for the full list.
+ *
+ * Do NOT move these to Kconfig: the Armino sources use bare #if CONFIG_FOO
+ * (not #ifdef), which works identically whether the macro is 1 or undefined,
+ * but the wpa Makefile -D flags and this prelude are the two mechanisms the
+ * port already uses.  Kconfig would be a third, redundant path. */
+
+#ifndef CONFIG_PM_V2
+#  define CONFIG_PM_V2 1
+#endif
+#ifndef CONFIG_PM_ENABLE
+#  define CONFIG_PM_ENABLE 1
+#endif
+#ifndef CONFIG_STA_PS
+#  define CONFIG_STA_PS 1
+#endif
+#ifndef CONFIG_WIFI4
+#  define CONFIG_WIFI4 1
+#endif
+#ifndef CONFIG_RWNX_SW_TXQ
+#  define CONFIG_RWNX_SW_TXQ 1
+#endif
+#ifndef CONFIG_RWNX_TD
+#  define CONFIG_RWNX_TD 1
+#endif
+#ifndef CONFIG_SPECIAL_TX_TYPE
+#  define CONFIG_SPECIAL_TX_TYPE 1
+#endif
+#ifndef CONFIG_WIFI_VNET_CONTROLLER
+#  define CONFIG_WIFI_VNET_CONTROLLER 1
+#endif
+#ifndef CONFIG_MINIMUM_SCAN_RESULTS
+#  define CONFIG_MINIMUM_SCAN_RESULTS 1
+#endif
+#ifndef CONFIG_WIFI_SCAN_COUNTRY_CODE
+#  define CONFIG_WIFI_SCAN_COUNTRY_CODE 1
+#endif
+#ifndef CONFIG_WIFI_AUTO_COUNTRY_CODE
+#  define CONFIG_WIFI_AUTO_COUNTRY_CODE 1
+#endif
+#ifndef CONFIG_WIFI6
+#  define CONFIG_WIFI6 1
+#endif
+#ifndef CONFIG_PMF
+#  define CONFIG_PMF 1
+#endif
+#ifndef CONFIG_MAC_SFRAME_SOFTWARE_RETRY
+#  define CONFIG_MAC_SFRAME_SOFTWARE_RETRY 1
+#endif
+/* PSRAM is folded into the NuttX heap, so the Armino psram_* allocator
+ * names map onto the standard heap primitives. */
+#ifndef psram_zalloc
+#  define psram_zalloc(size)       os_zalloc(size)
+#endif
+#ifndef psram_malloc
+#  define psram_malloc(size)       os_malloc(size)
+#endif
+#ifndef psram_free
+#  define psram_free(ptr)          os_free(ptr)
+#endif
+#ifndef bk_psram_realloc
+#  define bk_psram_realloc(ptr, sz) os_realloc(ptr, sz)
+#endif
+
+#ifndef CONFIG_PSRAM_AS_SYS_MEMORY
+#  define CONFIG_PSRAM_AS_SYS_MEMORY 1
+#endif
+#ifndef CONFIG_CONTROLLER_RX_DIRECT_PSH
+#  define CONFIG_CONTROLLER_RX_DIRECT_PSH 1
+#endif
+#ifndef CONFIG_CONTROLLER_WAR
+#  define CONFIG_CONTROLLER_WAR 1
+#endif
+
 #endif /* __BK7258_WIFI_GLUE_BK_PRELUDE_H */
