@@ -913,13 +913,13 @@ static void core_thread_main(void *arg)
 
 			ke_evt_core_scheduler();
 		}
-		/* mac_sleep_check() sends the MAC into doze.  The wake path is
-		 * kept alive by the PHY ON register write (platform_shim.c
-		 * always writes BK7258_SYS_POWER_WAKEUP) that
-		 * mac_wakeup_and_pwr_update observes.  The previous skip was a
-		 * diagnostic workaround for the warm-PHY early-return that
-		 * starved that write. */
-		mac_sleep_check();
+		/* DISABLED 2026-09-28: mac_sleep_check() sends MAC into doze after
+		 * every message, including TX data.  With ps_init() just added and
+		 * ps_env state possibly incomplete, the guard conditions in
+		 * ps_sleep_check() may allow doze while TX DMA is active, causing
+		 * ac1_tx_dma_dead (stable repro after PM migration 01b7b68).
+		 * Re-enable after ps_env state is verified correct. */
+		/* mac_sleep_check(); */
 	}
 }
 
