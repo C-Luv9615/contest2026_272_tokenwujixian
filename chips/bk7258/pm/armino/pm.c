@@ -2583,6 +2583,9 @@ int wdt_init(void) { return BK_OK; }
 
 void smem_reset_lastblock(void) {}
 void sys_drv_enable_bt_wakeup_source(int en) {}
+void sys_drv_aud_aud_en(int en) {}
+void sys_drv_aud_audbias_en(int en) {}
+void sys_drv_apll_en(int en) {}
 
 /* Armino sys_ps_driver.c:191 → sys_hal_low_power_hardware_init (sys_pm_hal.c:1508).
  * Imported in sys_pm_hal.c.  Wire the stub so pm_hardware_init() can call it. */

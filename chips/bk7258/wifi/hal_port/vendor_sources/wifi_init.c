@@ -1,5 +1,6 @@
 /* Wi-Fi-only translation unit: establish Armino's local build contract. */
 #include <bk_prelude.h>
+#include <modules/pm.h>
 
 /* TEMPORARY BRING-UP DIAGNOSTIC -- REMOVE with the rest of the "[initseq]"
  * instrumentation; see hal_port/include/bk7258_initseq.h for the rationale and the
@@ -58,6 +59,14 @@ extern void ps_init(void);
 
 void initseq_rwnxl_init(void)
 {
+  /* Armino cif_ps.c:144 sets PM_MODE_NORMAL_SLEEP before WiFi starts.
+   * Without this, s_pm_sleep_mode stays PM_MODE_DEFAULT(4) and
+   * pm_check_and_ctrl_sleep() (pm.c:397) takes the else branch: if
+   * s_pm_sleeped_modules covers PM_ENTER_LOW_VOL_MODULES_CONFIG (which
+   * includes WIFIP_MAC), it calls pm_low_voltage_process() and powers
+   * off the MAC domain -- killing TX DMA (ac1_tx_dma_dead). */
+  bk_pm_sleep_mode_set(PM_MODE_NORMAL_SLEEP);
+
   BK7258_INITSEQ("87a rwnxl_init enter");
   rwnxl_init();
   BK7258_INITSEQ("87b rwnxl_init leave");
