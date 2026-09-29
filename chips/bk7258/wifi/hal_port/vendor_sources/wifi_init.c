@@ -64,12 +64,9 @@ extern void pm_hardware_init(void);
 
 void initseq_rwnxl_init(void)
 {
-  BK7258_INITSEQ("87a pm_hardware_init enter");
-  pm_hardware_init();
-  BK7258_INITSEQ("87b pm_hardware_init leave");
-  BK7258_INITSEQ("87c rwnxl_init enter");
+  BK7258_INITSEQ("87a rwnxl_init enter");
   rwnxl_init();
-  BK7258_INITSEQ("87d rwnxl_init leave");
+  BK7258_INITSEQ("87b rwnxl_init leave");
 }
 
 int initseq_calibration_init(void)
