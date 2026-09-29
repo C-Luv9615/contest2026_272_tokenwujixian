@@ -55,6 +55,7 @@ if(CONFIG_BK7258_WIFI)
       hal_port/scan_diagnostics.c
       hal_port/m2_snapshot.c
       hal_port/platform_shim.c
+      ../pm/armino/pm.c
       hal_port/hal_port_lpdoze.c
       # vnd_cal comes from armino/board/bk7258/vnd_cal below,
       # which is byte-identical to authority cp/middleware/boards/bk7258.  Do

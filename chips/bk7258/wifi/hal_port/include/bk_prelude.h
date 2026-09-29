@@ -266,6 +266,9 @@
 #ifndef CONFIG_PM_ENABLE
 #  define CONFIG_PM_ENABLE 1
 #endif
+#ifndef CONFIG_PM_ENTER_LV_TIME_OUT_PERIOD_MS
+#  define CONFIG_PM_ENTER_LV_TIME_OUT_PERIOD_MS 30000
+#endif
 #ifndef CONFIG_STA_PS
 #  define CONFIG_STA_PS 1
 #endif
