@@ -2583,7 +2583,14 @@ void smem_reset_lastblock(void) {}
 void sys_drv_enable_bt_wakeup_source(int en) {}
 void sys_drv_enable_mac_wakeup_source(int en) {}
 bk_err_t sys_drv_switch_cpu_bus_freq(uint32_t freq) { return BK_OK; }
-void sys_drv_dev_clk_pwr_up(uint32_t dev, int up) {}
+
+/* sys_drv_dev_clk_pwr_up MUST call the real hp_sys_hal_clk_pwr_ctrl.
+ * Stubbing this as a no-op left MAC/PHY clocks unpowered, causing
+ * ac1_tx_dma_dead on every TX. */
+extern void hp_sys_hal_clk_pwr_ctrl(uint32_t dev, bool power_up);
+void sys_drv_dev_clk_pwr_up(uint32_t dev, int up) {
+  hp_sys_hal_clk_pwr_ctrl(dev, up != 0);
+}
 
 /* ---- WiFi adapter wrappers (2026-09-28) ----
  * These are NOT in Armino's pm.c; they are the adapter-layer mapping that
