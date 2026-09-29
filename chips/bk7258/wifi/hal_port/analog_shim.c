@@ -203,10 +203,17 @@ void sys_drv_module_power_ctrl(power_module_name_t module,
   /* Armino sys_hal.c:135-200: sys_hal_module_power_ctrl for Wi-Fi domains
    * (WIFIP_MAC, WIFI_PHY, OFDM) falls through to `else { ;//do something }`
    * -- a complete no-op.  The PHY is never power-gated on BK7258.
-   * Matching that exactly: no register writes for Wi-Fi domains.
    *
-   * MEM/CPU1/CPU2/TCM1 domains have real implementations in Armino; those
-   * are not on the Wi-Fi path and are not ported here. */
+   * BUT our NuttX port needs bk7258_mac_power() for MAC power control
+   * (the old platform_shim.c bk_pm_module_vote_power_ctrl called it).
+   * pm.c's bk_pm_module_vote_power_ctrl has no WIFIP_MAC branch and falls
+   * through to this function.  Route WIFIP_MAC to bk7258_mac_power. */
+  if (module == PM_POWER_MODULE_NAME_WIFIP_MAC)
+    {
+      extern int bk7258_mac_power(bool enable);
+      bk7258_mac_power(power_state == PM_POWER_MODULE_STATE_ON);
+      return;
+    }
 
   (void)module;
   (void)power_state;
