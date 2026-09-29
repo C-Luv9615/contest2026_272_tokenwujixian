@@ -67,6 +67,12 @@ void initseq_rwnxl_init(void)
   BK7258_INITSEQ("87a rwnxl_init enter");
   rwnxl_init();
   BK7258_INITSEQ("87b rwnxl_init leave");
+  /* pm_hardware_init must run AFTER rwnxl_init: hal_machw_init:441 asserts
+   * if PM state machine configures MAC for deep sleep before hardware init.
+   * Armino calls it from components_init.c:248 where MAC is already ready. */
+  BK7258_INITSEQ("87c pm_hardware_init enter");
+  pm_hardware_init();
+  BK7258_INITSEQ("87d pm_hardware_init leave");
 }
 
 int initseq_calibration_init(void)
