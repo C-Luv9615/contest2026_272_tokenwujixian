@@ -51,12 +51,6 @@ extern void coex_ictw_report_wifi_open_status(bool is_wifi_open);
  * misjudges MAC power state and drops the deauth CFM (7172 timeout).
  * Call it explicitly before rwnx_intf_init() starts core_thread. */
 extern void ps_init(void);
-/* pm_hardware_init is in pm.c (bk_pm_internal_api.h:55). Armino calls it from
- * components_init.c:248 before WiFi starts. It initializes the PM state machine,
- * low-voltage/deep-sleep module configs, sleep votes, and wakeup sources.
- * Without it, CONFIG_PM_V2=1's mac_wakeup_and_pwr_update() operates on
- * uninitialized PM state. */
-extern void pm_hardware_init(void);
 
 /* Interposers.  Numbered by the source line they stand in for, so a UART
  * capture maps straight back to wifi_init(): 87, 90, 97, 105, 120, 123, 126.
@@ -67,12 +61,6 @@ void initseq_rwnxl_init(void)
   BK7258_INITSEQ("87a rwnxl_init enter");
   rwnxl_init();
   BK7258_INITSEQ("87b rwnxl_init leave");
-  /* pm_hardware_init must run AFTER rwnxl_init: hal_machw_init:441 asserts
-   * if PM state machine configures MAC for deep sleep before hardware init.
-   * Armino calls it from components_init.c:248 where MAC is already ready. */
-  BK7258_INITSEQ("87c pm_hardware_init enter");
-  pm_hardware_init();
-  BK7258_INITSEQ("87d pm_hardware_init leave");
 }
 
 int initseq_calibration_init(void)

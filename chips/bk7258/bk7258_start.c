@@ -208,9 +208,19 @@ void __start(void)
    * but NuttX and the chip's own memory map. */
 
   {
-    extern void sys_hal_low_power_hardware_init(void);
+    /* Armino startup_bk7236.c:438 calls pm_hardware_init() before entry_main().
+     * pm_hardware_init() (pm.c:227) calls:
+     *   1. sys_drv_low_power_hardware_init() → sys_hal_low_power_hardware_init()
+     *   2. pm_enter_low_vol_modules_config()
+     *   3. pm_enter_deep_sleep_modules_config()
+     *   4. pm_sleep_vote_init()
+     *   5. pm_deep_sleep_wakeup_source_set()
+     * Steps 2-5 configure the PM state machine. Without them, CONFIG_PM_V2=1's
+     * mac_wakeup_and_pwr_update() operates on uninitialized state.
+     * AHBP-off side effect is survivable here (see comment above). */
+    extern void pm_hardware_init(void);
 
-    sys_hal_low_power_hardware_init();
+    pm_hardware_init();
   }
 
   /* Trace marker: boot reached nx_start. */
