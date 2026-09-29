@@ -509,7 +509,8 @@ bk_err_t bk_pm_suppress_ticks_and_sleep(uint32_t sleep_ticks)
 /*=========================COMMON PM API START========================*/
 bk_err_t bk_pm_module_vote_power_ctrl(pm_power_module_name_e module, pm_power_module_state_e power_state)
 {
-
+	syslog(LOG_INFO, "[BK7258-PM] vote_power_ctrl module=%d state=%d\n",
+	       (int)module, (int)power_state);
 	uint32_t off_modules = 0;
 	GLOBAL_INT_DECLARATION();
 
