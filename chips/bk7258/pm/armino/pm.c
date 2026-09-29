@@ -23,6 +23,7 @@
 #include <driver/aon_rtc.h>
 #include <os/mem.h>
 #include "aon_pmu_driver.h"
+#include "aon_pmu_ll.h"
 #include <components/system.h>
 #include "bk_fake_clock.h"
 /* driver/uart.h pulls in hal_uart_types.h which conflicts with the
@@ -2581,7 +2582,16 @@ int wdt_init(void) { return BK_OK; }
 
 void smem_reset_lastblock(void) {}
 void sys_drv_enable_bt_wakeup_source(int en) {}
-void sys_drv_enable_mac_wakeup_source(int en) {}
+
+/* Armino sys_ps_driver.c:123 → sys_pm_hal.c:1249: set WIFI wakeup bit in
+ * AON PMU R41 wakeup_ena field.  Follow Armino exactly. */
+void sys_drv_enable_mac_wakeup_source(int en) {
+	(void)en;
+	uint8_t wakeup_ena = aon_pmu_ll_get_r41_wakeup_ena();
+	wakeup_ena |= (1 << 2); /* WAKEUP_SOURCE_INT_WIFI */
+	aon_pmu_ll_set_r41_wakeup_ena(wakeup_ena);
+}
+
 bk_err_t sys_drv_switch_cpu_bus_freq(uint32_t freq) { return BK_OK; }
 
 /* sys_drv_dev_clk_pwr_up MUST call the real hp_sys_hal_clk_pwr_ctrl.
