@@ -98,17 +98,11 @@ void delay_tick(UINT32 tick_count)
 
 bk_err_t dma_memcpy(void *out, const void *in, uint32_t len)
 {
-  /* Live on the vendored TX path (rwnx_tx.c:247 and :256) now that
-   * CONFIG_GENERAL_DMA is 1 per the prebuilt baseline. memcpy() is
-   * functionally equivalent: upstream uses the DMA engine to offload CPU
-   * cycles, not for different copy semantics.
-   *
-   * Caveat for whoever ports the real DMA driver: upstream's DMA writes bypass
-   * the data cache. That difference is masked today only because
-   * CONFIG_CACHE_ENABLE is off, so the two must be revisited together.
-   */
+  /* Follows Armino dma_driver.c:1168 dma_memcpy: GDMA hardware copy with
+   * busy-wait on enable bit, timeout falls back to memcpy. */
+  extern int bk7258_dma_memcpy_sync(void *out, const void *in, size_t len);
 
-  memcpy(out, in, len);
+  bk7258_dma_memcpy_sync(out, in, len);
   return BK_OK;
 }
 

@@ -96,4 +96,9 @@ int bk7258_dmastop(BK7258_DMA_HANDLE handle);
 int bk7258_dma_get_diagnostics(
   BK7258_DMA_HANDLE handle, FAR struct bk7258_dma_diagnostics_s *diagnostics);
 
+/* Synchronous memory copy via GDMA hardware.  Follows Armino
+ * dma_driver.c:1106 dma_memcpy_by_chnl: register programming + busy-wait
+ * on hardware enable bit, timeout falls back to memcpy.  No IRQ. */
+int bk7258_dma_memcpy_sync(FAR void *out, FAR const void *in, size_t len);
+
 #endif /* __VENDOR_BEKEN_CHIP_BK7258_DMA_H */

@@ -586,3 +586,93 @@ void arm_dma_initialize(void)
       up_enable_irq(BK7258_IRQ_GDMA0);
     }
 }
+
+/* Synchronous memory-to-memory copy via GDMA.
+ *
+ * Follows Armino dma_driver.c:1106 dma_memcpy_by_chnl exactly:
+ * program registers, start, busy-wait the hardware enable bit
+ * (dma_hal_get_enable_status), timeout falls back to memcpy.
+ * No IRQ, no callback -- pure register polling. */
+
+int bk7258_dma_memcpy_sync(FAR void *out, FAR const void *in, size_t len)
+{
+  BK7258_DMA_HANDLE handle;
+  FAR struct bk7258_dma_chan_s *channel;
+  unsigned int index;
+  uint32_t generation;
+  irqstate_t flags;
+  uint32_t control;
+  uint32_t req_mux;
+  int timeout;
+
+  if (len == 0)
+    {
+      return OK;
+    }
+
+  handle = bk7258_dmachannel();
+  if (handle == 0)
+    {
+      memcpy(out, in, len);
+      return OK;
+    }
+
+  if (!bk7258_dma_decode_handle(handle, &index, &generation))
+    {
+      memcpy(out, in, len);
+      return OK;
+    }
+
+  channel = &g_dma_channels[index];
+
+  /* Armino dma_config: DMA_DEV_DTCM -> DMA_DEV_DTCM, 32-bit, addr_inc. */
+  control = BK7258_GDMA_CONTROL_SRC_WIDTH(2) |
+            BK7258_GDMA_CONTROL_DST_WIDTH(2) |
+            BK7258_GDMA_CONTROL_SRC_INC |
+            BK7258_GDMA_CONTROL_DST_INC |
+            BK7258_GDMA_CONTROL_LENGTH(len);
+
+  flags = spin_lock_irqsave(&g_dma_lock);
+  req_mux = bk7258_dma_request_attributes();
+  bk7258_dma_stop_channel(channel);
+  putreg32(req_mux, BK7258_GDMA_REQ_MUX(channel->channel));
+  putreg32((uint32_t)out, BK7258_GDMA_DST_ADDR(channel->channel));
+  putreg32((uint32_t)in, BK7258_GDMA_SRC_ADDR(channel->channel));
+  putreg32((uint32_t)out + len,
+           BK7258_GDMA_DST_LOOP_END(channel->channel));
+  putreg32((uint32_t)out,
+           BK7258_GDMA_DST_LOOP_START(channel->channel));
+  putreg32((uint32_t)in + len,
+           BK7258_GDMA_SRC_LOOP_END(channel->channel));
+  putreg32((uint32_t)in,
+           BK7258_GDMA_SRC_LOOP_START(channel->channel));
+  putreg32(control | BK7258_GDMA_CONTROL_ENABLE,
+           BK7258_GDMA_CONTROL(channel->channel));
+  spin_unlock_irqrestore(&g_dma_lock, flags);
+
+  /* Armino BK_WHILE(dma_hal_get_enable_status(...)): hardware clears
+   * ENABLE when the transfer finishes.  Timeout matches Armino's
+   * wait_dma_cpy_done_cnt > 1 with rtos_delay_milliseconds(2). */
+  for (timeout = 0; timeout < 2; timeout++)
+    {
+      if (!(getreg32(BK7258_GDMA_CONTROL(channel->channel)) &
+            BK7258_GDMA_CONTROL_ENABLE))
+        {
+          break;
+        }
+      nxsig_usleep(2000);
+    }
+
+  if (getreg32(BK7258_GDMA_CONTROL(channel->channel)) &
+      BK7258_GDMA_CONTROL_ENABLE)
+    {
+      /* Armino: dma_hal_stop_common + os_memcpy fallback. */
+      flags = spin_lock_irqsave(&g_dma_lock);
+      bk7258_dma_stop_channel(channel);
+      spin_unlock_irqrestore(&g_dma_lock, flags);
+      memcpy(out, in, len);
+    }
+
+  bk7258_dmafree(handle);
+  return OK;
+}
