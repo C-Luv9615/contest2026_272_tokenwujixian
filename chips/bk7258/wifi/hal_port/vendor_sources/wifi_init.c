@@ -43,6 +43,14 @@ extern int rwnx_intf_init(void);
 extern int fhost_rxbuf_push(void);
 extern void wpas_thread_start(void);
 extern void coex_ictw_report_wifi_open_status(bool is_wifi_open);
+/* ps_init lives in libwifi.a (ps.c.obj): memset(ps_env) + twt_init +
+ * mac_ps_exc32_process.  Armino's own wifi_init() does not call it
+ * explicitly -- the closed library's init chain does.  Our port has no
+ * PM subsystem, so the call never fires and ps_env stays BSS-zero.
+ * mac_sleep_check() (now active via CONFIG_PM_V2 in bk_prelude.h) then
+ * misjudges MAC power state and drops the deauth CFM (7172 timeout).
+ * Call it explicitly before rwnx_intf_init() starts core_thread. */
+extern void ps_init(void);
 
 /* Interposers.  Numbered by the source line they stand in for, so a UART
  * capture maps straight back to wifi_init(): 87, 90, 97, 105, 120, 123, 126.
@@ -79,9 +87,12 @@ int initseq_rwnx_intf_init(void)
 {
   int ret;
 
-  BK7258_INITSEQ("105a rwnx_intf_init enter");
+  BK7258_INITSEQ("105a ps_init enter");
+  ps_init();
+  BK7258_INITSEQ("105b ps_init leave");
+  BK7258_INITSEQ("105c rwnx_intf_init enter");
   ret = rwnx_intf_init();
-  BK7258_INITSEQ_RET("105b rwnx_intf_init leave", ret);
+  BK7258_INITSEQ_RET("105d rwnx_intf_init leave", ret);
   return ret;
 }
 
