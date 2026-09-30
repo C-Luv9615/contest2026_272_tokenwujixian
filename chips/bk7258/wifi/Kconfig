@@ -133,6 +133,150 @@ config WPA_PSK_CACHE
 		2 ms/100-iteration yield inside PBKDF2, which matters only while
 		the cache is being filled.
 
+comment "Armino beken_genie config alignment (2026-09-28)"
+comment "These CONFIG_* symbols gate #if branches in the Armino glue code"
+comment "(rw_task.c, rw_msg_tx.c, rw_msg_rx.c). They must match the values"
+comment "compiled into bk_solution_ai/projects/beken_genie. See"
+comment "https://feishu.cn/docx/JMj8dZ4lDocze7xxti1cIHjlnjh for the full audit."
+
+config PM_V2
+	bool "Armino PM_V2 (core_thread_main PM coupling + lp_clk_accuracy)"
+	default y
+	depends on BK7258_WIFI
+	help
+		Gates the PM_V2 variant of core_thread_main in rw_task.c:810
+		(calls mac_sleep_check()/ps_msg_process() after every message)
+		and the dynamic lp_clk_accuracy branch in rw_msg_tx.c:229.
+		Armino beken_genie compiles with this =y.
+
+config PM_ENABLE
+	bool "Armino PM_ENABLE"
+	default y
+	depends on BK7258_WIFI
+	help
+		Armino power-management enable. Present in beken_genie sdkconfig.h.
+
+config STA_PS
+	bool "Armino STA_PS (station power-save message dispatch)"
+	default y
+	depends on BK7258_WIFI
+	help
+		Gates BMSG_STA_PS_TYPE handling and ps_flag in core_thread_main.
+		Armino beken_genie compiles with this =y.
+
+config WIFI4
+	bool "Armino WIFI4 (HT/VHT capability fill in ME_CONFIG_REQ)"
+	default y
+	depends on BK7258_WIFI
+	help
+		Gates the HT/VHT capability block in rw_msg_tx.c:261-298.
+		Without it ME_CONFIG_REQ carries zeroed HT/VHT caps.
+		Armino beken_genie compiles with this =y.
+
+config RWNX_SW_TXQ
+	bool "Armino RWNX_SW_TXQ (software TXQ flow control)"
+	default y
+	depends on BK7258_WIFI
+	help
+		Gates rwnx_hwq_process_all() calls and TXQ stop/start logic.
+		Armino beken_genie compiles with this =y.
+
+config RWNX_TD
+	bool "Armino RWNX_TD (TD init)"
+	default y
+	depends on BK7258_WIFI
+	help
+		Gates rwnx_td_init() call in rw_ieee80211.c:441.
+		Armino beken_genie compiles with this =y.
+
+config SPECIAL_TX_TYPE
+	bool "Armino SPECIAL_TX_TYPE (ARP/DHCP special frame dispatch)"
+	default y
+	depends on BK7258_WIFI
+	help
+		Gates BMSG_SPECIAL_TX_TYPE handling in rw_task.c.
+		Armino beken_genie compiles with this =y.
+
+config WIFI_VNET_CONTROLLER
+	bool "Armino WIFI_VNET_CONTROLLER (CIF CP-AP communication)"
+	default y
+	depends on BK7258_WIFI
+	help
+		Gates cif_init() and the CIF message path. Armino beken_genie
+		compiles with this =y.
+
+config MINIMUM_SCAN_RESULTS
+	bool "Armino MINIMUM_SCAN_RESULTS (scan result struct layout)"
+	default y
+	depends on BK7258_WIFI
+	help
+		Selects wpa_scan_res* instead of sta_scan_res* in the scan result
+		table. Affects sr_malloc_shell layout and sort_scan_result.
+		Armino beken_genie compiles with this =y.
+
+config WIFI_SCAN_COUNTRY_CODE
+	bool "Armino WIFI_SCAN_COUNTRY_CODE (country-code scan filter)"
+	default y
+	depends on BK7258_WIFI
+	help
+		Gates country-code filtering in mhdr_scanu_result_ind.
+		Armino beken_genie compiles with this =y.
+
+config WIFI_AUTO_COUNTRY_CODE
+	bool "Armino WIFI_AUTO_COUNTRY_CODE (auto country-code policy)"
+	default y
+	depends on BK7258_WIFI
+	help
+		Gates ch12/13 active-scan disable and auto policy in scan paths.
+		Armino beken_genie compiles with this =y.
+
+config WIFI6
+	bool "Armino WIFI6 (HE capability + ARP/MQTT events)"
+	default y
+	depends on BK7258_WIFI
+	help
+		Gates HE capability fill and ME_INDICATE_SEND_ARP_IND /
+		ME_SEND_MQTT_PINGREQ_IND handling in rw_msg_rx.c.
+		Armino beken_genie compiles with this =y.
+
+config PMF
+	bool "Armino PMF (management frame protection)"
+	default y
+	depends on BK7258_WIFI
+	help
+		Gates RXU_MGT_IND handling in rw_msg_rx.c:1626.
+		Armino beken_genie compiles with this =y.
+
+config MAC_SFRAME_SOFTWARE_RETRY
+	bool "Armino MAC_SFRAME_SOFTWARE_RETRY (EAPOL/DHCP retry)"
+	default y
+	depends on BK7258_WIFI
+	help
+		Gates software retry for EAPOL/DHCP special frames.
+		Armino beken_genie compiles with this =y.
+
+config PSRAM_AS_SYS_MEMORY
+	bool "Armino PSRAM_AS_SYS_MEMORY (scan results in PSRAM)"
+	default y
+	depends on BK7258_WIFI
+	help
+		Gates psram_zalloc vs os_zalloc in sr_malloc_shell.
+		Armino beken_genie compiles with this =y.
+
+config CONTROLLER_RX_DIRECT_PSH
+	bool "Armino CONTROLLER_RX_DIRECT_PSH (RX direct push)"
+	default y
+	depends on BK7258_WIFI
+	help
+		Armino RX direct-push path. Present in beken_genie sdkconfig.h.
+
+config CONTROLLER_WAR
+	bool "Armino CONTROLLER_WAR (MAC hardware workaround)"
+	default y
+	depends on BK7258_WIFI
+	help
+		Armino MAC hardware workaround. Present in beken_genie sdkconfig.h.
+
 endif # BK7258_WIFI
 
 endmenu

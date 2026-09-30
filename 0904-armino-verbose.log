@@ -1,0 +1,1320 @@
+°ÅV4.1.0 is initialize success.
+os:D(9):create saradc_svr, ttempd:V(16163):send msg(3)
+tempd:V(16163):send msg(1)
+tempd:V(16163):stop
+adc:V(16163):acquire
+ckmn:V(16165):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(16165):ckmn_isr CLSET_finish_isr!
+adc:V(16165):release
+tempd:V(16165):cnt=17, interval=1, last=540, cur=548, thr=46
+tempd:V(16165):restart
+tempd:V(16165):restart
+IPC:V(16251):IPC_CMD: 671472896, -65532, -1
+tempd:V(17165):send msg(3)
+tempd:V(17165):send msg(1)
+tempd:V(17165):stop
+adc:V(17165):acquire
+ckmn:V(17167):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(17167):ckmn_isr CLSET_finish_isr!
+adc:V(17168):release
+tempd:V(17168):cnt=18, interval=1, last=540, cur=548, thr=46
+tempd:V(17168):restart
+tempd:V(17168):restart
+tempd:V(18168):send msg(3)
+tempd:V(18168):send msg(1)
+tempd:V(18168):stop
+adc:V(18168):acquire
+ckmn:V(18171):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(18171):ckmn_isr CLSET_finish_isr!
+adc:V(18171):release
+tempd:V(18171):cnt=19, interval=1, last=540, cur=548, thr=46
+tempd:V(18171):restart
+tempd:V(18171):restart
+
+$IPC:V(18251):IPC_CMD: 671472896, -65532, -1
+tempd:V(19171):send msg(3)
+tempd:V(19171):send msg(1)
+tempd:V(19171):stop
+adc:V(19171):acquire
+ckmn:V(19174):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(19174):ckmn_isr CLSET_finish_isr!
+adc:V(19174):release
+tempd:V(19174):cnt=20, interval=1, last=540, cur=548, thr=46
+tempd:V(19174):restart
+tempd:V(19174):restart
+tempd:V(20175):send msg(3)
+tempd:V(20175):send msg(1)
+tempd:V(20175):stop
+adc:V(20175):acquire
+ckmn:V(20177):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(20177):ckmn_isr CLSET_finish_isr!
+adc:V(20177):release
+tempd:V(20177):cnt=21, interval=1, last=540, cur=548, thr=46
+tempd:V(20177):restart
+tempd:V(20177):restart
+IPC:V(20251):IPC_CMD: 671472896, -65532, -1
+
+$
+$tempd:V(21177):send msg(3)
+tempd:V(21177):send msg(1)
+tempd:V(21177):stop
+adc:V(21177):acquire
+ckmn:V(21179):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(21179):ckmn_isr CLSET_finish_isr!
+adc:V(21179):release
+tempd:V(21179):cnt=22, interval=1, last=540, cur=548, thr=46
+tempd:V(21179):restart
+tempd:V(21179):restart
+tempd:V(22179):send msg(3)
+tempd:V(22179):send msg(1)
+tempd:V(22179):stop
+adc:V(22179):acquire
+ckmn:V(22181):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(22181):ckmn_isr CLSET_finish_isr!
+adc:V(22182):release
+tempd:V(22182):cnt=23, interval=1, last=540, cur=548, thr=46
+tempd:V(22182):restart
+tempd:V(22182):restart
+IPC:V(22251):IPC_CMD: 671472896, -65532, -1
+tempd:V(23182):send msg(3)
+tempd:V(23182):send msg(1)
+tempd:V(23182):stop
+adc:V(23182):acquire
+ckmn:V(23185):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(23185):ckmn_isr CLSET_finish_isr!
+adc:V(23185):release
+tempd:V(23185):cnt=24, interval=1, last=540, cur=548, thr=46
+tempd:V(23185):restart
+tempd:V(23185):restart
+tempd:V(24185):send msg(3)
+tempd:V(24185):send msg(1)
+tempd:V(24185):stop
+adc:V(24185):acquire
+ckmn:V(24188):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(24188):ckmn_isr CLSET_finish_isr!
+adc:V(24188):release
+tempd:V(24188):cnt=25, interval=1, last=540, cur=548, thr=46
+tempd:V(24188):restart
+tempd:V(24188):restart
+IPC:V(24251):IPC_CMD: 671472896, -65532, -1
+tempd:V(25188):send msg(3)
+tempd:V(25188):send msg(1)
+tempd:V(25188):stop
+adc:V(25188):acquire
+ckmn:V(25191):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(25191):ckmn_isr CLSET_finish_isr!
+adc:V(25191):release
+tempd:V(25191):cnt=26, interval=1, last=540, cur=548, thr=46
+tempd:V(25191):restart
+tempd:V(25191):restart
+tempd:V(26192):send msg(3)
+tempd:V(26192):send msg(1)
+tempd:V(26192):stop
+adc:V(26192):acquire
+ckmn:V(26194):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(26194):ckmn_isr CLSET_finish_isr!
+adc:V(26194):release
+
+$tempd:V(26194):cnt=27, interval=1, last=540, cur=548, thr=46
+tempd:V(26194):restart
+tempd:V(26194):restart
+IPC:V(26251):IPC_CMD: 671472896, -65532, -1
+
+$
+$tempd:V(27194):send msg(3)
+tempd:V(27194):send msg(1)
+tempd:V(27194):stop
+adc:V(27194):acquire
+ckmn:V(27196):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(27196):ckmn_isr CLSET_finish_isr!
+adc:V(27197):release
+tempd:V(27197):cnt=28, interval=1, last=540, cur=549, thr=46
+tempd:V(27197):restart
+tempd:V(27197):restart
+
+$aon_wdt:V(1):bk_aon_wdt_stop.
+bk_ipc:D(2):bk_ipc_core_init
+bk_ipc:D(2):open channel: 71 on CPU: 0
+bk_ipc:D(3):channel: gpio_ipc
+bk_ipc:D(3):channel: bk_api_rpc
+os:D(3):create ipc thread, tcb=2804cdb8, stack=[2804c5b0-2804cdb0:2048], prio=5
+bk_ipc:D(3):bk_ipc_core_init success
+os:D(3):
+os:D(3):mem_type start    end      size    
+os:D(3):-------- -------- -------- --------
+os:D(3):itcm     0x20     0x3b60   15168   
+os:D(3):dtcm     0x20000000 0x20003dd0 15824   
+os:D(3):ram      0x28021600 0x2805caf8 242936  
+os:D(3):non_heap 0x28021600 0x28048240 158784  
+os:D(4):iram     0x8010000 0x80214c8 70856   
+os:D(4):data     0x28021600 0x28022444 3652    
+os:D(4):bss      0x28022460 0x28048240 155104  
+os:D(4):heap     0x28048240 0x2805caf8 84152   
+os:D(4):psram    0x60700000 0x60720000 131072  
+os:D(4):create flash_svr, tcb=2804d430, stack=[2804ce28-2804d428:1536], prio=3
+flash:D(5):id=0xc86517
+ef:I(6):ENV start address is 0x007FA000, size is 8192 bytes.
+ef:I(9):EasyFlash V4.1.0 is initialize success.
+os:D(9):create saradc_svr, tcb=2804db00, stack=[2804d4f8-2804daf8:1536], prio=3
+aon_rtc:V(9):bk_aon_rtc_driver_init[+]
+aon_rtc:V(9):aon_rtc_hw_init[+]cur_tick=0
+aon_rtc:V(9):aon_rtc_hw_init[-]cur_tick=0
+aon_rtc:V(9):bk_aon_rtc_driver_init[-]
+D(9):ate enabled is 0
+psram:D(9):Starting PSRAM init...
+psram:D(11):bk_psram_ini
+INSRT-N:os:I(103):psram:0x60700000,size:131072
+
+INSRT-I:ckmn:V(104):ckmn_isr CKEST FINISH TRIGGERED!
+
+INSRT-I:ckmn:V(104):ckmn_isr CLSET_finish_isr!
+
+INSRT-I:IPC:V(116):IPC_CMD: 671472896, 67371008, 84215045
+t, chip_id:0
+psram:D(12):bk_psram_init, 8d08-0
+psram:W(12):psram type(16MB) not match CONFIG_PSRAM_CAPACITY 0X00800000
+psram:D(12):PSRAM init success
+I(12):driver_init: psram init ok
+D(12):driver_init end
+init:V(12):int watchdog enabled, period=8000
+wdt:V(12):bk_wdt_start, s_wdt.init_bits:1
+init:V(12):task watchdog enabled, period=16000
+sensor:D(12):saradc low value:[9bd]
+sensor:D(12):saradc high value:[1375]
+sensor:W(13):uncali sdmadc value:[0 0]
+os:D(13):create phy_svr, tcb=2804e348, stack=[2804df40-2804e340:1024], prio=3
+init:D(13):reason - power on
+init:D(13):regs - 0, 3, 0
+init:D(13):armino rev: 
+init:D(13):armino soc id:53434647_72360101
+bk_init:D(13):armino app init: Sep  4 2026 16:25:17
+bk_init:D(13):verify id: D18132
+bk_init:D(13):APP Version: unknown
+nv:D(14):vnd_cal_version = 24-04-10 00:00:00
+os:D(14):create event, tcb=2804ec58, stack=[2804e450-2804ec50:2048], prio=1
+event:V(14):inited
+lwip:D(14):init TCP/IP
+os:D(14):create tcp/ip, tcb=2804fb48, stack=[2804ef40-2804fb40:3072], prio=7
+event:V(14):register event <1 -1 0x2074a0d (nil)>
+rosc:D(15):ckmn calib rosc thread start
+event:V(15):handle event register, event<1 -1 0x2074a0d (nil)>
+event:V(15):new event module=0x2804fe20
+event:V(15):register cb to module node(0x2804fe20)
+event:V(15):register cb to cb list(0x2804fe34)
+event:V(15):new cb node(0x2804fe48)
+wifi:D(15):wifi initing
+os:D(15):create syswq, tcb=280502c0, stack=[2804feb8-280502b8:1024], prio=6
+rwnx_cal_set_rfconfig(0x102) phy on; rf off
+ckmn:V(17):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(17):ckmn_isr CLSET_finish_isr!
+cal:E(18):load polar tab magic code error 0xffffffff
+cal:D(18):get rfcali_mode:1
+adc:V(18):acquire
+ckmn:V(18):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(18):ckmn_isr CLSET_finish_isr!
+adc:V(18):release
+tempd:D(18):get temperature 544
+cal:W(18):temp in otp is:563
+cal:D(18):temp_code=29,dmodldosel=4,Dgmdc=7
+ckmn:V(19):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(19):ckmn_isr CLSET_finish_isr!
+cal:D(21):cali bias(e)
+adc:V(21):acquire
+ckmn:V(22):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(22):ckmn_isr CLSET_finish_isr!
+ckmn:V(22):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(22):ckmn_isr CLSET_finish_isr!
+ckmn:V(22):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(22):ckmn_isr CLSET_finish_isr!
+ckmn:V(24):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(24):ckmn_isr CLSET_finish_isr!
+ckmn:V(27):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(27):ckmn_isr CLSET_finish_isr!
+ckmn:V(29):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(29):ckmn_isr CLSET_finish_isr!
+cal:D(29):retry_count=4,dlypc_i=2,stateI=[0,60,29,0],dlypc_q=2,stateQ=[0,60,29,0]
+ckmn:V(31):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(31):ckmn_isr CLSET_finish_isr!
+ckmn:V(45):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(45):ckmn_isr CLSET_finish_isr!
+ckmn:V(47):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(47):ckmn_isr CLSET_finish_isr!
+ckmn:V(50):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(50):ckmn_isr CLSET_finish_isr!
+ckmn:V(52):ckmn_isr CKEST FINISH TRIG
+INSRT-I:CIF:V(384):cif_dnld_buffer,chan_id=0,head=0x28061540,tail=0x28061540,num=1,start!
+
+INSRT-I:CIF:V(386):cif_dnld_buffer,chan_id=0,head=0x28061540,tail=0x28061540,num=1,start!
+
+INSRT-I:CIF:V(392):cif_dnld_buffer,chan_id=0,head=0x28061540,tail=0x28061540,num=1,start!
+
+INSRT-I:CIF:V(401):cif_dnld_buffer,chan_id=0,head=0x28061540,tail=0x28061540,num=1,start!
+
+INSRT-I:CIF:V(401):cif_dnld_buffer,head=0x0,head1=0x0,head2=0x48
+
+INSRT-I:CIF:V(401):cif_msg_sender,52,head:0x28061540
+
+INSRT-I:CIF:V(420):cif_dnld_buffer,chan_id=0,head=0x28061540,tail=0x28061540,num=1,start!
+
+INSRT-I:CIF:V(420):cif_dnld_buffer,head=0x0,head1=0x0,head2=0x48
+
+INSRT-I:CIF:V(420):cif_msg_sender,52,head:0x28061540
+
+INSRT-I:CIF:V(438):cif_dnld_buffer,chan_id=0,head=0x28061540,tail=0x28061540,num=1,start!
+
+INSRT-I:CIF:V(438):cif_dnld_buffer,head=0x0,head1=0x0,head2=0x48
+
+INSRT-I:CIF:V(438):cif_msg_sender,52,head:0x28061540
+
+INSRT-I:CIF:V(457):cif_dnld_buffer,chan_id=0,head=0x28061540,tail=0x28061540,num=1,start!
+
+INSRT-I:CIF:V(457):cif_dnld_buffer,head=0x0,head1=0x0,head2=0x48
+
+INSRT-I:CIF:V(457):cif_msg_sender,52,head:0x28061540
+
+INSRT-I:CIF:V(476):cif_dnld_buffer,chan_id=0,head=0x28061540,tail=0x28061540,num=1,start!
+
+INSRT-I:CIF:V(476):cif_dnld_buffer,head=0x0,head1=0x0,head2=0x48
+
+INSRT-I:CIF:V(476):cif_msg_sender,52,head:0x28061540
+
+INSRT-I:CIF:V(495):cif_dnld_buffer,chan_id=0,head=0x28061540,tail=0x28061540,num=1,start!
+
+INSRT-I:CIF:V(495):cif_dnld_buffer,head=0x0,head1=0x0,head2=0x48
+
+INSRT-I:CIF:V(495):cif_msg_sender,52,head:0x28061540
+
+INSRT-I:CIF:V(513):cif_dnld_buffer,chan_id=0,head=0x28061540,tail=0x28061540,num=1,start!
+
+INSRT-I:CIF:V(513):cif_dnld_buffer,head=0x0,head1=0x0,head2=0x48
+
+INSRT-I:CIF:V(513):cif_msg_sender,52,head:0x28061540
+
+INSRT-I:CIF:V(532):cif_dnld_buffer,chan_id=0,head=0x28061540,tail=0x28061540,num=1,start!
+
+INSRT-I:CIF:V(532):cif_dnld_buffer,head=0x0,head1=0x0,head2=0x48
+
+INSRT-I:CIF:V(532):cif_msg_sender,52,head:0x28061540
+
+INSRT-D:D(552):cpu0 receive the cpu1 boot success event [1]
+
+INSRT-I:ckmn:V(558):ckmn_isr CKEST FINISH TRIGGERED!
+
+INSRT-I:ckmn:V(558):ckmn_isr CLSET_finish_isr!
+GERED!
+
+$ckmn:V(52):ckmn_isr CLSET_finish_isr!
+ckmn:V(55):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(55):ckmn_isr CLSET_finish_isr!
+ckmn:V(57):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(57):ckmn_isr CLSET_finish_isr!
+ckmn:V(59):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(59):ckmn_isr CLSET_finish_isr!
+ckmn:V(62):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(62):ckmn_isr CLSET_finish_isr!
+ckmn:V(64):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(64):ckmn_isr CLSET_finish_isr!
+ckmn:V(67):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(67):ckmn_isr CLSET_finish_isr!
+ckmn:V(69):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(69):ckmn_isr CLSET_finish_isr!
+ckmn:V(72):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(72):ckmn_isr CLSET_finish_isr!
+ckmn:V(74):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(74):ckmn_isr CLSET_finish_isr!
+adc:V(76):release
+ckmn:V(77):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(77):ckmn_isr CLSET_finish_isr!
+cal:D(95):cali bias(e)
+cal:D(96):calibration_main(e1c2bcd) over
+cal:D(96):*********** finally result BK7236 **********
+cal:D(96):gtx_i_dc_comp          : 0x7fd
+cal:D(96):gtx_q_dc_comp          : 0x80e
+cal:D(96):gtx_i_dc_comp_fcc      : 0x7fd
+cal:D(96):gtx_q_dc_comp_fcc      : 0x80e
+cal:D(96):gtx_i_dc_comp_srrc     : 0x7fd
+cal:D(96):gtx_q_dc_comp_srrc     : 0x80e
+cal:D(96):gtx_i_gain_comp        : 0xfc5
+cal:D(96):gtx_q_gain_comp        : 0xfff
+cal:D(96):gtx_phase_comp         : 0x7d4
+cal:D(96):gtx_phase_ty2          : 0x800
+cal:D(96):gtx_ifilter_corner over: 0x78
+cal:D(96):gtx_qfilter_corner over: 0x78
+cal:D(96):const_iqcal_p over     : 0x400
+cal:D(96):const_iqcal_idx over   : 0x95
+cal:D(97):g_rx_dc_gain_tab 0 over: 0x80808080
+cal:D(97):g_rx_dc_gain_tab 1 over: 0x7d7c8080
+cal:D(97):g_rx_dc_gain_tab 2 over: 0x7d7c7d7c
+cal:D(97):g_rx_dc_gain_tab 3 over: 0x797b7d7c
+cal:D(97):g_rx_dc_gain_tab 4 over: 0x7579797b
+cal:D(97):g_rx_dc_gain_tab 5 over: 0x75797579
+cal:D(97):g_rx_dc_gain_tab 6 over: 0x75797579
+cal:D(97):g_rx_dc_gain_tab 7 over: 0x75797579
+cal:D(97):grx_amp_err_wr         : 0x200
+cal:D(97):grx_phase_err_wr       : 0x000
+cal:D(97):**************************************
+cal:D(98):rf cali flag in flash: valid
+flash txpwr table:0xf
+dif g and n20 ID in flash:4
+dif g and n40 ID in flash:4
+read txpwr tab from flash success
+cal:E(98):load polar tab magic code error 0xffffffff
+cal:W(98):Load default txpwr for ble:0x20814e0
+tempd:D(99):init temperature 563
+os:D(99):create tempd, tcb=28052478, stack=[28051e70-28052470:1536], prio=5
+lpf_i & q in flash is:121, 120
+xtal in flash is:45
+xtal_cali:45
+cal:D(99):--init_xtal = 45
+cal:D(99):gtx_dcorPA=0x15->0x15
+cal:D(99):pwr_gain_base dft_b/g/ble=28ab7c00/a8ab7c00/28a94c00 cur_b/g/ble=28ab7c00/a8ab7c00/28a94c00,tgt_pwr_b/g/n40/dif_gn20=14/0/1076953088/0
+cal:D(100):-----pwr_gain:40, rate=54, g_idx:40, shift_b:0, shift_g:0
+cal:I(100):idx:40=40+(0),r:54,xtal:45,pwr_gain:a8ab7128
+os:D(100):create kmsgbk, tcb=28053970, stack=[28052968-28053968:4096], prio=6
+os:D(100):create core_thread, tcb=280548a8, stack=[280540a0-280548a0:2048], prio=7
+os:D(101):create wpas_thread, tcb=280561e8, stack=[28054de0-280561e0:5120], prio=4
+os:D(101):create cif_thread, tcb=28057810, stack=[28056808-28057808:4096], prio=7
+CIF:D(101):cif_init
+wifi:I(101):wifi inited(1) ret(0)
+AT_WLAN:D(101):WIFI AT CMDS INIT OK
+event:V(101):register event <1 -1 0x207e125 (nil)>
+tempd:D(102):xtal inital:563, 70, 45
+tempd:V(102):send msg(3)
+tempd:V(102):send msg(6)
+tempd:V(102):stop
+adc:V(102):acquire
+event:V(102):handle event register, event<1 -1 0x207e125 (nil)>
+event:V(103):register cb to module node(0x2804fe20)
+event:V(103):register cb to cb list(0x2804fe34)
+event:V(103):new cb node(0x28057cc0)
+event:V(103):register event <2 -1 0x207e1e5 (nil)>
+event:V(103):handle event register, event<2 -1 0x207e1e5 (nil)>
+event:V(103):new event module=0x28057cd8
+event:V(103):register cb to module node(0x28057cd8)
+event:V(103):register cb to cb list(0x28057cec)
+event:V(103):new cb node(0x28057d00)
+event:V(104):register event <1 -1 0x203e741 (nil)>
+D(104):user app entry(0x2054131)
+D(104):boot_cp1 9 0 0x0 [0][0x28024ad8]E_1
+adc:V(111):release
+tempd:V(112):cnt=1, interval=1, last=563, cur=547, thr=46
+cal:D(112):temp_code:28 - adc_code:547 - adc_trend:[13]:563->[14]:540
+tempd:V(112):restart
+tempd:V(112):stop err=0
+adc:V(112):acquire
+D(104):boot_cp1 9 0 0x0 [0]E_2
+D(112):reset_cpu1_core at: 02150000, start=1
+adc:V(115):release
+tempd:V(120):cnt=1, interval=15, last=0, cur=3249, thr=0
+tempd:V(120):restart err=0
+bk_ipc:V(242):bk_ipc_mailbox_rx_isr 743
+bk_ipc:D(242):recv cpu1 state changed: 1
+ap1:ef:I(0):ENV start address is 0x007FC000, size is 8192 bytes.
+ap0:ef:I(48):EasyFlash V4.1.0 is initialize success.
+ap1:WDRV:W(141):wdrv_tx_cmd_buffer_init, addr[0]=0x28061540, pattern_addr=0x2806153c
+ap1:WDRV:W(141):wdrv_tx_cmd_buffer_init, addr[1]=0x28061860, pattern_addr=0x2806185c
+CIF:V(384):cif_dnld_buffer,head=0x0,head1=0x0,head2=0x14
+CIF:V(384):cif_msg_sender,52,head:0x28061540
+CIF:V(385):cif_handle_bk_cmd,TX_BK_CMD_DATA 
+CIF:V(385):cif_handle_bk_cmd cmd_id:202
+D(385):cif_handle_bk_cmd_get_mac_addr_req
+mac:D(385):sync_mac_record, base mac:c8:47:8c:46:02:15
+mac:D(385):sync_mac_record, saved base mac:c8:47:8c:46:02:15
+D(385):base mac: c8:47:8c:46:02:15
+CIF:V(385):cif_msg_sender,52,head:0x280251fc
+V(386):cif_rxdata_pre_process,237,p:0x280251ec,ipc_chnl:0
+CIF:V(386):cif_rxdata_pre_process,261,p:0x280251ec,p:0x280251ec,num:1
+CIF:V(386):cif_rxbuf_push, channel=0,head:0x280251fc,tail:0x280251fc,num:1
+CIF:V(386):cif_dnld_buffer,head=0x0,head1=0x0,head2=0x48
+CIF:V(386):cif_msg_sender,52,head:0x28061540
+CIF:V(392):cif_handle_bk_cmd,TX_BK_CMD_DATA 
+CIF:V(392):cif_handle_bk_cmd cmd_id:366
+CIF:V(392):cif_handle_wifi_api_cmd cmd:366 agrc:1
+CIF:V(392):cif_msg_sender,52,head:0x280251fc
+V(392):cif_rxdata_pre_process,237,p:0x280251ec,ipc_chnl:0
+CIF:V(392):cif_rxdata_pre_process,261,p:0x280251ec,p:0x280251ec,num:1
+CIF:V(392):cif_rxbuf_push, channel=0,head:0x280251fc,tail:0x280251fc,num:1
+CIF:V(392):cif_dnld_buffer,head=0x0,head1=0x0,head2=0x48
+CIF:V(392):cif_msg_sender,52,head:0x28061540
+CIF:V(400):cif_handle_bk_cmd,TX_BK_CMD_DATA 
+CIF:V(400):cif_handle_bk_cmd cmd_id:366
+CIF:V(400):cif_handle_wifi_api_cmd cmd:366 agrc:1
+CIF:V(400):cif_msg_sender,52,head:0x280251fc
+V(400):cif_rxdata_pre_process,237,p:0x280251ec,ipc_chnl:0
+CIF:V(400):cif_rxdata_pre_process,261,p:0x280251ec,p:0x280251ec,num:1
+CIF:V(400):cif_rxbuf_push, channel=0,head:0x280251fc,tail:0x280251fc,num:1
+CIF:V(419):cif_handle_bk_cmd,TX_BK_CMD_DATA 
+CIF:V(419):cif_handle_bk_cmd cmd_id:367
+CIF:V(420):cif_handle_wifi_api_cmd cmd:367 agrc:1
+CIF:V(420):cif_msg_sender,52,head:0x280251fc
+V(420):cif_rxdata_pre_process,237,p:0x280251ec,ipc_chnl:0
+CIF:V(420):cif_rxdata_pre_process,261,p:0x280251ec,p:0x280251ec,num:1
+CIF:V(420):cif_rxbuf_push, channel=0,head:0x280251fc,tail:0x280251fc,num:1
+CIF:V(437):cif_handle_bk_cmd,TX_BK_CMD_DATA 
+CIF:V(437):cif_handle_bk_cmd cmd_id:366
+CIF:V(437):cif_handle_wifi_api_cmd cmd:366 agrc:1
+CIF:V(437):cif_msg_sender,52,head:0x280251fc
+V(437):cif_rxdata_pre_process,237,p:0x280251ec,ipc_chnl:0
+CIF:V(438):cif_rxdata_pre_process,261,p:0x280251ec,p:0x280251ec,num:1
+CIF:V(438):cif_rxbuf_push, channel=0,head:0x280251fc,tail:0x280251fc,num:1
+CIF:V(456):cif_handle_bk_cmd,TX_BK_CMD_DATA 
+CIF:V(456):cif_handle_bk_cmd cmd_id:367
+CIF:V(456):cif_handle_wifi_api_cmd cmd:367 agrc:1
+CIF:V(456):cif_msg_sender,52,head:0x280251fc
+V(456):cif_rxdata_pre_process,237,p:0x280251ec,ipc_chnl:0
+CIF:V(456):cif_rxdata_pre_process,261,p:0x280251ec,p:0x280251ec,num:1
+CIF:V(457):cif_rxbuf_push, channel=0,head:0x280251fc,tail:0x280251fc,num:1
+CIF:V(475):cif_handle_bk_cmd,TX_BK_CMD_DATA 
+CIF:V(475):cif_handle_bk_cmd cmd_id:366
+CIF:V(475):cif_handle_wifi_api_cmd cmd:366 agrc:1
+CIF:V(475):cif_msg_sender,52,head:0x280251fc
+V(475):cif_rxdata_pre_process,237,p:0x280251ec,ipc_chnl:0
+CIF:V(475):cif_rxdata_pre_process,261,p:0x280251ec,p:0x280251ec,num:1
+CIF:V(475):cif_rxbuf_push, channel=0,head:0x280251fc,tail:0x280251fc,num:1
+CIF:V(494):cif_handle_bk_cmd,TX_BK_CMD_DATA 
+CIF:V(495):cif_handle_bk_cmd cmd_id:367
+CIF:V(495):cif_handle_wifi_api_cmd cmd:367 agrc:1
+CIF:V(495):cif_msg_sender,52,head:0x280251fc
+V(495):cif_rxdata_pre_process,237,p:0x280251ec,ipc_chnl:0
+CIF:V(495):cif_rxdata_pre_process,261,p:0x280251ec,p:0x280251ec,num:1
+CIF:V(495):cif_rxbuf_push, channel=0,head:0x280251fc,tail:0x280251fc,num:1
+CIF:V(512):cif_handle_bk_cmd,TX_BK_CMD_DATA 
+CIF:V(512):cif_handle_bk_cmd cmd_id:367
+CIF:V(512):cif_handle_wifi_api_cmd cmd:367 agrc:1
+CIF:V(512):cif_msg_sender,52,head:0x280251fc
+V(513):cif_rxdata_pre_process,237,p:0x280251ec,ipc_chnl:0
+CIF:V(513):cif_rxdata_pre_process,261,p:0x280251ec,p:0x280251ec,num:1
+CIF:V(513):cif_rxbuf_push, channel=0,head:0x280251fc,tail:0x280251fc,num:1
+CIF:V(531):cif_handle_bk_cmd,TX_BK_CMD_DATA 
+CIF:V(531):cif_handle_bk_cmd cmd_id:31d
+CIF:V(531):cif_handle_wifi_api_cmd cmd:31d agrc:1
+CIF:V(531):cif_msg_sender,52,head:0x280251fc
+V(531):cif_rxdata_pre_process,237,p:0x280251ec,ipc_chnl:0
+CIF:V(532):cif_rxdata_pre_process,261,p:0x280251ec,p:0x280251ec,num:1
+CIF:V(532):cif_rxbuf_push, channel=0,head:0x280251fc,tail:0x280251fc,num:1
+CIF:V(550):cif_handle_bk_cmd,TX_BK_CMD_DATA 
+CIF:V(550):cif_handle_bk_cmd cmd_id:329
+CIF:V(550):cif_handle_wifi_api_cmd cmd:329 agrc:1
+CIF:V(550):cif_msg_sender,52,head:0x280251fc
+V(550):cif_rxdata_pre_process,237,p:0x280251ec,ipc_chnl:0
+CIF:V(550):cif_rxdata_pre_process,261,p:0x280251ec,p:0x280251ec,num:1
+CIF:V(550):cif_rxbuf_push, channel=0,head:0x280251fc,tail:0x280251fc,num:1
+wakeup
+V(552):cp0_mb_rx_isr 5 1 0 0 0
+event:V(556):handle event register, event<1 -1 0x203e741 (nil)>
+event:V(556):register cb to module node(0x2804fe20)
+event:V(556):register cb to cb list(0x2804fe34)
+event:V(556):new cb node(0x2804a7b0)
+event:V(556):register event <2 -1 0x203fd81 (nil)>
+event:V(556):handle event register, event<2 -1 0x203fd81 (nil)>
+event:V(556):register cb to module node(0x28057cd8)
+event:V(556):register cb to cb list(0x28057cec)
+event:V(556):new cb node(0x2804a7c8)
+gpio:D(557):bk_gpio_driver_init:has inited 
+aon_rtc:V(557):bk_aon_rtc_driver_init[+]
+aon_rtc:V(557):bk_aon_rtc_driver_init[-]
+os:D(567):create cli, tcb=280587a8, stack=[280581a0-280587a0:1536], prio=5
+os:D(567):create log_hanlder, tcb=28058c78, stack=[28058870-28058c70:1024], prio=5
+os:D(567):create atsvr-handler, tcb=280599c0, stack=[28058db8-280599b8:3072], prio=3
+AT_SVR:V(567):AT TASK Create OK!
+event:V(568):register event <1 -1 0x20394c1 (nil)>
+wakeup
+event:V(569):handle event register, event<1 -1 0x20394c1 (nil)>
+event:V(569):register cb to module node(0x2804fe20)
+event:V(569):register cb to cb list(0x2804fe34)
+event:V(569):new cb node(0x2804a7e0)
+psram:D(574):Auto detect:No PSRAM_CHIP_ID INFO, ret:0
+rosc:D(568):rosc calib complete 72 256
+tempd:V(1113):send msg(3)
+tempd:V(1113):send msg(1)
+tempd:V(1113):stop
+adc:V(1113):acquire
+ckmn:V(1115):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(1115):ckmn_isr CLSET_finish_isr!
+adc:V(1115):release
+tempd:V(1115):cnt=2, interval=1, last=540, cur=548, thr=46
+tempd:V(1115):restart
+tempd:V(1115):restart
+tempd:V(2115):send msg(3)
+tempd:V(2115):send msg(1)
+tempd:V(2115):stop
+adc:V(2115):acquire
+ckmn:V(2118):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(2118):ckmn_isr CLSET_finish_isr!
+adc:V(2118):release
+tempd:V(2118):cnt=3, interval=1, last=540, cur=548, thr=46
+tempd:V(2118):restart
+tempd:V(2118):restart
+IPC:V(2241):IPC_CMD: 671472896, -65532, -1
+
+$
+$
+$tempd:V(3118):send msg(3)
+tempd:V(3118):send msg(1)
+tempd:V(3118):stop
+adc:V(3118):acquire
+ckmn:V(3121):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(3121):ckmn_isr CLSET_finish_isr!
+adc:V(3121):release
+
+$tempd:V(3121):cnt=4, interval=1, last=540, cur=548, thr=46
+tempd:V(3121):restart
+tempd:V(3121):restart
+tempd:V(4121):send msg(3)
+tempd:V(4121):send msg(1)
+tempd:V(4121):stop
+adc:V(4121):acquire
+ckmn:V(4123):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(4123):ckmn_isr CLSET_finish_isr!
+adc:V(4123):release
+tempd:V(4123):cnt=5, interval=1, last=540, cur=549, thr=46
+tempd:V(4123):restart
+tempd:V(4123):restart
+IPC:V(4241):IPC_CMD: 671472896, -65532, -1
+tempd:V(5123):send msg(3)
+tempd:V(5123):send msg(1)
+tempd:V(5123):stop
+adc:V(5123):acquire
+ckmn:V(5125):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(5125):ckmn_isr CLSET_finish_isr!
+adc:V(5126):release
+tempd:V(5126):cnt=6, interval=1, last=540, cur=549, thr=46
+tempd:V(5126):restart
+tempd:V(5126):restart
+
+$tempd:V(6126):send msg(3)
+tempd:V(6126):send msg(1)
+tempd:V(6126):stop
+adc:V(6126):acquire
+ckmn:V(6129):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(6129):ckmn_isr CLSET_finish_isr!
+adc:V(6129):release
+tempd:V(6129):cnt=7, interval=1, last=540, cur=548, thr=46
+tempd:V(6129):restart
+tempd:V(6129):restart
+IPC:V(6241):IPC_CMD: 671472896, -65532, -1
+tempd:V(7129):send msg(3)
+tempd:V(7129):send msg(1)
+tempd:V(7129):stop
+adc:V(7129):acquire
+ckmn:V(7132):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(7132):ckmn_isr CLSET_finish_isr!
+adc:V(7132):release
+tempd:V(7132):cnt=8, interval=1, last=540, cur=548, thr=46
+tempd:V(7132):restart
+tempd:V(7132):restart
+tempd:V(8132):send msg(3)
+tempd:V(8132):send msg(1)
+tempd:V(8132):stop
+adc:V(8132):acquire
+ckmn:V(8135):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(8135):ckmn_isr CLSET_finish_isr!
+adc:V(8135):release
+stempd:V(8135):cnt=9, interval=1, last=540, cur=549, thr=46
+tempd:V(8135):restart
+tempd:V(8135):restart
+IPC:V(8241):IPC_CMD: 671472896, -65532, -1
+ta tempd:V(9135):send msg(3)
+tempd:V(9135):send msg(1)
+tempd:V(9135):stop
+adc:V(9135):acquire
+ckmn:V(9137):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(9137):ckmn_isr CLSET_finish_isr!
+adc:V(9137):release
+tempd:V(9137):cnt=10, interval=1, last=540, cur=549, thr=46
+tempd:V(9137):restart
+tempd:V(9137):restart
+  tempd:V(10137):send msg(3)
+tempd:V(10137):send msg(1)
+tempd:V(10137):stop
+adc:V(10137):acquire
+ckmn:V(10139):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(10139):ckmn_isr CLSET_finish_isr!
+adc:V(10139):release
+tempd:V(10139):cnt=11, interval=1, last=540, cur=548, thr=46
+tempd:V(10139):restart
+tempd:V(10139):restart
+ IPC:V(10241):IPC_CMD: 671472896, -65532, -1
+ tempd:V(11139):send msg(3)
+tempd:V(11139):send msg(1)
+tempd:V(11139):stop
+adc:V(11139):acquire
+ckmn:V(11142):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(11142):ckmn_isr CLSET_finish_isr!
+adc:V(11142):release
+tempd:V(11142):cnt=12, interval=1, last=540, cur=549, thr=46
+tempd:V(11142):restart
+tempd:V(11142):restart
+
+
+$stempd:V(12142):send msg(3)
+tempd:V(12142):send msg(1)
+tempd:V(12142):stop
+adc:V(12142):acquire
+ckmn:V(12145):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(12145):ckmn_isr CLSET_finish_isr!
+adc:V(12145):release
+tempd:V(12145):cnt=13, interval=1, last=540, cur=549, thr=46
+tempd:V(12145):restart
+tempd:V(12145):restart
+tIPC:V(12241):IPC_CMD: 671472896, -65532, -1
+a tempd:V(13145):send msg(3)
+tempd:V(13145):send msg(1)
+tempd:V(13145):stop
+adc:V(13145):acquire
+ckmn:V(13147):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(13147):ckmn_isr CLSET_finish_isr!
+adc:V(13147):release
+tempd:V(13147):cnt=14, interval=1, last=540, cur=549, thr=46
+tempd:V(13147):restart
+tempd:V(13147):restart
+Luv tempd:V(14147):send msg(3)
+tempd:V(14147):send msg(1)
+tempd:V(14147):stop
+adc:V(14147):acquire
+ckmn:V(14149):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(14149):ckmn_isr CLSET_finish_isr!
+adc:V(14150):release
+tempd:V(14150):cnt=15, interval=1, last=540, cur=548, thr=46
+tempd:V(14150):restart
+tempd:V(14150):restart
+IPC:V(14241):IPC_CMD: 671472896, -65532, -1
+200tempd:V(15120):send msg(6)
+tempd:V(15120):stop err=0
+adc:V(15120):acquire
+adc:V(15123):release
+tempd:V(15123):cnt=2, interval=15, last=0, cur=3267, thr=0
+tempd:V(15123):restart err=0
+tempd:V(15151):send msg(3)
+tempd:V(15151):send msg(1)
+tempd:V(15151):stop
+adc:V(15151):acquire
+ckmn:V(15154):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(15154):ckmn_isr CLSET_finish_isr!
+adc:V(15154):release
+4tempd:V(15154):cnt=16, interval=1, last=540, cur=549, thr=46
+tempd:V(15154):restart
+tempd:V(15154):restart
+0517tempd:V(16154):send msg(3)
+tempd:V(16154):send msg(1)
+tempd:V(16154):stop
+adc:V(16154):acquire
+ckmn:V(16156):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(16156):ckmn_isr CLSET_finish_isr!
+adc:V(16156):release
+tempd:V(16156):cnt=17, interval=1, last=540, cur=549, thr=46
+tempd:V(16156):restart
+tempd:V(16156):restart
+IPC:V(16241):IPC_CMD: 671472896, -65532, -1
+
+AT_SVR:V(16663):cli command
+os:D(16663):create shell_handle, tcb=28049ea8, stack=[280482a0-28049ea0:7168], prio=5
+bk_wifi:D(16664):ssid:Luv key:20040517
+wifi:V(16664):sta configuring
+wifi:V(16664):sta config, ssid=Luv password=20040517 security=0
+wifi:V(16664):sta configured(5)
+wifi:V(16664):sta starting
+wifi:V(16664):sta get sta_config, ssid=Luv password=20040517 security=0
+wifi:V(16668):read flash successfully
+wifi:I(16668):fast_connect
+wifi:V(16669):read flash successfully
+wifi:V(16669):sta disconnecting
+wifi:V(16669):sta disconnected(5)
+wifi:V(16669):init 1st vif
+rwnx:V(16671):bmsg_ioctl_handler
+rwnx:V(16673):bmsg_ioctl_sender
+rwnx:V(16674):bmsg_ioctl_handler
+rwnx:V(16675):bmsg_ioctl_sender
+rwnx:V(16675):PHY features: [NSS=1][CHBW=40][LDPC][VHT][HE][BFMEE][MUMIMORX]§ü(
+rwnx:D(16675):FW features: [BCN][AUTOBCN][HWSCAN][CMON][MROLE][PS][DPSM][AMPDU][CHNL_CTXT][REORD][P2P][P2P_GO][UMAC][VHT][HE][BFMEE][WAPI][MFP][MU_MIMO_RX][TWT][PM_DSSS_ONLY]
+rwnx:V(16676):HT supp 1, VHT supp 1, HE supp 1
+rwnx:V(16677):bmsg_ioctl_handler
+rwnx:V(16677):bmsg_ioctl_sender
+rwnx:V(16678):bmsg_ioctl_handler
+rwnx:V(16679):bmsg_ioctl_sender
+rwnx:V(16679):bmsg_ioctl_handler
+rwnx:V(16681):bmsg_ioctl_sender
+wpa:V(16681):sizeof(wpa_supplicant)=1264
+rwnx:V(16682):bmsg_ioctl_handler
+wifid:I(16683):mm_add_if_req: vif_idx=0, type=0, p2p=0, status=0
+rwnx:V(16683):bmsg_ioctl_sender
+hitf:V(16683):add vif0, type=2, status=0
+wpa:V(16683):create fsocket_init:3
+wpa:V(16683):create fsocket_init:23
+wpa:V(16684):wpa_dInit
+wpa:V(16684):create fsocket_init:34978
+hitf:V(16684):del hw key idx=0
+rwnx:V(16685):bmsg_ioctl_handler
+rwnx:V(16686):bmsg_ioctl_sender
+hitf:V(16686):del hw key idx=0
+rwnx:V(16687):bmsg_ioctl_handler
+rwnx:V(16687):bmsg_ioctl_sender
+hitf:V(16687):del hw key idx=0
+rwnx:V(16688):bmsg_ioctl_handler
+rwnx:V(16689):bmsg_ioctl_sender
+hitf:V(16689):del hw key idx=0
+rwnx:V(16690):bmsg_ioctl_handler
+rwnx:V(16690):bmsg_ioctl_sender
+hitf:V(16691):del hw key idx=0
+rwnx:V(16691):bmsg_ioctl_handler
+rwnx:V(16692):bmsg_ioctl_sender
+hitf:V(16692):del hw key idx=0
+rwnx:V(16693):bmsg_ioctl_handler
+rwnx:V(16693):bmsg_ioctl_sender
+wpa:I(16694):State: DISCONNECTED -> INACTIVE
+wpa:I(16694):State: INACTIVE -> DISCONNECTED
+lwip:V(16694):enter low level!
+lwip:V(16694):leave low level!
+lwip:V(16694):add vif0
+wpa:I(16695):update psk, scan pending 0
+wpa:D(16695):No suitable network found
+wpa:I(16696):State: DISCONNECTED -> INACTIVE
+wpa:D(16696):auto_reconnect: count 0, timeout 0, disable_auto_reconnect_after_disconnect 0
+wifi:V(16696):sta started(7)
+wifi:V(16696):sta connecting
+wifi:V(16696):sta disconnecting
+wifi:V(16696):sta disconnected(7)
+wifi:V(16696):sta get sta_config, ssid=Luv password=20040517 security=0
+wifi:V(16697):read flash successfully
+wifi:D(16697):fast_connect re-evaluated, channel=6
+wpa:I(16697):Setting scan request: 0.000000 sec
+wifi:V(16698):sta connected(f)
+
+$wpa:V(16698):wpa_supplicant_scan
+wpa:I(16698):State: INACTIVE -> SCANNING
+wp
+INSRT-I:CIF:V(16920):cif_dnld_buffer,chan_id=2,head=0x2807eb1c,tail=0x2807eb1c,num=1,start!
+
+INSRT-I:CIF:V(16920):cif_dnld_buffer,head=0x2,head1=0x0,head2=0x92f28081
+
+INSRT-I:CIF:V(16920):cif_msg_sender,52,head:0x2807eb1c
+
+INSRT-I:CIF:V(16941):cif_dnld_buffer,chan_id=2,head=0x28027050,tail=0x28027050,num=1,start!
+
+INSRT-I:CIF:V(16941):cif_dnld_buffer,head=0x2,head1=0x0,head2=0x102001a
+
+INSRT-I:CIF:V(16941):cif_msg_sender,52,head:0x28027050
+
+INSRT-I:CIF:V(16960):cif_dnld_buffer,chan_id=2,head=0x28026e84,tail=0x28026e84,num=1,start!
+
+INSRT-I:CIF:V(16960):cif_dnld_buffer,head=0x2,head1=0x0,head2=0x102001a
+
+INSRT-I:CIF:V(16960):cif_msg_sender,52,head:0x28026e84
+a:V(16698):scan work start, deinit=0
+wpa:V(16699):req driver to scan
+wpa:V(16699):wpa_driver_scan2: Scan specified BSSID ff:ff:ff:ff:ff:ff
+hitf:V(16699):send scan req to driver
+rwnx:V(16700):bmsg_ioctl_handler
+wifid:I(16700):[KW:]scanu_start_req:src_id=15,vif=0,dur=0,chan_cnt=1,ssid_len=3,bssid=0xffff-ffff-ffff
+wifid:I(16701):[KW:]scanu_start_req:ssid=Luv
+wifid:I(16701):[KW:]scanu_start_req:chan_idx=6
+rwnx:V(16703):bmsg_ioctl_sender
+wpa:V(16703):Event SCAN_STARTED (47) received
+wifid:I(16743):chan_unregister_once_req: VIF0,type=11
+wifid:I(16744):[KW:]scanu_confirm:status=0,req_type=0,upload_cnt=3,recv_cnt=7,time=43746us,result=1,rfcli=1
+rwnx:V(16745):chan_survey busy 21 ms time 120 ms noise -76 freq 2437
+rwnx:V(16745):rwnx_chan_survey_ind_handler chan_idx 5
+rwnx:V(16745):rwnx_get_wifi_rlk_start start 0
+wpa:V(16745):Event SCAN_RESULTS (3) received
+wpa:I(16745):Scan completed in 0.042000 seconds
+hitf:I(16746):get scan result:1
+wpa:V(16746):cipher2security 2 2 16 16
+wpa:V(16746):cipher2security 2 2 16 16
+wpa:V(16747):wpa_supplicant_connect
+wpa:D(16747):Trying to associate with 6e:26:dd:7f:cc:cc (SSID='Luv' freq=2437 MHz)
+wpa:V(16748):cancell scan request timer
+wpa:I(16748):State: SCANNING -> ASSOCIATING
+wpa:V(16748):wpa_driver_associate: auth_alg 0x1
+rwnx:V(16749):bmsg_ioctl_handler
+wifid:I(16749):[KW:]conn vif0-0,auth_type:0,bssid:266e-7fdd-cccc,ssid:Luv,is encryp:8.
+wifid:I(16750):chan_ctxt_add: CTXT0,freq2437MHz,bw20MHz,pwr127dBm
+wifid:I(16750):chan_reg_fix:VIF0,CTXT0,type3,ctxt_s0,nb_vif0
+wifid:I(16751):mm_sta_add:vif 0,sta 0,status 0
+rwnx:V(16752):bmsg_ioctl_sender
+wifid:I(16794):[KW:]auth_send:seq1, txtype0, auth_type0, seq4
+rwnx:V(16829):bmsg_rx_handler
+wifid:I(16842):[KW:]sm_auth_handler: status code 0, tx status 0x80800000
+wifid:I(16842):[KW:]assoc_req_send:is ht, seq_num:5
+wifid:I(16849):[KW:]assoc_rsp:status0,tx_s0x80800000
+wifid:I(16849):[KW:]mm_set_vif_state,vif=0,vif_type=0,is_active=1, aid=0x9,rssi=-27
+rwnx:V(16849):connect ok
+wpa:V(16849):Event ASSOC (0) received
+rwnx:V(16850):bmsg_hardware_ioctl_handler
+rwnx:V(16850):bmsg_hardware_ioctl_sender
+rwnx:V(16850):bmsg_hardware_ioctl_handler
+rwnx:V(16850):bmsg_hardware_ioctl_sender
+wpa:I(16850):State: ASSOCIATING -> ASSOCIATED
+rwnx:V(16850):bmsg_hardware_ioctl_handler
+rwnx:V(16850):bmsg_hardware_ioctl_sender
+wpa:V(16850):cancell scan request timer
+rwnx:V(16884):bmsg_rx_handler
+wpa:V(16884):ke_tx:34978,buf:0x28026e04, len:113
+wpa:V(16884):hapd_rx:34978,buf:0x28048540, len:512
+rwnx:V(16884):bmsg_hardware_ioctl_handler
+rwnx:V(16884):bmsg_hardware_ioctl_sender
+rwnx:V(16884):bmsg_hardware_ioctl_handler
+rwnx:V(16884):bmsg_hardware_ioctl_sender
+wpa:I(16884):State: ASSOCIATED -> 4WAY_HANDSHAKE
+wpa:I(16885):WPA: TK 7317bddfb39d56140fc5ae53b9acadac
+wpa:V(16885):hapd_tx:34978,buf:0x28048748, len:135
+rwnx:V(16885):bmsg_skt_tx_handler
+wpa:V(16885):ke_rx:34978,buf:0x28027000, len:135
+wpa:V(16885):r1:34978,buf:0x28027000, len:135
+rwnx:V(16890):bmsg_rx_handler
+wpa:V(16890):ke_tx:34978,buf:0x28026e04, len:169
+wpa:V(16890):hapd_rx:34978,buf:0x28048540, len:512
+wpa:I(16891):State: 4WAY_HANDSHAKE -> 4WAY_HANDSHAKE
+wpa:V(16891):hapd_tx:34978,buf:0x28048748, len:113
+rwnx:V(16891):bmsg_skt_tx_handler
+wpa:V(16891):ke_rx:34978,buf:0x28027000, len:113
+wpa:V(16891):r1:34978,buf:0x28027000, len:113
+hitf:I(16894):add CCMP
+hitf:V(16894):add sta_mgmt_get_sta
+hitf:V(16894):add key, sta=0, vif=0, key=0
+rwnx:V(16894):bmsg_ioctl_handler
+rwnx:V(16894):bmsg_ioctl_sender
+hitf:V(16894):add hw key idx=8
+wpa:I(16894):State: 4WAY_HANDSHAKE -> GROUP_HANDSHAKE
+wpa:D(16894):WPA: GTK 3d5de3040c0f9f88bad3fe4881ff4c81
+hitf:I(16894):add CCMP
+hitf:V(16894):add is_broadcast_ether_addr
+hitf:V(16894):add key, sta=255, vif=0, key=1
+rwnx:V(16894):bmsg_ioctl_handler
+rwnx:V(16895):bmsg_ioctl_sender
+hitf:V(16895):add hw key idx=1
+wpa:I(16895):State: GROUP_HANDSHAKE -> COMPLETED
+rwnx:V(16895):bmsg_ioctl_handler
+rwnx:V(16895):bmsg_ioctl_sender
+event:V(16895):post event <1 3 0x28055e3c 4294967295>
+D(16895):cif_bk_send_event
+CIF:V(16895):cif_msg_sender,52,head:0x280251fc
+V(16895):cif_rxdata_pre_process,237,p:0x280251ec,ipc_chnl:0
+CIF:V(16895):cif_rxdata_pre_process,261,p:0x280251ec,p:0x280251ec,num:1
+CIF:V(16895):cif_rxbuf_push, channel=0,head:0x280251fc,tail:0x280251fc,num:1
+ap1:cli:W(16655):BK STA connected Luv
+wifi:V(16896):read flash successfully
+wifi:V(16896):read flash successfully
+wifi:D(16902):writed fci to flash
+lwip:I(16902):sta ip start
+lwip:D(16902):configuring iface sta (with Fast DHCP client)
+lwip:V(16902):dhcp status timer:20000
+lwip:D(16902):fast dhcp rebind ip_addr: 192.168.35.248 
+rwnx:V(16902):bmsg_tx_handler
+AT_WLAN:V(16903):[AT:WLAN],callback_event(3)
+cli:D(16903):BK STA connected Luv
+rwnx:V(16908):bmsg_rx_handler
+rwnx:V(16914):bmsg_rx_handler
+CIF:V(16914):cif_rx_local_packet_check p:28026d68 next:0x0 payload:0x28026e40 sizeof:16
+CIF:V(16914):iphdr_hlen=20,p->len=352,p->tot_len=352,IP_HLEN=20
+CIF:V(16914):IP RX dest_port = 0x0
+CIF:V(16914):IP_PROTO_UDP dest_port:68,src:67
+CIF:V(16914):cif_filter_check_ip_data 379 dest_port = 68
+lwip:I(16914):[KW:]sta:DHCP_ACK received
+rwnx:V(16914):bmsg_hardware_ioctl_sender
+rwnx:V(16915):bmsg_tx_handler
+rwnx:V(16915):bmsg_hardware_ioctl_handler
+rwnx:V(16915):bmsg_ioctl_handler
+wifid:I(16915):[KW:]me dhcp done vif:0
+rwnx:V(16914):bmsg_ioctl_sender
+event:V(16916):post event <2 0 0x2804f840 4294967295>
+wifi:V(16916):get sta link status
+rwnx:V(16916):bmsg_hardware_ioctl_sender
+rwnx:V(16916):bmsg_hardware_ioctl_handler
+D(16917):cif_bk_send_event
+CIF:V(16917):cif_msg_sender,52,head:0x280251fc
+V(16918):cif_rxdata_pre_process,237,p:0x280251ec,ipc_chnl:0
+CIF:V(16918):cif_rxdata_pre_process,261,p:0x280251ec,p:0x280251ec,num:1
+CIF:V(16918):cif_rxbuf_push, channel=0,head:0x280251fc,tail:0x280251fc,num:1
+wifi:V(16919):read flash successfully
+wifi:V(16919):read flash successfully
+ap0:lwip:I(16678):sta ip start
+cli:I(16919):BK STA got ip4
+CIF:V(16935):cif_handle_txdata p:2807eb0c next:0 payload2807ede2 sizeof:16
+CIF:V(16935):cif_handle_txdata p:2807eb0c,vif_id=15
+rwnx:V(16936):rwnx_get_wifi_rlk_start start 0
+rwnx:V(16937):bmsg_tx_handler
+rwnx:V(16938):bmsg_rx_handler
+CIF:V(16938):cif_rx_local_packet_check p:28026d68 next:0x0 payload:0x28026e40 sizeof:16
+CIF:V(16938):ARP RX
+CIF:V(16939):cif_rx_local_packet_check,525 p:0x28027040 next:(nil) payload:0x28027058 len:42
+CIF:V(16939):cif_msg_sender,52,head:0x28027050
+V(16939):cif_rxdata_pre_process,237,p:0x28027040,ipc_chnl:1
+CIF:V(16940):cif_rxdata_pre_process,261,p:0x28027040,p:0x28027040,num:1
+CIF:V(16940):cif_rxbuf_push, channel=2,head:0x28027050,tail:0x28027050,num:1
+CIF:V(16955):cif_handle_txdata free p:28027040,p->ref:2
+CIF:V(16940):cif_free_ap_txbuf,10,p:0x2807eb0c
+CIF:V(16956):cif_msg_sender,52,head:0x2807eb1c
+rwnx:V(16956):bmsg_rx_handler
+V(16957):cif_rxdata_pre_process,237,p:0x2807eb0c,ipc_chnl:1
+CIF:V(16957):cif_rxdata_pre_process,261,p:0x2807eb0c,p:0x2807eb0c,num:1
+CIF:V(16957):cif_rxbuf_push, channel=2,head:0x2807eb1c,tail:0x2807eb1c,num:1
+CIF:V(16956):cif_rx_local_packet_check p:28026d68 next:0x0 payload:0x28026e40 sizeof:16
+CIF:V(16958):ARP RX
+CIF:V(16958):cif_rx_local_packet_check,525 p:0x28026e74 next:(nil) payload:0x28026e8c len:42
+CIF:V(16958):cif_msg_sender,52,head:0x28026e84
+V(16959):cif_rxdata_pre_process,237,p:0x28026e74,ipc_chnl:1
+CIF:V(16959):cif_rxdata_pre_process,261,p:0x28026e74,p:0x28026e74,num:1
+CIF:V(16959):cif_rxbuf_push, channel=2,head:0x28026e84,tail:0x28026e84,num:1
+CIF:V(16974):cif_handle_txdata free p:28026e74,p->ref:2
+lwip:D(16960):stop send reply net_begin_send_arp_reply
+ap1:cli:W(16678):BK STA got ip 192.168.35.248
+rwnx:V(17036):rwnx_get_wifi_rlk_start start 0
+rwnx:V(17139):rwnx_get_wifi_rlk_start start 0
+tempd:V(17157):send msg(3)
+tempd:V(17157):send msg(1)
+tempd:V(17157):stop
+adc:V(17157):acquire
+ckmn:V(17160):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(17160):ckmn_isr CLSET_finish_isr!
+adc:V(17160):release
+tempd:V(17160):cnt=18, interval=1, last=540, cur=547, thr=46
+tempd:V(17160):restart
+tempd:V(17160):restart
+rwnx:V(17241):rwnx_get_wifi_rlk_start start 0
+rwnx:V(17445):rwnx_get_wifi_rlk_start start 0
+rwnx:V(17650):rwnx_get_wifi_rlk_start start 0
+rwnx:V(17854):rwnx_get_wifi_rlk_start start 0
+rwnx:V(18059):rwnx_get_wifi_rlk_start start 0
+tempd:V(18160):send msg(3)
+tempd:V(18160):send msg(1)
+tempd:V(18160):stop
+adc:V(18160):acquire
+ckmn:V(18162):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(18162):ckmn_isr CLSET_finish_isr!
+adc:V(18162):release
+tempd:V(18162):cnt=19, interval=1, last=540, cur=548, thr=46
+tempd:V(18162):restart
+tempd:V(18162):restart
+IPC:V(18241):IPC_CMD: 671472896, -65532, -1
+rwnx:V(18265):rwnx_get_wifi_rlk_start start 0
+rwnx:V(18469):rwnx_get_wifi_rlk_start start 0
+rwnx:V(18677):rwnx_get_wifi_rlk_start start 0
+rwnx:V(18879):rwnx_get_wifi_rlk_start start 0
+rwnx:V(19083):rwnx_get_wifi_rlk_start start 0
+tempd:V(19162):send msg(3)
+tempd:V(19162):send msg(1)
+tempd:V(19162):stop
+adc:V(19162):acquire
+ckmn:V(19164):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(19164):ckmn_isr CLSET_finish_isr!
+adc:V(19164):release
+tempd:V(19164):cnt=20, interval=1, last=540, cur=548, thr=46
+tempd:V(19164):restart
+tempd:V(19164):restart
+rwnx:V(19288):rwnx_get_wifi_rlk_start start 0
+rwnx:V(19493):rwnx_get_wifi_rlk_start start 0
+rwnx:V(19698):rwnx_get_wifi_rlk_start start 0
+rwnx:V(19903):rwnx_get_wifi_rlk_start start 0
+rwnx:V(20105):rwnx_get_wifi_rlk_start start 0
+tempd:V(20164):send msg(3)
+tempd:V(20164):send msg(1)
+tempd:V(20164):stop
+adc:V(20164):acquire
+ckmn:V(20167):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(20167):ckmn_isr CLSET_finish_isr!
+adc:V(20167):release
+tempd:V(20167):cnt=21, interval=1, last=540, cur=549, thr=46
+tempd:V(20167):restart
+tempd:V(20167):restart
+IPC:V(20241):IPC_CMD: 671472896, -65532, -1
+rwnx:V(20314):rwnx_get_wifi_rlk_start start 0
+rwnx:V(20516):rwnx_get_wifi_rlk_start start 0
+rwnx:V(20722):rwnx_get_wifi_rlk_start start 0
+rwnx:V(20927):rwnx_get_wifi_rlk_start start 0
+rwnx:V(21130):rwnx_get_wifi_rlk_start start 0
+tempd:V(21168):send msg(3)
+tempd:V(21168):send msg(1)
+tempd:V(21168):stop
+adc:V(21168):acquire
+ckmn:V(21171):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(21171):ckmn_isr CLSET_finish_isr!
+adc:V(21171):release
+tempd:V(21171):cnt=22, interval=1, last=540, cur=549, thr=46
+tempd:V(21171):restart
+tempd:V(21171):restart
+rwnx:V(21337):rwnx_get_wifi_rlk_start start 0
+rwnx:V(21539):rwnx_get_wifi_rlk_start start 0
+rwnx:V(21744):rwnx_get_wifi_rlk_start start 0
+rwnx:V(21949):rwnx_get_wifi_rlk_start start 0
+rwnx:V(22156):rwnx_get_wifi_rlk_start start 0
+tempd:V(22171):send msg(3)
+tempd:V(22171):send msg(1)
+tempd:V(22171):stop
+adc:V(22171):acquire
+ckmn:V(22174):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(22174):ckmn_isr CLSET_finish_isr!
+adc:V(22174):release
+tempd:V(22174):cnt=23, interval=1, last=540, cur=549, thr=46
+tempd:V(22174):restart
+tempd:V(22174):restart
+IPC:V(22241):IPC_CMD: 671472896, -65532, -1
+rwnx:V(22359):rwnx_get_wifi_rlk_start start 0
+rwnx:V(22563):rwnx_get_wifi_rlk_start start 0
+rwnx:V(22768):rwnx_get_wifi_rlk_start start 0
+rwnx:V(22973):rwnx_get_wifi_rlk_start start 0
+tempd:V(23174):send msg(3)
+tempd:V(23174):send msg(1)
+tempd:V(23174):stop
+adc:V(23174):acquire
+ckmn:V(23176):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(23176):ckmn_isr CLSET_finish_isr!
+adc:V(23177):release
+tempd:V(23177):cnt=24, interval=1, last=540, cur=543, thr=46
+tempd:V(23177):restart
+tempd:V(23177):restart
+rwnx:V(23181):rwnx_get_wifi_rlk_start start 0
+rwnx:V(23387):rwnx_get_wifi_rlk_start start 0
+rwnx:V(23596):rwnx_get_wifi_rlk_start start 0
+rwnx:V(23793):rwnx_get_wifi_rlk_start start 0
+rwnx:V(23999):rwnx_get_wifi_rlk_start start 0
+rwnx:V(24001):bmsg_rx_handler
+CIF:V(24001):cif_rx_local_packet_check p:28026d68 next:0x0 payload:0x28026e40 sizeof:16
+rwnx:V(24002):bmsg_rx_handler
+CIF:V(24002):cif_rx_local_packet_check p:28026d68 next:0x0 payload:0x28026e40 sizeof:16
+CIF:V(24002):iphdr_hlen=24,p->len=54,p->tot_len=54,IP_HLEN=20
+CIF:V(24002):IP RX dest_port = 0x0
+CIF:V(24002):IP_PROTO_IGMP
+CIF:V(24002):cif_filter_check_ip_data 379 dest_port = 0
+CIF:V(24003):cif_rx_local_packet_check,600 p:0x28026d68 next:(nil) payload:0x28026e40 len:54
+CIF:V(24003):cif_msg_sender,52,head:0x28026d78
+V(24003):cif_rxdata_pre_process,237,p:0x28026d68,ipc_chnl:1
+CIF:V(24003):cif_rxdata_pre_process,261,p:0x28026d68,p:0x28026d68,num:1
+CIF:V(24004):cif_rxbuf_push, channel=2,head:0x28026d78,tail:0x28026d78,num:1
+CIF:V(24005):cif_dnld_buffer,chan_id=2,head=0x28026d78,tail=0x28026d78,num=1,start!
+CIF:V(24005):cif_dnld_buffer,head=0x2,head1=0x0,head2=0x1020026
+CIF:V(24005):cif_msg_sender,52,head:0x28026d78
+CIF:V(24006):cif_handle_txdata free p:28026d68,p->ref:2
+tempd:V(24177):send msg(3)
+tempd:V(24177):send msg(1)
+tempd:V(24177):stop
+adc:V(24177):acquire
+ckmn:V(24179):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(24179):ckmn_isr CLSET_finish_isr!
+adc:V(24179):release
+tempd:V(24179):cnt=25, interval=1, last=540, cur=549, thr=46
+tempd:V(24179):restart
+tempd:V(24179):restart
+rwnx:V(24205):rwnx_get_wifi_rlk_start start 0
+IPC:V(24241):IPC_CMD: 671472896, -65532, -1
+rwnx:V(24411):rwnx_get_wifi_rlk_start start 0
+rwnx:V(24414):bmsg_rx_handler
+CIF:V(24414):cif_rx_local_packet_check p:28026d68 next:0x0 payload:0x28026e40 sizeof:16
+rwnx:V(24418):bmsg_rx_handler
+CIF:V(24418):cif_rx_local_packet_check p:28026d68 next:0x0 payload:0x28026e40 sizeof:16
+rwnx:V(24613):rwnx_get_wifi_rlk_start start 0
+rwnx:V(24818):rwnx_get_wifi_rlk_start start 0
+rwnx:V(24821):bmsg_rx_handler
+CIF:V(24821):cif_rx_local_packet_check p:28026d68 next:0x0 payload:0x28026e40 sizeof:16
+CIF:V(24821):iphdr_hlen=20,p->len=123,p->tot_len=123,IP_HLEN=20
+CIF:V(24822):IP RX dest_port = 0x0
+CIF:V(24822):IP_PROTO_UDP dest_port:5353,src:5353
+CIF:V(24822):cif_filter_check_ip_data 379 dest_port = 5353
+CIF:V(24822):cif_rx_local_packet_check,600 p:0x28026d68 next:(nil) payload:0x28026e40 len:123
+CIF:V(24822):cif_msg_sender,52,head:0x28026d78
+V(24822):cif_rxdata_pre_process,237,p:0x28026d68,ipc_chnl:1
+CIF:V(24823):cif_rxdata_pre_process,261,p:0x28026d68,p:0x28026d68,num:1
+CIF:V(24823):cif_rxbuf_push, channel=2,head:0x28026d78,tail:0x28026d78,num:1
+CIF:V(24823):cif_dnld_buffer,chan_id=2,head=0x28026d78,tail=0x28026d78,num=1,start!
+CIF:V(24823):cif_dnld_buffer,head=0x2,head1=0x0,head2=0x102006b
+CIF:V(24823):cif_msg_sender,52,head:0x28026d78
+CIF:V(24824):cif_handle_txdata free p:28026d68,p->ref:2
+rwnx:V(24824):bmsg_rx_handler
+CIF:V(24824):cif_rx_local_packet_check p:28026d68 next:0x0 payload:0x28026e40 sizeof:16
+rwnx:V(25023):rwnx_get_wifi_rlk_start start 0
+rwnx:V(25026):bmsg_rx_handler
+CIF:V(25026):cif_rx_local_packet_check p:28026d68 next:0x0 payload:0x28026e40 sizeof:16
+CIF:V(25026):iphdr_hlen=20,p->len=123,p->tot_len=123,IP_HLEN=20
+CIF:V(25027):IP RX dest_port = 0x0
+CIF:V(25027):IP_PROTO_UDP dest_port:5353,src:5353
+CIF:V(25027):cif_filter_check_ip_data 379 dest_port = 5353
+CIF:V(25027):cif_rx_local_packet_check,600 p:0x28026d68 next:(nil) payload:0x28026e40 len:123
+CIF:V(25027):cif_msg_sender,52,head:0x28026d78
+V(25027):cif_rxdata_pre_process,237,p:0x28026d68,ipc_chnl:1
+CIF:V(25028):cif_rxdata_pre_process,261,p:0x28026d68,p:0x28026d68,num:1
+CIF:V(25028):cif_rxbuf_push, channel=2,head:0x28026d78,tail:0x28026d78,num:1
+CIF:V(25029):cif_dnld_buffer,chan_id=2,head=0x28026d78,tail=0x28026d78,num=1,start!
+CIF:V(25029):cif_dnld_buffer,head=0x2,head1=0x0,head2=0x102006b
+CIF:V(25029):cif_msg_sender,52,head:0x28026d78
+rwnx:V(25029):bmsg_rx_handler
+CIF:V(25030):cif_handle_txdata free p:28026d68,p->ref:2
+CIF:V(25029):cif_rx_local_packet_check p:28026ec4 next:0x0 payload:0x28026f9c sizeof:16
+tempd:V(25179):send msg(3)
+tempd:V(25179):send msg(1)
+tempd:V(25179):stop
+adc:V(25179):acquire
+ckmn:V(25182):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(25182):ckmn_isr CLSET_finish_isr!
+adc:V(25182):release
+tempd:V(25182):cnt=26, interval=1, last=540, cur=549, thr=46
+tempd:V(25182):restart
+tempd:V(25182):restart
+rwnx:V(25228):rwnx_get_wifi_rlk_start start 0
+rwnx:V(25234):bmsg_rx_handler
+CIF:V(25234):cif_rx_local_packet_check p:28026d68 next:0x0 payload:0x28026e40 sizeof:16
+rwnx:V(25433):rwnx_get_wifi_rlk_start start 0
+rwnx:V(25642):rwnx_get_wifi_rlk_start start 0
+rwnx:V(25842):rwnx_get_wifi_rlk_start start 0
+rwnx:V(25845):bmsg_rx_handler
+CIF:V(25845):cif_rx_local_packet_check p:28026d68 next:0x0 payload:0x28026e40 sizeof:16
+rwnx:V(26054):rwnx_get_wifi_rlk_start start 0
+tempd:V(26182):send msg(3)
+tempd:V(26182):send msg(1)
+tempd:V(26182):stop
+adc:V(26182):acquire
+ckmn:V(26185):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(26185):ckmn_isr CLSET_finish_isr!
+adc:V(26185):release
+tempd:V(26185):cnt=27, interval=1, last=540, cur=549, thr=46
+tempd:V(26185):restart
+tempd:V(26185):restart
+IPC:V(26241):IPC_CMD: 671472896, -65532, -1
+rwnx:V(26252):rwnx_get_wifi_rlk_start start 0
+rwnx:V(26256):bmsg_rx_handler
+CIF:V(26256):cif_rx_local_packet_check p:28026d68 next:0x0 payload:0x28026e40 sizeof:16
+CIF:V(26256):iphdr_hlen=20,p->len=289,p->tot_len=289,IP_HLEN=20
+CIF:V(26257):IP RX dest_port = 0x0
+CIF:V(26257):IP_PROTO_UDP dest_port:5353,src:5353
+CIF:V(26257):cif_filter_check_ip_data 379 dest_port = 5353
+CIF:V(26257):cif_rx_local_packet_check,600 p:0x28026d68 next:(nil) payload:0x28026e40 len:289
+CIF:V(26257):cif_msg_sender,52,head:0x28026d78
+V(26258):cif_rxdata_pre_process,237,p:0x28026d68,ipc_chnl:1
+CIF:V(26258):cif_rxdata_pre_process,261,p:0x28026d68,p:0x28026d68,num:1
+CIF:V(26258):cif_rxbuf_push, channel=2,head:0x28026d78,tail:0x28026d78,num:1
+CIF:V(26259):cif_dnld_buffer,chan_id=2,head=0x28026d78,tail=0x28026d78,num=1,start!
+CIF:V(26259):cif_dnld_buffer,head=0x2,head1=0x0,head2=0x1020111
+CIF:V(26259):cif_msg_sender,52,head:0x28026d78
+CIF:V(26260):cif_handle_txdata free p:28026d68,p->ref:2
+rwnx:V(26260):bmsg_rx_handler
+CIF:V(26260):cif_rx_local_packet_check p:28026d68 next:0x0 payload:0x28026e40 sizeof:16
+rwnx:V(26460):rwnx_get_wifi_rlk_start start 0
+rwnx:V(26666):rwnx_get_wifi_rlk_start start 0
+rwnx:V(26674):bmsg_rx_handler
+CIF:V(26674):cif_rx_local_packet_check p:28026d68 next:0x0 payload:0x28026e40 sizeof:16
+CIF:V(26674):ARP RX
+CIF:V(26675):cif_rx_local_packet_check,525 p:0x28026e74 next:(nil) payload:0x28026e8c len:42
+CIF:V(26675):cif_msg_sender,52,head:0x28026e84
+V(26675):cif_rxdata_pre_process,237,p:0x28026e74,ipc_chnl:1
+CIF:V(26675):cif_rxdata_pre_process,261,p:0x28026e74,p:0x28026e74,num:1
+CIF:V(26676):cif_rxbuf_push, channel=2,head:0x28026e84,tail:0x28026e84,num:1
+CIF:V(26676):cif_dnld_buffer,chan_id=2,head=0x28026e84,tail=0x28026e84,num=1,start!
+CIF:V(26676):cif_dnld_buffer,head=0x2,head1=0x0,head2=0x102001a
+CIF:V(26676):cif_msg_sender,52,head:0x28026e84
+CIF:V(26677):cif_dnld_buffer,chan_id=2,head=0x2807eb6c,tail=0x2807eb6c,num=1,start!
+CIF:V(26677):cif_dnld_buffer,head=0x2,head1=0x0,head2=0x70726104
+CIF:V(26677):cif_msg_sender,52,head:0x2807eb6c
+CIF:V(26677):cif_handle_txdata free p:28026e74,p->ref:2
+CIF:V(26677):cif_handle_txdata p:2807eb5c next:0 payload2807ee32 sizeof:16
+CIF:V(26678):cif_handle_txdata p:2807eb5c,vif_id=15
+rwnx:V(26678):bmsg_tx_handler
+CIF:V(26690):cif_free_ap_txbuf,10,p:0x2807eb5c
+CIF:V(26690):cif_msg_sender,52,head:0x2807eb6c
+V(26690):cif_rxdata_pre_process,237,p:0x2807eb5c,ipc_chnl:1
+CIF:V(26690):cif_rxdata_pre_process,261,p:0x2807eb5c,p:0x2807eb5c,num:1
+CIF:V(26691):cif_rxbuf_push, channel=2,head:0x2807eb6c,tail:0x2807eb6c,num:1
+rwnx:V(26865):rwnx_get_wifi_rlk_start start 0
+rwnx:V(27075):rwnx_get_wifi_rlk_start start 0
+tempd:V(27185):send msg(3)
+tempd:V(27185):send msg(1)
+tempd:V(27185):stop
+adc:V(27185):acquire
+ckmn:V(27187):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(27187):ckmn_isr CLSET_finish_isr!
+adc:V(27188):release
+tempd:V(27188):cnt=28, interval=1, last=540, cur=548, thr=46
+tempd:V(27188):restart
+tempd:V(27188):restart
+rwnx:V(27275):rwnx_get_wifi_rlk_start start 0
+rwnx:V(27480):rwnx_get_wifi_rlk_start start 0
+rwnx:V(27685):rwnx_get_wifi_rlk_start start 0
+rwnx:V(27890):rwnx_get_wifi_rlk_start start 0
+rwnx:V(28094):rwnx_get_wifi_rlk_start start 0
+tempd:V(28188):send msg(3)
+tempd:V(28188):send msg(1)
+tempd:V(28188):stop
+adc:V(28188):acquire
+ckmn:V(28190):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(28190):ckmn_isr CLSET_finish_isr!
+adc:V(28190):release
+tempd:V(28190):cnt=29, interval=1, last=540, cur=549, thr=46
+tempd:V(28190):restart
+tempd:V(28190):restart
+IPC:V(28241):IPC_CMD: 671472896, -65532, -1
+rwnx:V(28301):rwnx_get_wifi_rlk_start start 0
+rwnx:V(28307):bmsg_rx_handler
+CIF:V(28307):cif_rx_local_packet_check p:28026d68 next:0x0 payload:0x28026e40 sizeof:16
+CIF:V(28308):iphdr_hlen=20,p->len=289,p->tot_len=289,IP_HLEN=20
+CIF:V(28308):IP RX dest_port = 0x0
+CIF:V(28308):IP_PROTO_UDP dest_port:5353,src:5353
+CIF:V(28308):cif_filter_check_ip_data 379 dest_port = 5353
+CIF:V(28308):cif_rx_local_packet_check,600 p:0x28026d68 next:(nil) payload:0x28026e40 len:289
+CIF:V(28308):cif_msg_sender,52,head:0x28026d78
+V(28309):cif_rxdata_pre_process,237,p:0x28026d68,ipc_chnl:1
+CIF:V(28309):cif_rxdata_pre_process,261,p:0x28026d68,p:0x28026d68,num:1
+CIF:V(28309):cif_rxbuf_push, channel=2,head:0x28026d78,tail:0x28026d78,num:1
+CIF:V(28310):cif_dnld_buffer,chan_id=2,head=0x28026d78,tail=0x28026d78,num=1,start!
+CIF:V(28310):cif_dnld_buffer,head=0x2,head1=0x0,head2=0x1020111
+CIF:V(28310):cif_msg_sender,52,head:0x28026d78
+CIF:V(28310):cif_handle_txdata free p:28026d68,p->ref:2
+rwnx:V(28504):rwnx_get_wifi_rlk_start start 0
+rwnx:V(28709):rwnx_get_wifi_rlk_start start 0
+rwnx:V(28915):rwnx_get_wifi_rlk_start start 0
+rwnx:V(29119):rwnx_get_wifi_rlk_start start 0
+tempd:V(29190):send msg(3)
+tempd:V(29190):send msg(1)
+tempd:V(29190):stop
+adc:V(29190):acquire
+ckmn:V(29192):ckmn_isr CKEST FINISH TRIGGERED!
+ckmn:V(29192):ckmn_isr CLSET_finish_isr!
+adc:V(29193):release
+tempd:V(29193):cnt=30, interval=1, last=540, cur=549, thr=46
+tempd:V(29193):send msg(2)
+tempd:V(29193):restart
+tempd:D(29193):change config, interval=15, threshold=46, dist=0
+rwnx:V(29324):rwnx_get_wifi_rlk_start start 0
+rwnx:V(29528):rwnx_get_wifi_rlk_start start 0
+rwnx:V(29733):rwnx_get_wifi_rlk_start start 0
+rwnx:V(29938):rwnx_get_wifi_rlk_start start 0
+tempd:V(30124):send msg(6)
+tempd:V(30124):stop err=0
+adc:V(30124):acquire
+adc:V(30126):release
+tempd:V(30126):cnt=3, interval=15, last=0, cur=3269, thr=0
+tempd:V(30126):restart err=0
+rwnx:V(30147):rwnx_get_wifi_rlk_start start 0
+
+$IPC:V(30241):IPC_CMD: 671472896, -65532, -1
+rwnx:V(30348):rwnx_get_wifi_rlk_start start 0
+rwnx:V(30553):rwnx_get_wifi_rlk_start start 0
+rwnx:V(30757):rwnx_get_wifi_rlk_start start 0
+
+$rwnx:V(30962):rwnx_get_wifi_rlk_start start 0
+
+$rwnx:V(31167):rwnx_get_wifi_rlk_start start 0
+rwnx:V(31373):rwnx_get_wifi_rlk_start start 0
+rwnx:V(31578):rwnx_get_wifi_rlk_start start 0
+rwnx:V(31782):rwnx_get_wifi_rlk_start start 0
+rwnx:V(31987):rwnx_get_wifi_rlk_start start 0
+rwnx:V(32198):rwnx_get_wifi_rlk_start start 0
+IPC:V(32241):IPC_CMD: 671472896, -65532, -1
+rwnx:V(32398):rwnx_get_wifi_rlk_start start 0
+rwnx:V(32404):bmsg_rx_handler
+CIF:V(32404):cif_rx_local_packet_check p:28026d68 next:0x0 payload:0x28026e40 sizeof:16
+rwnx:V(32601):rwnx_get_wifi_rlk_start start 0
+rwnx:V(32806):rwnx_get_wifi_rlk_start start 0
+rwnx:V(33013):rwnx_get_wifi_rlk_start start 0
+
+$rwnx:V(33216):rwnx_get_wifi_rlk_start start 0
+
+$rwnx:V(33420):rwnx_get_wifi_rlk_start start 0
+
+$rwnx:V(33626):rwnx_get_wifi_rlk_start start 0
+
+$rwnx:V(33830):rwnx_get_wifi_rlk_start start 0
+
+$rwnx:V(34035):rwnx_get_wifi_rlk_start start 0
+rwnx:V(34240):rwnx_get_wifi_rlk_start start 0
+IPC:V(34241):IPC_CMD: 671472896, -65532, -1
+rwnx:V(34447):rwnx_get_wifi_rlk_start start 0
+rwnx:V(34650):rwnx_get_wifi_rlk_start start 0
+rwnx:V(34854):rwnx_get_wifi_rlk_start start 0
+rwnx:V(35059):rwnx_get_wifi_rlk_start start 0
