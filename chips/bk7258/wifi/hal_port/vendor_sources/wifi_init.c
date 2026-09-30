@@ -60,12 +60,15 @@ extern void ps_init(void);
 void initseq_rwnxl_init(void)
 {
   /* Armino cif_ps.c:144 sets PM_MODE_NORMAL_SLEEP before WiFi starts.
-   * Without this, s_pm_sleep_mode stays PM_MODE_DEFAULT(4) and
-   * pm_check_and_ctrl_sleep() (pm.c:397) takes the else branch: if
-   * s_pm_sleeped_modules covers PM_ENTER_LOW_VOL_MODULES_CONFIG (which
-   * includes WIFIP_MAC), it calls pm_low_voltage_process() and powers
-   * off the MAC domain -- killing TX DMA (ac1_tx_dma_dead). */
+   * Also disable the PM sleep state machine entirely: pm_management()
+   * runs pm_state_machine() -> pm_check_and_ctrl_sleep() on every idle
+   * tick, which calls pm_enter_normal_sleep() -> sys_drv_enter_normal_sleep(0)
+   * -> arch_sleep() (WFI) inside a critical section.  This is the prime
+   * suspect for ac1_tx_dma_dead.  bk_pm_mcu_pm_ctrl(1) makes
+   * pm_management() return early. */
+  extern bk_err_t bk_pm_mcu_pm_ctrl(uint32_t power_state);
   bk_pm_sleep_mode_set(PM_MODE_NORMAL_SLEEP);
+  bk_pm_mcu_pm_ctrl(1);
 
   BK7258_INITSEQ("87a rwnxl_init enter");
   rwnxl_init();
