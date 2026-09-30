@@ -387,4 +387,39 @@
 #  define CONFIG_CONTROLLER_WAR 1
 #endif
 
+/* pm.c config gates -- matched to Armino beken_genie sdkconfig.h (2026-09-29). */
+#ifndef CONFIG_SYSTEM_CTRL
+#  define CONFIG_SYSTEM_CTRL 1
+#endif
+#ifndef CONFIG_FLASH
+#  define CONFIG_FLASH 1
+#endif
+#ifndef CONFIG_CKMN
+#  define CONFIG_CKMN 1
+#endif
+#ifndef CONFIG_INT_WDT
+#  define CONFIG_INT_WDT 1
+#endif
+#ifndef CONFIG_GPIO_WAKEUP_SUPPORT
+#  define CONFIG_GPIO_WAKEUP_SUPPORT 1
+#endif
+#ifndef CONFIG_PM_LV_WDT_PROTECTION
+#  define CONFIG_PM_LV_WDT_PROTECTION 1
+#endif
+#ifndef CONFIG_AON_WDT
+#  define CONFIG_AON_WDT 1
+#endif
+#ifndef CONFIG_PSRAM
+#  define CONFIG_PSRAM 1
+#endif
+#ifndef CONFIG_GPIO_RETENTION_SUPPORT
+#  define CONFIG_GPIO_RETENTION_SUPPORT 1
+#endif
+#ifndef CONFIG_SOC_BK7236XX
+#  define CONFIG_SOC_BK7236XX 1
+#endif
+#ifndef CONFIG_PM_LV_GPIO_WAKEUP_CALL_MAC_CB
+#  define CONFIG_PM_LV_GPIO_WAKEUP_CALL_MAC_CB 1
+#endif
+
 #endif /* __BK7258_WIFI_GLUE_BK_PRELUDE_H */

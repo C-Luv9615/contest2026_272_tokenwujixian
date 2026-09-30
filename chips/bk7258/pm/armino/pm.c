@@ -11,6 +11,40 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+/* Armino sdkconfig.h equivalents for pm.c config gates.  pm.c does not
+ * include bk_prelude.h, so these must be defined before any includes.
+ * Values match Armino beken_genie sdkconfig.h.
+ * CONFIG_AON_WDT and CONFIG_FLASH omitted: they pull in headers we don't
+ * have (driver/aon_wdt.h, flash API). */
+#ifndef CONFIG_SYSTEM_CTRL
+#  define CONFIG_SYSTEM_CTRL 1
+#endif
+#ifndef CONFIG_CKMN
+#  define CONFIG_CKMN 1
+#endif
+#ifndef CONFIG_INT_WDT
+#  define CONFIG_INT_WDT 1
+#endif
+#ifndef CONFIG_GPIO_WAKEUP_SUPPORT
+#  define CONFIG_GPIO_WAKEUP_SUPPORT 1
+#endif
+#ifndef CONFIG_PM_LV_WDT_PROTECTION
+#  define CONFIG_PM_LV_WDT_PROTECTION 1
+#endif
+#ifndef CONFIG_PSRAM
+#  define CONFIG_PSRAM 1
+#endif
+#ifndef CONFIG_GPIO_RETENTION_SUPPORT
+#  define CONFIG_GPIO_RETENTION_SUPPORT 1
+#endif
+#ifndef CONFIG_SOC_BK7236XX
+#  define CONFIG_SOC_BK7236XX 1
+#endif
+#ifndef CONFIG_PM_LV_GPIO_WAKEUP_CALL_MAC_CB
+#  define CONFIG_PM_LV_GPIO_WAKEUP_CALL_MAC_CB 1
+#endif
+
 #include <common/bk_typedef.h>
 #include <modules/pm.h>
 #include "sys_driver.h"
