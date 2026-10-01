@@ -46,15 +46,17 @@ BK7258 CP 上的 Wi-Fi 要在 NuttX 下工作，目标有两条：
 
 阶段一：先在 NuttX 上原样跑通。
 
-- 编译单元集合 = 基线 CP `compile_commands.json` 的 539 个单元，减去按 S2.7 裁决出来的排除集。
+- 编译单元集合 = T4 清单的 538 个单元，减去 S2.7 排除记录里的单元。默认全部保留。
 - 每个保留单元都用基线原件，以及原来的 `-D`、`-I`、`-include` 和编译选项。CMake 源码列表和逐文件编译参数由脚本从 `compile_commands.json` 生成，不手写。
 - 配置使用基线生成的 `sdkconfig.h`。
-- 手写代码只允许出现在 S2.7 替换表登记过的位置。
+- 手写代码只允许出现在两处：FreeRTOS API 到 NuttX 的接缝（T9），和 netdev 胶水（T10）。
+- 源码位置：阶段一通过一个必填的 CMake 变量 `BK7258_ARMINO_BASELINE_DIR` 指向本机 Armino 基线，变量没设置就报错，不在构建文件里写死本机路径。跑通后按 AGENTS.md 把用到的文件导入 `chips/bk7258/` 并保留来源（T19）。
+- 阶段一放在一个新的 Kconfig 开关后面，开关关闭时现有 Wi-Fi 构建不受影响。
 
 阶段二：硬件服务原生化。
 
 - 按 S2.5 的范围，每次只把一个硬件目标文件换成 NuttX 原生驱动。
-- 每次替换后，都用 T5 的轨迹和 Armino 参照对比，并上板验收。
+- 每次替换后，都用 T5 的日志对比和 Armino 参照比较，并上板验收。
 - 某一步失败，问题只可能出在这一次替换上。
 
 ### [S2.3] 源码一致性规则
@@ -105,14 +107,19 @@ BK7258 CP 上的 Wi-Fi 要在 NuttX 下工作，目标有两条：
 
 ### [S2.7] 排除规则
 
-一个组件可以排除，必须满足：它导出、并且被保留代码用到的每个符号，都在替换表里有一行，写明：
+默认保留。一个编译单元只有在拿到下面两种证据之一时才排除，证据写进 T7 的排除记录：
 
-- NuttX 侧由谁提供；
-- 语义依据，即基线源码的 `file:line`。
+1. 链接器报重复定义：贴出链接输出里的那一行，以及 NuttX 侧的定义位置。
+2. 同一个资源有两个主人，例如两套调度器、两个复位入口、两张中断向量表：写明资源名称，以及双方占用它的代码位置。
 
-有任何一个符号写不出这两项，这个组件就保留原文件。已有成果（`hal_port/`、`a7de5d2` 的 shim 等）只能作为提供者的候选，必须按这张表重新核对，不能直接认定可用。
+目前已定的排除只有两项：
 
-候选组件及证据如下。数据来自 `d5b0278` 的 `app.map`。"被用到的导出符号"指组件之外有引用的符号数；调用方后面的数字，是该调用方用到其中多少个，只列前 6 名。
+- `os_source`（FreeRTOS 内核 11 个单元）：调度器只能有一个，用 NuttX 的。`bk_rtos` 原样保留，它调用的 FreeRTOS API 由 T9 的接缝在 NuttX 上实现。
+- `lwip_intf_v2_1`（52 个单元）：用户决定第一阶段就使用 NuttX 自己的 TCP/IP 协议栈（NuttX 不带 lwip，`nuttx/net/` 是它自己的实现）。lwip 被用到的符号由 T10 的 netdev 胶水提供。
+
+其余组件，包括 `cm33`、`cmsis`、`bk_startup`、`bk_cli`、`at_server`、`unity`、iperf demo，一律以 T8 链接报出的冲突为准，不预先排除。已有成果（`hal_port/`、`a7de5d2` 的 shim 等）只能作为 T9、T10 实现时的参考，不能直接拿来用。
+
+下表是候选组件对外被用到的情况，用来估计 T9、T10 的工作量。数据来自 `d5b0278` 的 `app.map`。"被用到的导出符号"指组件之外有引用的符号数；调用方后面的数字，是该调用方用到其中多少个，只列前 6 名。
 
 | 组件 | 编译单元 | 被用到的导出符号 | 调用方 |
 |---|---|---|---|
@@ -123,7 +130,9 @@ BK7258 CP 上的 Wi-Fi 要在 NuttX 下工作，目标有两条：
 | `cmsis` | 2 | 1 | common 1 |
 | `bk_startup` | 2 | 8 | bk_cli 4、driver 4、bk_pm 2、cm33 2、bk_init 1、cmsis 1、cp 1 |
 
-`bk_cli`、`at_server`、`unity`、iperf demo 这几个组件，只有链接证明没有保留代码引用它们时，才能排除。
+### [S2.8] 日志对比
+
+不抓寄存器、不插桩。第一阶段编进来的是 Armino 原文件，它们自带的日志（`wifid`、`wpa`、`rwnx`、`hitf`、`lwip` 等前缀）在我们的固件里会原样打印，所以直接比较两份 UART 日志里关键事件的顺序和次数：scan 开始与完成、auth、assoc、4 次握手各状态、DHCP、重握手次数、`tx_dma_dead`、assert、重启。Armino 参照固件不需要另开 debug 分支。
 
 ## [S3] Out of Scope
 
@@ -138,17 +147,18 @@ BK7258 CP 上的 Wi-Fi 要在 NuttX 下工作，目标有两条：
 - [x] T2: 接口表提取脚本。结果：`chips/bk7258/tools/armino_interface.py` 生成 `chips/bk7258/tools/armino_baseline/{interface.tsv,summary.txt}`，`--check` 返回 0；167 个外部符号中 164 个有提供者；`malloc`/`free` 经 `--wrap` 由 `bk_rtos/platform_stub.c` 提供；`dbg_env` 只被 `dbg_task.c.obj` 引用，该成员没有链入；硬件目标文件 79 个，直接 27 个。读取基线 `app.map`、`compile_commands.json`，对闭源库跑 `nm`，输出"符号 → 提供者目标文件 → 源文件 → 组件"的对照表。脚本和生成结果一起入库。acceptance：重复运行输出一致；闭源库 167 个外部符号中 164 个有提供者，其余 3 个（`malloc`、`free`、`dbg_env`）在表中写明来源；S2.7 表中的数字能从脚本输出复现。(covers: S2.1, S2.5, S2.7)
 - [x] T3: 源码一致性门禁脚本。结果：`chips/bk7258/tools/armino_source_gate.py` 按目录前缀把文件映射到基线（`glue/`、`wpa_supplicant/`、`board/`、`include/common/`、`include/`），比对 `.c`/`.h`/`.S`。在 `a7de5d2` 上：`.c` 改动 32 个、无对应 1 个（`glue/bk_wifi/src_rwnx_td.c`，没有任何构建文件引用它），返回 1。另外查出头文件改动 11 个、无对应 2 个（`vnd_cal/include/bk_arm_arch.h`、`bk_misc.h` 是手写的空兼容头，基线对应文件分别在 `cp/middleware/driver/include/bk_private/` 和 `cp/components/bk_common/include/`）。自测：逐字节相同返回 0，改 1 个字节返回 1，多出无对应文件返回 1，全部列入例外后返回 0。拿阶段一的每个保留源文件和基线逐字节比对，出现例外清单之外的差异时返回非零。acceptance：对 `a7de5d2` 现有的 `armino/` 运行，能准确报出 32 个改动文件和 1 个无对应文件，并返回非零。(covers: S2.3)
 - [x] T4: 编译清单生成脚本。结果：`chips/bk7258/tools/armino_compile_manifest.py` 生成 `chips/bk7258/tools/armino_baseline/{armino_units.tsv,component_flags.tsv}`。538 个编译单元、38 个组件；同一组件内所有单元的编译参数一致（去掉 `-o`、`-MF`/`-MT`、`-D__FILE__` 和源文件位置这些逐文件差异后），因此按组件存一份参数就够。`-I` 路径把基线树前缀重写成 `@ARMINO@`，消费方再替换成本机路径。`--check` 返回 0；抽查 `bk_wifi/rwnx_tx.c` 的 160 个参数与 `compile_commands.json` 原文一致。从基线 `compile_commands.json` 生成 CMake 源码列表和逐文件编译参数。acceptance：重复生成结果一致；每个单元的参数和基线相同，只有登记过理由的工具链等价替换可以不同。(covers: S2.2; depends: T2)
-- [ ] T5: 双端轨迹工具。在我们这边，用 NSH 命令抓 MAC、TX DMA、PMU 寄存器快照，并记录 `g_wifi_funcs` 调用；在 Armino 那边，在独立的 debug 分支（不是 `baseline/d2ded03-gcc13`）上加一条输出格式相同的 CLI 命令。轨迹里要包含重握手次数。acceptance：两端都在连接完成后抓一次，输出可以直接 diff。(covers: S2.5)
+- [ ] T5: 日志对比脚本。输入两份 UART 日志（Armino 参照、我们的固件），按 S2.8 抽取关键事件序列和计数，输出两边的差异。acceptance：对 `/home/czp/iperf-ref-1001.log` 和 `evidence-20261001/t1-a7de5d2-connect-ping.log` 运行，能报出 T1 的 2 次重握手，而参照为 0 次。(covers: S2.8)
 - [ ] T6: 参照负载基线。Armino 参照固件跑 30 分钟 TX 负载：优先用 `iperf -c`；热点有客户端隔离时，改用最大包长的连续 ping 公网。acceptance：统计 `tx_dma_dead`、assert、重启的次数，并记录用了哪种负载方式。(covers: S2.6)
-- [ ] T7: 排除裁决和替换表。对 S2.7 的 6 个候选组件，以及 4 个可选组件，逐个符号写出 NuttX 提供者和语义依据。写不出的组件改为保留。acceptance：表里覆盖了 T2 输出中这些组件的全部被用符号，没有写"待定"的行；每个组件的最终状态（排除或保留）都有依据。(covers: S2.7; depends: T2)
-- [ ] T8: 阶段一构建。按 T4 的清单和 T7 的裁决编进 CP。acceptance：链接没有 undefined 符号；重复定义只出现在替换表登记过的位置；L1 校验、decode、完整性门禁都通过；T3 门禁返回 0。(covers: S2.2, S2.3, S2.4; depends: T3, T4, T9, T10)
-- [ ] T9: OS 接缝。实现 T7 替换表里 `bk_rtos` 和 `os_source` 那部分由 NuttX 提供的符号。acceptance：每个符号恰好定义一次；主机测试覆盖队列 item_size、栈按字计、临界区嵌套、ISR 上下文发送四项。(covers: S2.7; depends: T7)
-- [ ] T10: netdev 胶水。实现 T7 替换表里 `lwip_intf_v2_1` 那部分的符号，接到 NuttX netdev。acceptance：链接 map 里没有 lwip 目标文件；`wapi` 连接后 `renew wlan0` 能拿到地址。(covers: S2.2, S2.7; depends: T7)
-- [ ] T11: 阶段一上板验收。acceptance：`Luv` 上连接 3/3；ping 公网 4/4；重握手次数、`tx_dma_dead` 次数不多于 Armino 参照。(covers: S2.2, S2.6; depends: T8)
-- [ ] T12: 阶段二：PM 和电源类原生化，范围为 `pm`、`sys_pm_hal`、`sys_wifi_driver`、`sys_ps_driver`、`sys_int_driver`。acceptance：链接 map 证明这些目标文件不再来自 Armino 源文件；T5 轨迹与参照一致；连接 3/3；ping 4/4。(covers: S2.5; depends: T5, T11)
+- [ ] T7: 排除记录。根据 T8 的链接输出和资源冲突，为每个被排除的单元下 S2.7 要求的证据。acceptance：每个排除单元都能对应到一行链接输出，或一条写明双方代码位置的资源冲突说明；`os_source`、`lwip_intf_v2_1` 两项的依据已写入。(covers: S2.7; depends: T8)
+- [ ] T8: 阶段一 CMake 接入和首次链接。新的 Kconfig 开关打开时，CP 的 CMake 读取 T4 清单，按组件参数编译保留单元，路径来自 `BK7258_ARMINO_BASELINE_DIR`，配置用基线 `sdkconfig.h`。acceptance：开关关闭时，`a7de5d2` 的构建结果不变；开关打开时，所有保留单元都能编过；链接输出里的 undefined 和重复定义符号整理成清单入库。(covers: S2.2, S2.4; depends: T3, T4)
+- [ ] T9: OS 接缝。在 NuttX 上实现 T8 清单里 FreeRTOS API 那部分 undefined 符号，供原样保留的 `bk_rtos` 调用。sdk-source 分支修过的 9 个问题（队列 item_size、栈按字计、临界区嵌套、ISR 上下文判断、`nxmq_*` 无取消点等）要带过来。acceptance：这些符号各定义一次；主机测试覆盖队列 item_size、栈按字计、临界区嵌套、ISR 上下文发送四项。(covers: S2.2, S2.7; depends: T7, T8)
+- [ ] T10: netdev 胶水。实现 T8 清单里原本由 lwip 提供的符号，接到 NuttX netdev。acceptance：链接 map 里没有 lwip 目标文件；`wapi` 连接后 `renew wlan0` 能拿到地址。(covers: S2.2, S2.7; depends: T7, T8)
+- [ ] T11: 阶段一链接和上板验收。acceptance：链接没有 undefined 符号；重复定义只出现在 T7 记录过的位置；L1 校验、decode、完整性门禁都通过；`Luv` 上连接 3/3；ping 公网 4/4；T5 对比显示重握手次数、`tx_dma_dead` 次数不多于 Armino 参照。(covers: S2.2, S2.6; depends: T5, T9, T10)
+- [ ] T12: 阶段二：PM 和电源类原生化，范围为 `pm`、`sys_pm_hal`、`sys_wifi_driver`、`sys_ps_driver`、`sys_int_driver`。acceptance：链接 map 证明这些目标文件不再来自 Armino 源文件；T5 对比没有新增差异；连接 3/3；ping 4/4。(covers: S2.5; depends: T11)
 - [ ] T13: 阶段二：DMA、时钟、定时器类，范围为 `dma_driver`、`ckmn_driver`、`timer_driver`、`aon_rtc_driver_64bit`。acceptance 同 T12。(covers: S2.5; depends: T12)
 - [ ] T14: 阶段二：Flash，范围为 `flash_driver`、`flash_driver_ext`、`flash_partition`，改为基于 NuttX MTD。acceptance 同 T12，另外 easyflash 写入的数据重启后仍在。(covers: S2.5; depends: T11)
 - [ ] T15: 阶段二：校准类，范围为 `adc_driver`、`sdmadc_driver`、`otp_driver_v1_1`、`trng_driver`。acceptance 同 T12，另外校准日志里的 `xtal`、`pwr_gain` 与参照一致。(covers: S2.5; depends: T11)
 - [ ] T16: 阶段二：mailbox 类，范围为 `mailbox_channel`、`mb_ipc`、`mb_ipc_heartbeat`，与 `bk7258-armino-otp-mb-ipc.md` 对齐。acceptance 同 T12。(covers: S2.5; depends: T11)
 - [ ] T17: 阶段二：杂项，范围为 `interrupt_base`、`trap_base`、`printf`、`uart_driver`、`wdt_driver`、`reset_reason`、`gpio_driver`、`gpio_driver_base`。acceptance 同 T12。(covers: S2.5; depends: T11)
 - [ ] T18: 最终验收。按 T6 的同一种负载跑 30 分钟。acceptance：`tx_dma_dead`、assert、重启的次数不多于 T6 中 Armino 的结果；ping 20/20；证据按 S2.6 齐全。(covers: S2.6; depends: T6, T12, T13, T14, T15, T16, T17)
+- [ ] T19: 导入仓库。把阶段一仍在使用的 Armino 原文件按 AGENTS.md 导入 `chips/bk7258/`，保留模块结构和来源记录，去掉对 `BK7258_ARMINO_BASELINE_DIR` 的依赖。acceptance：干净检出、不设该变量也能构建；T3 门禁对导入目录返回 0。(covers: S2.2, S2.3; depends: T11)
