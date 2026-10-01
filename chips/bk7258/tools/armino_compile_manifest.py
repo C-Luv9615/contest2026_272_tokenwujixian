@@ -6,10 +6,14 @@ Spec: docs/compose/spec/bk7258-wifi-native.md, task T4 (rule S2.2).
 Reads the clean Armino iperf CP build's compile_commands.json and emits:
 
   armino_units.tsv   every compile unit: component, source (repo-relative),
-                     object name, -D__FILE__ value
-  component_flags.tsv  one row per component: the full flag set shared by all
-                     of its units, with -I/-include paths rewritten from the
-                     baseline tree to the workspace tree prefix
+                     object name, -D__FILE__ argument
+  component_flags.tsv  one row per component: the component name followed by
+                     one argv element per tab-separated column, shared by all
+                     of its units, with baseline-tree paths rewritten to the
+                     @ARMINO@ prefix
+
+Arguments are the compiler's argv after shell unquoting (shlex), so a value
+such as "-Wl, --gc-sections" or -DAPP_VERSION="unknown" stays one element.
 
 The generator is deterministic; --check fails when the committed files differ
 from a fresh run. Excluding a component (S2.7) happens in the CMake that
@@ -23,6 +27,7 @@ import argparse
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -36,9 +41,8 @@ OBJ_TOKEN = re.compile(r"\.obj$")
 FILE_DEFINE = "-D__FILE__="
 
 
-def split_flags(command: str, source: str) -> list[str]:
+def split_flags(tokens: list[str], sources: set[str]) -> list[str]:
     """Extract compile flags, dropping per-file tokens (-o, -MF/-MT, __FILE__, source)."""
-    tokens = command.split()
     flags: list[str] = []
     skip = False
     for tok in tokens[1:]:
@@ -49,12 +53,14 @@ def split_flags(command: str, source: str) -> list[str]:
             if tok != "-c":
                 skip = True
             continue
-        if tok in ("-MD", source):
+        if tok == "-MD" or tok in sources:
             continue
         if tok.startswith(FILE_DEFINE):
             continue
         if OBJ_TOKEN.search(tok) and "/" in tok and not tok.startswith("-"):
             continue
+        if "\t" in tok:
+            raise SystemExit(f"argument contains a tab, unrepresentable: {tok!r}")
         flags.append(tok)
     return flags
 
@@ -67,8 +73,9 @@ def generate(build: Path, root: Path) -> dict[str, str]:
     per_component: dict[str, set[str]] = {}
     file_defines: dict[str, str] = {}
     for entry in commands:
+        tokens = shlex.split(entry["command"])
         source = os.path.realpath(entry["file"])
-        out = re.search(r"-o (\S+)", entry["command"]).group(1)
+        out = tokens[tokens.index("-o") + 1]
         if not out.startswith("armino/"):
             continue  # the link-helper unit; not a component source
         component = re.match(r"armino/([^/]+)/", out).group(1)
@@ -76,10 +83,10 @@ def generate(build: Path, root: Path) -> dict[str, str]:
         obj = Path(out).name.removesuffix(".obj")
         units.append((component, rel_source, obj))
 
-        define = re.search(r"(-D__FILE__=\\\"[^\\]*\\\")", entry["command"])
-        file_defines[(component, rel_source)] = define.group(1) if define else "-"
-        flags = split_flags(entry["command"], source)
-        per_component.setdefault(component, set()).add(" ".join(flags))
+        define = [t for t in tokens if t.startswith(FILE_DEFINE)]
+        file_defines[(component, rel_source)] = define[0] if define else "-"
+        flags = split_flags(tokens, {entry["file"], source})
+        per_component.setdefault(component, set()).add("\t".join(flags))
 
     for component, sets in per_component.items():
         if len(sets) != 1:
@@ -94,10 +101,10 @@ def generate(build: Path, root: Path) -> dict[str, str]:
     tsv = ["component\tsource\tobject\t__FILE__"]
     tsv += [f"{c}\t{s}\t{o}\t{file_defines[(c, s)]}" for c, s, o in units]
 
-    flags_rows = ["component\tflags"]
+    flags_rows = ["component\tflags (one argv element per column)"]
     for component in sorted(per_component):
-        flags = next(iter(per_component[component])).split()
-        flags_rows.append(f"{component}\t" + " ".join(workspace(f) for f in flags))
+        flags = next(iter(per_component[component])).split("\t")
+        flags_rows.append("\t".join([component] + [workspace(f) for f in flags]))
 
     return {"armino_units.tsv": "\n".join(tsv) + "\n",
             "component_flags.tsv": "\n".join(flags_rows) + "\n"}
