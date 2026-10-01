@@ -61,7 +61,7 @@ BK7258 CP 上的 Wi-Fi 要在 NuttX 下工作，目标有两条：
 
 阶段一里每个保留的 Armino 源文件，都必须和基线 `d5b0278` 的同路径文件逐字节一致，由比对脚本做门禁，例外清单为空。
 
-`a7de5d2` 的 `chips/bk7258/wifi/armino/` 共 416 个文件：383 个一致，32 个改过，1 个在基线里没有对应文件（`glue/bk_wifi/src_rwnx_td.c`）。阶段一不沿用这些改过的文件，直接取基线原文件。
+`a7de5d2` 的 `chips/bk7258/wifi/armino/` 共 750 个源文件和头文件（T3 统计）：704 个一致，43 个改过（`.c` 32、`.h` 11），3 个在基线里没有对应文件（`.c` 1、`.h` 2）。阶段一不沿用这些改过的文件，直接取基线原文件。
 
 ### [S2.4] 加密
 
@@ -136,7 +136,7 @@ BK7258 CP 上的 Wi-Fi 要在 NuttX 下工作，目标有两条：
 
 - [x] T1: 复现起点。acceptance：构建通过；连接成功后 ping 公网 4/4；记录 `tx_dma_dead` 的次数和行号。结果：构建、decode、完整性门禁都通过；镜像 sha256 `121d3cc7…1af7`；`Luv` 上连接 1/3；ping 10/10；`tx_dma_dead` 0 次。证据见 S1。(covers: S2.6)
 - [x] T2: 接口表提取脚本。结果：`chips/bk7258/tools/armino_interface.py` 生成 `chips/bk7258/tools/armino_baseline/{interface.tsv,summary.txt}`，`--check` 返回 0；167 个外部符号中 164 个有提供者；`malloc`/`free` 经 `--wrap` 由 `bk_rtos/platform_stub.c` 提供；`dbg_env` 只被 `dbg_task.c.obj` 引用，该成员没有链入；硬件目标文件 79 个，直接 27 个。读取基线 `app.map`、`compile_commands.json`，对闭源库跑 `nm`，输出"符号 → 提供者目标文件 → 源文件 → 组件"的对照表。脚本和生成结果一起入库。acceptance：重复运行输出一致；闭源库 167 个外部符号中 164 个有提供者，其余 3 个（`malloc`、`free`、`dbg_env`）在表中写明来源；S2.7 表中的数字能从脚本输出复现。(covers: S2.1, S2.5, S2.7)
-- [ ] T3: 源码一致性门禁脚本。拿阶段一的每个保留源文件和基线逐字节比对，出现例外清单之外的差异时返回非零。acceptance：对 `a7de5d2` 现有的 `armino/` 运行，能准确报出 32 个改动文件和 1 个无对应文件，并返回非零。(covers: S2.3)
+- [x] T3: 源码一致性门禁脚本。结果：`chips/bk7258/tools/armino_source_gate.py` 按目录前缀把文件映射到基线（`glue/`、`wpa_supplicant/`、`board/`、`include/common/`、`include/`），比对 `.c`/`.h`/`.S`。在 `a7de5d2` 上：`.c` 改动 32 个、无对应 1 个（`glue/bk_wifi/src_rwnx_td.c`，没有任何构建文件引用它），返回 1。另外查出头文件改动 11 个、无对应 2 个（`vnd_cal/include/bk_arm_arch.h`、`bk_misc.h` 是手写的空兼容头，基线对应文件分别在 `cp/middleware/driver/include/bk_private/` 和 `cp/components/bk_common/include/`）。自测：逐字节相同返回 0，改 1 个字节返回 1，多出无对应文件返回 1，全部列入例外后返回 0。拿阶段一的每个保留源文件和基线逐字节比对，出现例外清单之外的差异时返回非零。acceptance：对 `a7de5d2` 现有的 `armino/` 运行，能准确报出 32 个改动文件和 1 个无对应文件，并返回非零。(covers: S2.3)
 - [ ] T4: 编译清单生成脚本。从基线 `compile_commands.json` 生成 CMake 源码列表和逐文件编译参数。acceptance：重复生成结果一致；每个单元的参数和基线相同，只有登记过理由的工具链等价替换可以不同。(covers: S2.2; depends: T2)
 - [ ] T5: 双端轨迹工具。在我们这边，用 NSH 命令抓 MAC、TX DMA、PMU 寄存器快照，并记录 `g_wifi_funcs` 调用；在 Armino 那边，在独立的 debug 分支（不是 `baseline/d2ded03-gcc13`）上加一条输出格式相同的 CLI 命令。轨迹里要包含重握手次数。acceptance：两端都在连接完成后抓一次，输出可以直接 diff。(covers: S2.5)
 - [ ] T6: 参照负载基线。Armino 参照固件跑 30 分钟 TX 负载：优先用 `iperf -c`；热点有客户端隔离时，改用最大包长的连续 ping 公网。acceptance：统计 `tx_dma_dead`、assert、重启的次数，并记录用了哪种负载方式。(covers: S2.6)
