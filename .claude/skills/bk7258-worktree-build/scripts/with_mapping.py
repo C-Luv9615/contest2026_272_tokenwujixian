@@ -7,6 +7,7 @@ import argparse
 import fcntl
 import os
 from pathlib import Path
+import re
 import signal
 import stat
 import subprocess
@@ -40,11 +41,15 @@ def main() -> int:
     parser.add_argument("--workspace", required=True, type=Path)
     parser.add_argument("--worktree", required=True, type=Path)
     parser.add_argument("--component", choices=("cp", "ap"), required=True)
+    parser.add_argument("--config", help="board config directory name (default: --component)")
     parser.add_argument("--jobs", type=int, default=12)
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
     if args.jobs < 1 or args.jobs > 256:
         parser.error("--jobs must be between 1 and 256")
+    config = args.config or args.component
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", config):
+        parser.error(f"--config must be a plain config directory name: {config}")
 
     workspace = args.workspace.resolve(strict=True)
     worktree = args.worktree.resolve(strict=True)
@@ -73,6 +78,8 @@ def main() -> int:
 
     chip_source = (worktree / "chips/bk7258").resolve(strict=True)
     board_source = (worktree / "board/bk7258-devkit").resolve(strict=True)
+    if not (board_source / "configs" / config / "defconfig").is_file():
+        raise RuntimeError(f"board config not found: {board_source}/configs/{config}/defconfig")
     contained(chip_source, worktree, "chip source")
     contained(board_source, worktree, "board source")
 
@@ -121,7 +128,7 @@ def main() -> int:
         try:
             command = [
                 str(build_script),
-                f"vendor/beken/boards/bk7258/bk7258-devkit/configs/{args.component}/",
+                f"vendor/beken/boards/bk7258/bk7258-devkit/configs/{config}/",
                 "--cmake",
                 "-b",
                 str(output),
