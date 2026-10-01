@@ -117,11 +117,11 @@ BK7258 CP 上的 Wi-Fi 要在 NuttX 下工作，目标有两条：
 | 组件 | 编译单元 | 被用到的导出符号 | 调用方 |
 |---|---|---|---|
 | `os_source`（FreeRTOS 内核） | 11 | 81 | bk_rtos 71、bk_system 4、psa_mbedtls 4、cmsis 3、lwip 3、coredump 3 |
-| `bk_rtos` | 7 | 102 | bk_wifi 60、wpa 45、driver 42、lwip 39、bk_cli 37、预编译库 27 |
+| `bk_rtos` | 7 | 102 | bk_wifi 60、wpa 45、driver 42、lwip 39、bk_cli 37、bk_phy 24；另有 22 个被闭源库直接引用（libwifi 20、libbk_phy 5） |
 | `lwip_intf_v2_1` | 52 | 46 | bk_wifi 27、iperf 19、controller_if 9、bk_netif 9、wpa 4、bk_cli 3 |
 | `cm33` | 10 | 28 | driver 10、bk7258 5、bk_cli 3、bk_rtos 2、cmsis 2、os_source 2 |
 | `cmsis` | 2 | 1 | common 1 |
-| `bk_startup` | 2 | 8 | bk_cli 4、driver 4、bk_pm 2、cm33 2、cmsis 1、cp 1 |
+| `bk_startup` | 2 | 8 | bk_cli 4、driver 4、bk_pm 2、cm33 2、bk_init 1、cmsis 1、cp 1 |
 
 `bk_cli`、`at_server`、`unity`、iperf demo 这几个组件，只有链接证明没有保留代码引用它们时，才能排除。
 
@@ -135,7 +135,7 @@ BK7258 CP 上的 Wi-Fi 要在 NuttX 下工作，目标有两条：
 ## Tasks
 
 - [x] T1: 复现起点。acceptance：构建通过；连接成功后 ping 公网 4/4；记录 `tx_dma_dead` 的次数和行号。结果：构建、decode、完整性门禁都通过；镜像 sha256 `121d3cc7…1af7`；`Luv` 上连接 1/3；ping 10/10；`tx_dma_dead` 0 次。证据见 S1。(covers: S2.6)
-- [ ] T2: 接口表提取脚本。读取基线 `app.map`、`compile_commands.json`，对闭源库跑 `nm`，输出"符号 → 提供者目标文件 → 源文件 → 组件"的对照表。脚本和生成结果一起入库。acceptance：重复运行输出一致；闭源库 167 个外部符号中 164 个有提供者，其余 3 个（`malloc`、`free`、`dbg_env`）在表中写明来源；S2.7 表中的数字能从脚本输出复现。(covers: S2.1, S2.5, S2.7)
+- [x] T2: 接口表提取脚本。结果：`chips/bk7258/tools/armino_interface.py` 生成 `chips/bk7258/tools/armino_baseline/{interface.tsv,summary.txt}`，`--check` 返回 0；167 个外部符号中 164 个有提供者；`malloc`/`free` 经 `--wrap` 由 `bk_rtos/platform_stub.c` 提供；`dbg_env` 只被 `dbg_task.c.obj` 引用，该成员没有链入；硬件目标文件 79 个，直接 27 个。读取基线 `app.map`、`compile_commands.json`，对闭源库跑 `nm`，输出"符号 → 提供者目标文件 → 源文件 → 组件"的对照表。脚本和生成结果一起入库。acceptance：重复运行输出一致；闭源库 167 个外部符号中 164 个有提供者，其余 3 个（`malloc`、`free`、`dbg_env`）在表中写明来源；S2.7 表中的数字能从脚本输出复现。(covers: S2.1, S2.5, S2.7)
 - [ ] T3: 源码一致性门禁脚本。拿阶段一的每个保留源文件和基线逐字节比对，出现例外清单之外的差异时返回非零。acceptance：对 `a7de5d2` 现有的 `armino/` 运行，能准确报出 32 个改动文件和 1 个无对应文件，并返回非零。(covers: S2.3)
 - [ ] T4: 编译清单生成脚本。从基线 `compile_commands.json` 生成 CMake 源码列表和逐文件编译参数。acceptance：重复生成结果一致；每个单元的参数和基线相同，只有登记过理由的工具链等价替换可以不同。(covers: S2.2; depends: T2)
 - [ ] T5: 双端轨迹工具。在我们这边，用 NSH 命令抓 MAC、TX DMA、PMU 寄存器快照，并记录 `g_wifi_funcs` 调用；在 Armino 那边，在独立的 debug 分支（不是 `baseline/d2ded03-gcc13`）上加一条输出格式相同的 CLI 命令。轨迹里要包含重握手次数。acceptance：两端都在连接完成后抓一次，输出可以直接 diff。(covers: S2.5)
