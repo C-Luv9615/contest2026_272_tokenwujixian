@@ -14,6 +14,7 @@ options:
   --slot NAME          stable incremental build/package slot name
   --fresh              rebuild this worktree's bound build slot
   --placeholder        use bundled AP recovery placeholder
+  --cp-config NAME     CP board config directory under configs/ (default: cp)
   --image FILE         flash an existing all-app.bin; skips build/package
   --tools-dir DIR      tools directory for --image (contains bk7258-flash.sh)
   --flash              flash the verified all-app.bin (destructive)
@@ -31,6 +32,7 @@ JOBS=12
 SLOT=""
 FRESH=0
 OPENVELA_AP=1
+CP_CONFIG=cp
 FLASH=0
 DEVICE=/dev/ttyUSB0
 PORT=0
@@ -46,6 +48,7 @@ while [[ $# -gt 0 ]]; do
     --slot) SLOT="$2"; shift 2 ;;
     --fresh) FRESH=1; shift ;;
     --placeholder) OPENVELA_AP=0; shift ;;
+    --cp-config) CP_CONFIG="$2"; shift 2 ;;
     --flash) FLASH=1; shift ;;
     --device) DEVICE="$2"; shift 2 ;;
     --port) PORT="$2"; shift 2 ;;
@@ -195,7 +198,8 @@ reset_generated_dir() {
   rm -rf -- "$target"
 }
 
-CP_DEFCONFIG_SHA="$(sha256sum "$WORKTREE/board/bk7258-devkit/configs/cp/defconfig" | cut -d' ' -f1)"
+[[ "$CP_CONFIG" =~ ^[a-z0-9][a-z0-9-]*$ ]] || usage
+CP_DEFCONFIG_SHA="$(sha256sum "$WORKTREE/board/bk7258-devkit/configs/$CP_CONFIG/defconfig" | cut -d' ' -f1)"
 CP_SHA_FILE="$SLOT_ROOT/.cp-defconfig.sha256"
 if [[ "$FRESH" -eq 1 ]] || { [[ -f "$CP_SHA_FILE" ]] && [[ "$(cat "$CP_SHA_FILE")" != "$CP_DEFCONFIG_SHA" ]]; }; then
   reset_generated_dir "$CP_BUILD"
@@ -234,7 +238,7 @@ done
 
 echo "== BK7258 CP build =="
 "$BUILD" --workspace "$WORKSPACE" --worktree "$WORKTREE" \
-  --component cp --jobs "$JOBS" --output "$CP_BUILD"
+  --component cp --config "$CP_CONFIG" --jobs "$JOBS" --output "$CP_BUILD"
 
 CP_DIR="$CP_BUILD/bk7258"
 PACKAGE_ARGS=(

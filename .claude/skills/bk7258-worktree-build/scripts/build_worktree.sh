@@ -3,13 +3,14 @@
 set -euo pipefail
 
 usage() {
-  echo "usage: $0 --workspace DIR --worktree DIR [--component cp|ap] [--jobs N] [--output DIR]" >&2
+  echo "usage: $0 --workspace DIR --worktree DIR [--component cp|ap] [--config NAME] [--jobs N] [--output DIR]" >&2
   exit 2
 }
 
 WORKSPACE=""
 WORKTREE=""
 COMPONENT="cp"
+CONFIG=""
 JOBS="12"
 OUTPUT=""
 
@@ -18,6 +19,7 @@ while [[ $# -gt 0 ]]; do
     --workspace) WORKSPACE="$2"; shift 2 ;;
     --worktree) WORKTREE="$2"; shift 2 ;;
     --component) COMPONENT="$2"; shift 2 ;;
+    --config) CONFIG="$2"; shift 2 ;;
     --jobs) JOBS="$2"; shift 2 ;;
     --output) OUTPUT="$2"; shift 2 ;;
     -h|--help) usage ;;
@@ -46,5 +48,5 @@ WORKTREE="$(realpath "$WORKTREE")"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 exec "$SCRIPT_DIR/with_mapping.py" --workspace "$WORKSPACE" \
-  --worktree "$WORKTREE" --component "$COMPONENT" --jobs "$JOBS" \
+  --worktree "$WORKTREE" --component "$COMPONENT" --config "${CONFIG:-$COMPONENT}" --jobs "$JOBS" \
   --output "$OUTPUT"
