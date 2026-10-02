@@ -53,7 +53,22 @@ if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
       # Replaced by compat/bk7258_armino_shell.c: shell_uart.c drove UART0,
       # which NuttX owns; cli_rpc.c's only used export is cli_debug_cmd_table.
       cp/components/bk_cli/shell_uart.c
-      cp/components/bk_cli/cli_rpc.c)
+      cp/components/bk_cli/cli_rpc.c
+      # Reset belongs to NuttX: the Armino reset entry, and SystemInit which
+      # only it calls. set_reboot_tag() moves to bk7258_armino_start.c.
+      cp/components/cmsis/CMSIS_5/Device/Beken/bk7236xx/Source/startup_bk7236.c
+      cp/components/cmsis/CMSIS_5/Device/Beken/bk7236xx/Source/system_bk7236xx.c
+      # MBOX0 belongs to NuttX's RPMsg transport: chips/bk7258/mb_ipc/
+      # bk_mailbox_rpmsg.c provides every global of mbox0_adapter.c, and
+      # mbox0_drv.c is only used by the adapter.
+      cp/middleware/driver/mailbox/mbox0_adapter.c
+      cp/middleware/driver/mailbox/mbox0_drv.c)
+
+  # NuttX's config.h defines CONFIG_SPI=1 and reaches Armino units through
+  # the libc headers; the baseline sdkconfig leaves it undefined, so
+  # driver.c:356 would call bk_spi_driver_init(), which the baseline never
+  # does. None of the NuttX headers in driver.c's include closure tests it.
+  set(nuttx_config_compat_components driver)
 
   # bk_patch holds wpa's own headers plus a bare-metal signal.h that shadows
   # NuttX's <signal.h>. Replace its -I with: generated forwarders for the
@@ -106,6 +121,9 @@ if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
     if(patch_index GREATER_EQUAL 0)
       list(REMOVE_AT fields ${patch_index})
       list(INSERT fields ${patch_index} ${bk_patch_replacement})
+    endif()
+    if(comp IN_LIST nuttx_config_compat_components)
+      list(APPEND fields -include ${CMAKE_CURRENT_SOURCE_DIR}/compat/bk7258_armino_nuttx_config.h)
     endif()
     if(comp IN_LIST spinlock_compat_components)
       list(APPEND fields -include ${CMAKE_CURRENT_SOURCE_DIR}/compat/bk7258_wifi_spinlock.h)
