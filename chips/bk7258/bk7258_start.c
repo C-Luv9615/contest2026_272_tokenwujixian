@@ -226,11 +226,18 @@ void __start(void)
    * the PM module's SoC headers, and this file deliberately includes nothing
    * but NuttX and the chip's own memory map. */
 
+  /* The phase-one Armino build runs the whole Armino PM init, this call
+   * included, from board_early_initialize() instead (bk7258_armino_start.c),
+   * where a heap exists for the Armino code it reaches.
+   */
+
+#ifndef CONFIG_BK7258_WIFI_ARMINO_BASELINE
   {
     extern void sys_hal_low_power_hardware_init(void);
 
     sys_hal_low_power_hardware_init();
   }
+#endif
 
   /* Trace marker: boot reached nx_start. */
   bk7258_lowputc('S');
