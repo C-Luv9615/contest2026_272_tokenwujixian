@@ -11,6 +11,10 @@
 #  include <arch/chip/bk7258_ap_boot.h>
 #endif
 
+#ifdef CONFIG_BK7258_WIFI_ARMINO_BASELINE
+void bk7258_armino_early_initialize(void);
+#endif
+
 void board_early_initialize(void)
 {
   /* Early pinmux and console hardware are owned by the secure chip layer. */
@@ -19,4 +23,8 @@ void board_early_initialize(void)
 #endif
 
   up_putc('J');
+
+#ifdef CONFIG_BK7258_WIFI_ARMINO_BASELINE
+  bk7258_armino_early_initialize();
+#endif
 }

@@ -98,7 +98,24 @@ void up_allocate_heap(void **heap_start, size_t *heap_size)
 }
 
 #if CONFIG_MM_REGIONS > 1
+#ifdef CONFIG_BK7258_WIFI_ARMINO_BASELINE
+/* Phase-one Armino build (docs/compose/spec/bk7258-wifi-native.md): Armino's
+ * pm_hardware_init() switches the AHBP power domain, which holds the PSRAM,
+ * off. It runs from board_early_initialize(), after up_initialize(), so the
+ * PSRAM may only join the heap once it has run: up_initialize() gets nothing
+ * here and bk7258_armino_early_initialize() adds the region afterwards.
+ */
+
+void bk7258_psram_addregion(void);
+
 void arm_addregion(void)
+{
+}
+
+void bk7258_psram_addregion(void)
+#else
+void arm_addregion(void)
+#endif
 {
 #ifdef CONFIG_BK7258_PSRAM
   size_t psram_size;

@@ -14,9 +14,11 @@
 
 #include <nuttx/config.h>
 
+#include <malloc.h>
 #include <stdint.h>
 #include <syslog.h>
 
+#include <nuttx/arch.h>
 #include <nuttx/kthread.h>
 
 #include "arm_internal.h"
@@ -54,6 +56,70 @@ volatile const char build_version[] = __DATE__ " " __TIME__;
 void set_reboot_tag(uint32_t tag)
 {
   putreg32(tag, BK7258_ARMINO_REBOOT_TAG_ADDR);
+}
+
+/* Prototypes from the baseline DWARF. */
+
+void sys_drv_early_init(void);
+void bk_wdt_force_feed(void);
+void pm_hardware_init(void);
+int bk_pm_cp1_auto_power_down_state_set(uint32_t state);
+int bk_pm_mem_auto_power_down_state_set(uint32_t state);
+void cm_backtrace_init(const char *firmware_name,
+                       const char *hardware_ver,
+                       const char *software_ver);
+void bk7258_psram_addregion(void);
+void bk7258_armino_early_initialize(void);
+
+/* The Armino init that startup_bk7236.c runs before entry_main(), in its
+ * order, called from board_early_initialize(): a heap exists there (the
+ * Armino code this reaches can allocate) and the scheduler does not run yet,
+ * as on Armino. Skipped because NuttX owns them: SystemInit() (VTOR, FPU and
+ * SAU are set by __start), mpu_enable() (CONFIG_ARM_MPU is off) and the
+ * DCache enable (__start keeps the DCache off).
+ */
+
+void bk7258_armino_early_initialize(void)
+{
+  struct mallinfo mm;
+
+  /* Reset_Handler (startup_bk7236.c:394-413). */
+
+  bk_wdt_force_feed();
+  set_reboot_tag(0);
+
+  /* sys_hal_early_init() rewrites the analog PLL/xtal/LDO registers, which
+   * Armino does first thing after reset; here the NuttX console is already
+   * running. 'a' and 'b' bracket it: a clean 'b' means the UART survived.
+   */
+
+  up_putc('a');
+  sys_drv_early_init();
+  up_putc('b');
+
+  /* _start (startup_bk7236.c:414-441), also before entry_main() and before
+   * any shell init there. Version strings are the baseline's FIREWARE_NAME,
+   * HARDWARE_VERSION and SOFTWARE_VERSION.
+   */
+
+  cm_backtrace_init("app", "V1.0.0", "V1.0.0");
+  pm_hardware_init();
+  bk_pm_cp1_auto_power_down_state_set(0);  /* PM_CP1_AUTO_CTRL_DISABLE */
+  bk_pm_mem_auto_power_down_state_set(0);  /* PM_MEM_AUTO_CTRL_DISABLE */
+
+  /* pm_hardware_init() has switched AHBP off, PSRAM included; PSRAM init
+   * powers it back on before the region joins the heap, the same order as
+   * Armino (startup powers AHBP off, bk_psram_init() votes PSRAM on).
+   */
+
+#if CONFIG_MM_REGIONS > 1
+  bk7258_psram_addregion();
+#endif
+
+  mm = mallinfo();
+  syslog(LOG_INFO, "[ARMINO] early init done: heap arena=%lu free=%lu "
+         "largest=%lu\n", (unsigned long)mm.arena,
+         (unsigned long)mm.fordblks, (unsigned long)mm.mxordblk);
 }
 
 static int bk7258_armino_entry(int argc, char *argv[])
