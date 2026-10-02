@@ -60,6 +60,23 @@ SECTIONS
     _einit = ABSOLUTE(.);
   } > flash
 
+#ifdef CONFIG_BK7258_WIFI_ARMINO_BASELINE
+  /* Phase-one Armino build (docs/compose/spec/bk7258-wifi-native.md).
+   * mb_ipc channels register themselves into .ipc_chan_reg
+   * (cp/middleware/driver/mailbox/bk_api_ipc.h:33) and bk_api_ipc.c walks
+   * __start_/__stop_ipc_chan_reg. The name starts with a dot, so ld does not
+   * define those bounds itself; same layout as the baseline's
+   * cp/middleware/soc/bk7258/bk7258_bsp.ld:165-169.
+   */
+
+  .avdk_ipc : ALIGN(4)
+  {
+    __start_ipc_chan_reg = ABSOLUTE(.);
+    KEEP(*(.ipc_chan_reg*))
+    __stop_ipc_chan_reg = ABSOLUTE(.);
+  } > flash
+#endif
+
   .ARM.extab : ALIGN(4)
   {
     *(.ARM.extab*)
@@ -125,6 +142,17 @@ SECTIONS
     . = ALIGN(8);
     _ebss = ABSOLUTE(.);
   } > sram
+
+#ifdef CONFIG_BK7258_WIFI_ARMINO_BASELINE
+  /* Armino's cm_backtrace bounds the main stack by _sstack/_estack
+   * (cp/components/coredump/cm_backtrace/cmb_def.h:115-119). On NuttX the
+   * stack running before the scheduler is the idle stack, _ebss up to
+   * g_idle_topstack (chips/bk7258/bk7258_allocateheap.c:60).
+   */
+
+  _sstack = _ebss;
+  _estack = _ebss + CONFIG_IDLETHREAD_STACKSIZE;
+#endif
 
   /* Link options disable build-id generation. If another toolchain adds an
    * allocatable orphan section before .text, the vector-base assertion below

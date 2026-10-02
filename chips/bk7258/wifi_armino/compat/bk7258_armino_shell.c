@@ -31,6 +31,7 @@
 #include <nuttx/irq.h>
 #include <nuttx/kthread.h>
 #include <nuttx/semaphore.h>
+#include <nuttx/spinlock.h>
 
 /* shell_drv.h */
 
