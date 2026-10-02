@@ -62,7 +62,13 @@ if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
       # bk_mailbox_rpmsg.c provides every global of mbox0_adapter.c, and
       # mbox0_drv.c is only used by the adapter.
       cp/middleware/driver/mailbox/mbox0_adapter.c
-      cp/middleware/driver/mailbox/mbox0_drv.c)
+      cp/middleware/driver/mailbox/mbox0_drv.c
+      # The NVIC belongs to NuttX: the bk_int_* API, Armino's own NVIC
+      # driver and its vector handlers are replaced by
+      # compat/bk7258_armino_irq.c.
+      cp/middleware/driver/icu/interrupt_base.c
+      cp/middleware/arch/cm33/arch_interrupt.c
+      cp/middleware/driver/bk7258/interrupt.c)
 
   # NuttX's config.h defines CONFIG_SPI=1 and reaches Armino units through
   # the libc headers; the baseline sdkconfig leaves it undefined, so
@@ -165,6 +171,7 @@ if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
       ${BK7258_ARMINO_BASELINE_DIR}/cp/components/bk_libs/bk7258/libs/${lib}.a)
   endforeach()
 
-  target_sources(arch PRIVATE bk7258_armino_start.c compat/bk7258_armino_shell.c)
+  target_sources(arch PRIVATE bk7258_armino_start.c
+                 compat/bk7258_armino_shell.c compat/bk7258_armino_irq.c)
 
 endif()
