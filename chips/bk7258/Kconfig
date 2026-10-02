@@ -233,6 +233,20 @@ config AUDIO_BK7258_CAPTURE
 
 endif # AUDIO_BK7258
 
+config BK7258_WIFI_ARMINO_BASELINE
+	bool "BK7258 Wi-Fi: compile the Armino iperf baseline as-is (phase one)"
+	default n
+	depends on BK7258_COMPONENT_CP
+	depends on !BK7258_WIFI
+	help
+		Phase one of docs/compose/spec/bk7258-wifi-native.md: build the CP
+		compile units of the Armino iperf baseline unchanged, one static
+		library per Armino component, from the manifest in
+		chips/bk7258/tools/armino_baseline. The Armino tree is located by
+		the BK7258_ARMINO_BASELINE_DIR CMake variable or environment
+		variable. Mutually exclusive with BK7258_WIFI: both provide the same
+		Armino symbols.
+
 endmenu
 
 # wifi/Kconfig lives in the parent workspace: the path is relative to this

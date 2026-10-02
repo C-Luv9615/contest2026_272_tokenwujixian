@@ -1,0 +1,113 @@
+# T8 first link of the phase-one Armino build (docs/compose/spec/bk7258-wifi-native.md)
+# config: board/bk7258-devkit/configs/cp-armino, Armino baseline d5b0278
+# undefined symbols: 93; multiple definitions: 6; flash overflow: 111660 bytes
+# grouped by the component that provides the symbol in the baseline link
+
+## undefined, baseline provider os_source: 48
+_heap_end	cp/components/os_source/freertos_v10/portable/MemMang/heap_4.c
+_heap_start	cp/components/os_source/freertos_v10/portable/MemMang/heap_4.c
+bk_psram_heap_get_used_count	cp/components/os_source/freertos_v10/portable/MemMang/heap_4.c
+bk_psram_heap_get_used_state	cp/components/os_source/freertos_v10/portable/MemMang/heap_4.c
+bk_wrap_sram_malloc	cp/components/os_source/freertos_v10/portable/MemMang/heap_4.c
+platform_is_in_interrupt_context	cp/components/os_source/freertos_v10/portable/GCC/ARM_CM33_NTZ/non_secure/port.c
+platform_local_irq_disabled	cp/components/os_source/freertos_v10/portable/GCC/ARM_CM33_NTZ/non_secure/port.c
+port_disable_interrupts_flag	cp/components/os_source/freertos_v10/portable/GCC/ARM_CM33_NTZ/non_secure/port.c
+port_enable_interrupts_flag	cp/components/os_source/freertos_v10/portable/GCC/ARM_CM33_NTZ/non_secure/port.c
+psram_malloc	cp/components/os_source/freertos_v10/portable/MemMang/heap_4.c
+pvPortMalloc	cp/components/os_source/freertos_v10/portable/MemMang/heap_4.c
+pvShowMemoryConfigInfo	cp/components/os_source/freertos_v10/portable/MemMang/heap_4.c
+pvTimerGetTimerID	cp/components/os_source/freertos_v10/timers.c
+rtos_init_base_time	cp/components/os_source/freertos_v10/portable/GCC/ARM_CM33_NTZ/non_secure/port.c
+vPortEnterCritical	cp/components/os_source/freertos_v10/portable/GCC/ARM_CM33_NTZ/non_secure/port.c
+vPortExitCritical	cp/components/os_source/freertos_v10/portable/GCC/ARM_CM33_NTZ/non_secure/port.c
+vPortFree	cp/components/os_source/freertos_v10/portable/MemMang/heap_4.c
+vQueueDelete	cp/components/os_source/freertos_v10/queue.c
+vTaskDelay	cp/components/os_source/freertos_v10/tasks.c
+vTaskDelete	cp/components/os_source/freertos_v10/tasks.c
+vTaskName	cp/components/os_source/freertos_v10/tasks.c
+vTaskPrioritySet	cp/components/os_source/freertos_v10/tasks.c
+vTaskStackAddr	cp/components/os_source/freertos_v10/tasks.c
+vTaskStackSize	cp/components/os_source/freertos_v10/tasks.c
+vTaskStartScheduler	cp/components/os_source/freertos_v10/tasks.c
+vTaskSuspendAll	cp/components/os_source/freertos_v10/tasks.c
+xPortGetFreeHeapSize	cp/components/os_source/freertos_v10/portable/MemMang/heap_4.c
+xQueueCreateCountingSemaphore	cp/components/os_source/freertos_v10/queue.c
+xQueueCreateMutex	cp/components/os_source/freertos_v10/queue.c
+xQueueGenericCreate	cp/components/os_source/freertos_v10/queue.c
+xQueueGenericSend	cp/components/os_source/freertos_v10/queue.c
+xQueueGenericSendFromISR	cp/components/os_source/freertos_v10/queue.c
+xQueueGiveFromISR	cp/components/os_source/freertos_v10/queue.c
+xQueueIsQueueEmptyFromISR	cp/components/os_source/freertos_v10/queue.c
+xQueueIsQueueFullFromISR	cp/components/os_source/freertos_v10/queue.c
+xQueueReceive	cp/components/os_source/freertos_v10/queue.c
+xQueueSemaphoreTake	cp/components/os_source/freertos_v10/queue.c
+xTaskCreateInPsram	cp/components/os_source/freertos_v10/tasks.c
+xTaskCreateInSram	cp/components/os_source/freertos_v10/tasks.c
+xTaskGetCurrentTaskHandle	cp/components/os_source/freertos_v10/tasks.c
+xTaskGetSchedulerState	cp/components/os_source/freertos_v10/tasks.c
+xTaskGetTickCount	cp/components/os_source/freertos_v10/tasks.c
+xTaskGetTickCountFromISR	cp/components/os_source/freertos_v10/tasks.c
+xTaskIsTaskFinished	cp/components/os_source/freertos_v10/tasks.c
+xTaskResumeAll	cp/components/os_source/freertos_v10/tasks.c
+xTimerCreate	cp/components/os_source/freertos_v10/timers.c
+xTimerGenericCommand	cp/components/os_source/freertos_v10/timers.c
+xTimerIsTimerActive	cp/components/os_source/freertos_v10/timers.c
+
+## undefined, baseline provider lwip_intf_v2_1: 31
+dhcp_lookup_mac	cp/components/lwip_intf_v2_1/dhcpd/dhcp-server.c
+etharp_request	cp/components/lwip_intf_v2_1/lwip-2.1.2/src/core/ipv4/etharp.c
+ethernetif_input	cp/components/lwip_intf_v2_1/lwip-2.1.2/port/wlanif.c
+ip4addr_aton	cp/components/lwip_intf_v2_1/lwip-2.1.2/src/core/ipv4/ip4_addr.c
+ip4addr_ntoa	cp/components/lwip_intf_v2_1/lwip-2.1.2/src/core/ipv4/ip4_addr.c
+ip_address_set	cp/components/lwip_intf_v2_1/lwip-2.1.2/port/net.c
+lwip_htonl	cp/components/lwip_intf_v2_1/lwip-2.1.2/src/core/def.c
+lwip_htons	cp/components/lwip_intf_v2_1/lwip-2.1.2/src/core/def.c
+lwip_stats	cp/components/lwip_intf_v2_1/lwip-2.1.2/src/core/stats.c
+net_begin_send_arp_reply	cp/components/lwip_intf_v2_1/lwip-2.1.2/port/net.c
+net_get_if_addr	cp/components/lwip_intf_v2_1/lwip-2.1.2/port/net.c
+net_get_sta_handle	cp/components/lwip_intf_v2_1/lwip-2.1.2/port/net.c
+net_get_uap_handle	cp/components/lwip_intf_v2_1/lwip-2.1.2/port/net.c
+net_wlan_add_netif	cp/components/lwip_intf_v2_1/lwip-2.1.2/port/net.c
+net_wlan_initial	cp/components/lwip_intf_v2_1/lwip-2.1.2/port/net.c
+net_wlan_remove_netif	cp/components/lwip_intf_v2_1/lwip-2.1.2/port/net.c
+pbuf_alloc	cp/components/lwip_intf_v2_1/lwip-2.1.2/src/core/pbuf.c
+pbuf_cat	cp/components/lwip_intf_v2_1/lwip-2.1.2/src/core/pbuf.c
+pbuf_coalesce	cp/components/lwip_intf_v2_1/lwip-2.1.2/src/core/pbuf.c
+pbuf_free	cp/components/lwip_intf_v2_1/lwip-2.1.2/src/core/pbuf.c
+pbuf_header	cp/components/lwip_intf_v2_1/lwip-2.1.2/src/core/pbuf.c
+pbuf_ref	cp/components/lwip_intf_v2_1/lwip-2.1.2/src/core/pbuf.c
+ping_start	cp/components/lwip_intf_v2_1/lwip-2.1.2/src/apps/ping/ping.c
+ping_stop	cp/components/lwip_intf_v2_1/lwip-2.1.2/src/apps/ping/ping.c
+sta_ip_down	cp/components/lwip_intf_v2_1/lwip-2.1.2/port/net.c
+sta_ip_is_start	cp/components/lwip_intf_v2_1/lwip-2.1.2/port/net.c
+sta_ip_mode_set	cp/components/lwip_intf_v2_1/lwip-2.1.2/port/net.c
+sta_ip_start	cp/components/lwip_intf_v2_1/lwip-2.1.2/port/net.c
+uap_ip_down	cp/components/lwip_intf_v2_1/lwip-2.1.2/port/net.c
+uap_ip_is_start	cp/components/lwip_intf_v2_1/lwip-2.1.2/port/net.c
+uap_ip_start	cp/components/lwip_intf_v2_1/lwip-2.1.2/port/net.c
+
+## undefined, baseline provider not-in-baseline-xref: 13
+__StackLimit	-
+__StackTop	-
+__copy_table_end__	-
+__copy_table_start__	-
+__start_ipc_chan_reg	-
+__stop_ipc_chan_reg	-
+__zero_table_end__	-
+__zero_table_start__	-
+_estack	-
+_sstack	-
+bk_spi_driver_init	-
+enter_critical_section	-
+leave_critical_section	-
+
+## undefined, baseline provider object: 1
+build_version	build/bk7258/iperf/bk7258/project_elf_src.c
+
+## multiple definitions: 6 (NuttX chips/bk7258/mb_ipc/bk_mailbox_rpmsg.c vs Armino mbox0_adapter.c)
+bk_mailbox_deinit
+bk_mailbox_init
+bk_mailbox_ready
+bk_mailbox_recv_callback_register
+bk_mailbox_recv_callback_unregister
+bk_mailbox_send

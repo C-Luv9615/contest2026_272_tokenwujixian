@@ -157,3 +157,4 @@ if(CONFIG_AUDIO_BK7258)
 endif()
 
 add_subdirectory(wifi)
+add_subdirectory(wifi_armino)

@@ -49,7 +49,10 @@ BK7258 CP 上的 Wi-Fi 要在 NuttX 下工作，目标有两条：
 - 编译单元集合 = T4 清单的 538 个单元，减去 S2.7 排除记录里的单元。默认全部保留。
 - 每个保留单元都用基线原件，以及原来的 `-D`、`-I`、`-include` 和编译选项。CMake 源码列表和逐文件编译参数由脚本从 `compile_commands.json` 生成，不手写。
 - 配置使用基线生成的 `sdkconfig.h`。
-- 手写代码只允许出现在两处：FreeRTOS API 到 NuttX 的接缝（T9），和 netdev 胶水（T10）。
+- 手写代码只允许出现在三处：FreeRTOS API 到 NuttX 的接缝（T9）；netdev 胶水（T10）；启动入口 `chips/bk7258/wifi_armino/bk7258_armino_start.c`，它在 NuttX 内核线程里代替基线的 `Reset_Handler → entry_main → 调度器 → main()` 这条链（这条链和 NuttX 启动冲突），调用基线 `projects/wifi/iperf/cp/cp_main.c` 里的入口。
+- 每个组件建成一个静态库（`nuttx_add_kernel_library`），进入 NuttX 链接时的 `--start-group`，和基线一样只拉入被引用的成员。不直接编进 `arch`，否则所有成员都会被强制链入。
+- libc 头用 NuttX 的：NuttX 给每个库加的 `-isystem nuttx/include` 会让 Armino 单元按 NuttX 的结构布局编译，最终链接的也是 NuttX libc。这是对"原参数"的第一处有意偏离。
+- 第二处偏离：保留组件参数里的 lwip 裸头目录 `lwip-2.1.2/src/include/lwip` 被原位替换为 `chips/bk7258/wifi_armino/lwip_compat`。原因：lwip 已排除，而这个目录里的 `errno.h`、`netdb.h`（通用 POSIX 头，与 NuttX 重复；`errno.h` 的 122 个 `E*` 数值与 NuttX 完全一致）以及 `debug.h`、`err.h`（同名不同义）会遮蔽 NuttX 自己的头，连 NuttX 内部的 `#include <errno.h>` 也被劫持。通用头只用 NuttX 的一份；`lwip_compat` 只转发基线依赖记录证明解析到这里的 lwip 独有头（`pbuf.h`、`netif.h`），属于 T10 的范围。
 - 源码位置：阶段一通过一个必填的 CMake 变量 `BK7258_ARMINO_BASELINE_DIR` 指向本机 Armino 基线，变量没设置就报错，不在构建文件里写死本机路径。跑通后按 AGENTS.md 把用到的文件导入 `chips/bk7258/` 并保留来源（T19）。
 - 阶段一放在一个新的 Kconfig 开关后面，开关关闭时现有 Wi-Fi 构建不受影响。
 
@@ -117,6 +120,16 @@ BK7258 CP 上的 Wi-Fi 要在 NuttX 下工作，目标有两条：
 - `os_source`（FreeRTOS 内核 11 个单元）：调度器只能有一个，用 NuttX 的。`bk_rtos` 原样保留，它调用的 FreeRTOS API 由 T9 的接缝在 NuttX 上实现。
 - `lwip_intf_v2_1`（52 个单元）：用户决定第一阶段就使用 NuttX 自己的 TCP/IP 协议栈（NuttX 不带 lwip，`nuttx/net/` 是它自己的实现）。lwip 被用到的符号由 T10 的 netdev 胶水提供。
 
+原则：OS 和 POSIX 接口（libc、signal、pthread、socket、spinlock）一律用 NuttX 的。Armino 自带的同名副本排除或屏蔽，由 `chips/bk7258/wifi_armino/compat` 对接，不改 Armino 源码。lwip 协议栈内部接口（pbuf、netif、memp 等）不是 OS 接口，归 T10。
+
+按这条原则已处理（证据来自 T8 第二次构建和基线依赖记录）：
+
+- `bk_rtos/.../pthread_local_storage.c` 排除：它定义自己的 `pthread_key_t`，和 NuttX 冲突；导出符号只被已排除的 lwip 和 os_source 调用。
+- `wpa_supplicant-2.10/bk_patch/signal.h` 屏蔽：它是无 OS 环境下的 `<signal.h>` 替身，遮蔽了 NuttX 的版本（103 个单元因此报 `sigset_t` 未定义）。保留代码用到的 `SIGALRM`、`SIGHUP`、`SIGINT`、`SIGTERM` 两边数值一致；唯一不同的 `SIGUSR1` 只在未编译的 `hostapd/main.c` 里。`bk_patch/signal.c` 只有空函数，排除后由 compat 头里的 static inline 提供。
+- `bk_cli/shell_uart.c`、`bk_cli/cli_rpc.c` 排除，由 `compat/bk7258_armino_shell.c` 接到 NuttX：Armino 的 CLI 和日志（`cli_main.c`、`shell_task.c`）作为应用层原样保留。`shell_uart.c` 自己初始化 UART0 并注册中断，而 UART0 是 NuttX 控制台，两个主人。新设备保持同样的 8 格队列和完成回调顺序，输出走 `up_putc`，输入归 NSH。`cli_rpc.c` 对外只导出 `cli_debug_cmd_table`（`cli_main.c:961` 调用），由空表替代。
+- lwip 的 `sockets.h`、`inet.h` 用 `wifi_armino/lwip_os` 中的替换头：socket 是 OS 接口，lwip 已排除。原头文件和 NuttX 重复定义了 `socklen_t`、`sockaddr`、`iovec`、`in_addr` 等，还用宏把 `socket()` 等改名成 `lwip_*()`。这份 lwip 没有 `LWIP_SOCKET_EXTERNAL_HEADERS` 开关，所以用替换头，并沿用 lwip 原来的头文件保护宏。保留代码直接调用 BSD 名字，现在走到 NuttX；`closesocket`、`ioctlsocket` 映射到 `close`、`ioctl`。`lwip/stats.h` 原样使用，只在它周围暂停 NuttX 的 `opterr` 宏（字段名冲突；保留代码不读这个字段）。
+- `bk_wifi/include/wifi_spinlock.h` 屏蔽：它用同目录引号包含，包含路径挡不住，所以用 `-include` 预先定义它的头文件保护宏。`spinlock_t` 用 NuttX 的类型；锁操作照基线保持空操作，对应的 NuttX 调用写在注释里。
+
 其余组件，包括 `cm33`、`cmsis`、`bk_startup`、`bk_cli`、`at_server`、`unity`、iperf demo，一律以 T8 链接报出的冲突为准，不预先排除。已有成果（`hal_port/`、`a7de5d2` 的 shim 等）只能作为 T9、T10 实现时的参考，不能直接拿来用。
 
 下表是候选组件对外被用到的情况，用来估计 T9、T10 的工作量。数据来自 `d5b0278` 的 `app.map`。"被用到的导出符号"指组件之外有引用的符号数；调用方后面的数字，是该调用方用到其中多少个，只列前 6 名。
@@ -150,7 +163,7 @@ BK7258 CP 上的 Wi-Fi 要在 NuttX 下工作，目标有两条：
 - [ ] T5: 日志对比脚本。输入两份 UART 日志（Armino 参照、我们的固件），按 S2.8 抽取关键事件序列和计数，输出两边的差异。acceptance：对 `/home/czp/iperf-ref-1001.log` 和 `evidence-20261001/t1-a7de5d2-connect-ping.log` 运行，能报出 T1 的 2 次重握手，而参照为 0 次。(covers: S2.8)
 - [ ] T6: 参照负载基线。Armino 参照固件跑 30 分钟 TX 负载：优先用 `iperf -c`；热点有客户端隔离时，改用最大包长的连续 ping 公网。acceptance：统计 `tx_dma_dead`、assert、重启的次数，并记录用了哪种负载方式。(covers: S2.6)
 - [ ] T7: 排除记录。根据 T8 的链接输出和资源冲突，为每个被排除的单元下 S2.7 要求的证据。acceptance：每个排除单元都能对应到一行链接输出，或一条写明双方代码位置的资源冲突说明；`os_source`、`lwip_intf_v2_1` 两项的依据已写入。(covers: S2.7; depends: T8)
-- [ ] T8: 阶段一 CMake 接入和首次链接。新的 Kconfig 开关打开时，CP 的 CMake 读取 T4 清单，按组件参数编译保留单元，路径来自 `BK7258_ARMINO_BASELINE_DIR`，配置用基线 `sdkconfig.h`。acceptance：开关关闭时，`a7de5d2` 的构建结果不变；开关打开时，所有保留单元都能编过；链接输出里的 undefined 和重复定义符号整理成清单入库。(covers: S2.2, S2.4; depends: T3, T4)
+- [x] T8: 阶段一 CMake 接入和首次链接。结果：开关 `BK7258_WIFI_ARMINO_BASELINE`、`chips/bk7258/wifi_armino/`、`configs/cp-armino`；保留单元全部编译通过（第 6 次 keep-going 构建只剩链接失败）。首次链接清单在 `chips/bk7258/tools/armino_baseline/phase1_link.txt`：93 个 undefined（os_source 48、lwip 31、链接脚本符号 10、其他 4）、6 个重复定义（`bk_mailbox_*`）、flash 超出 111660 字节。开关关闭时 `cp` 的 `app.bin` 仍是 `1c8011f5`；`nuttx.elf` 去掉调试段后与改动前逐字节一致（`425b6535`），差异只在 `bk7258_bringup.c` 的行号表。新的 Kconfig 开关打开时，CP 的 CMake 读取 T4 清单，按组件参数编译保留单元，路径来自 `BK7258_ARMINO_BASELINE_DIR`，配置用基线 `sdkconfig.h`。acceptance：开关关闭时，`a7de5d2` 的构建结果不变；开关打开时，所有保留单元都能编过；链接输出里的 undefined 和重复定义符号整理成清单入库。(covers: S2.2, S2.4; depends: T3, T4)
 - [ ] T9: OS 接缝。在 NuttX 上实现 T8 清单里 FreeRTOS API 那部分 undefined 符号，供原样保留的 `bk_rtos` 调用。sdk-source 分支修过的 9 个问题（队列 item_size、栈按字计、临界区嵌套、ISR 上下文判断、`nxmq_*` 无取消点等）要带过来。acceptance：这些符号各定义一次；主机测试覆盖队列 item_size、栈按字计、临界区嵌套、ISR 上下文发送四项。(covers: S2.2, S2.7; depends: T7, T8)
 - [ ] T10: netdev 胶水。实现 T8 清单里原本由 lwip 提供的符号，接到 NuttX netdev。acceptance：链接 map 里没有 lwip 目标文件；`wapi` 连接后 `renew wlan0` 能拿到地址。(covers: S2.2, S2.7; depends: T7, T8)
 - [ ] T11: 阶段一链接和上板验收。acceptance：链接没有 undefined 符号；重复定义只出现在 T7 记录过的位置；L1 校验、decode、完整性门禁都通过；`Luv` 上连接 3/3；ping 公网 4/4；T5 对比显示重握手次数、`tx_dma_dead` 次数不多于 Armino 参照。(covers: S2.2, S2.6; depends: T5, T9, T10)
