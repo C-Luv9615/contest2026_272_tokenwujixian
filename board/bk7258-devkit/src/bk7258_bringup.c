@@ -41,6 +41,9 @@ int bk7258_devkit_audio_pa_register(void);
 
 #ifdef CONFIG_BK7258_COMPONENT_CP
 int bk7258_ap_start_monitor(void);
+#ifdef CONFIG_BK7258_WIFI_ARMINO_BASELINE
+int bk7258_armino_start(void);
+#endif
 
 #ifdef CONFIG_BK7258_WIFI_VENDOR_RUNTIME
 #  define BK7258_WIFI_INIT_PRIORITY  85
@@ -192,6 +195,9 @@ void board_late_initialize(void)
 #endif
 #ifdef CONFIG_BK7258_WIFI_VENDOR_RUNTIME
   bk7258_wifi_boot_initialize();
+#endif
+#ifdef CONFIG_BK7258_WIFI_ARMINO_BASELINE
+  (void)bk7258_armino_start();
 #endif
 #else
   bk7258_ap_initialize();
