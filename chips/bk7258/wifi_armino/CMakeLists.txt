@@ -181,16 +181,54 @@ if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
   list(REMOVE_DUPLICATES components)
 
 
+  # The baseline links with -Wl,--wrap for the C allocator (build.ninja), so
+  # every Armino and closed-library malloc goes through bk_rtos/
+  # platform_stub.c: __wrap_malloc -> os_malloc -> pvPortMalloc, which hands
+  # out zeroed memory (compat/bk7258_freertos_nuttx.c), and the closed
+  # libraries rely on that. A global --wrap would also reroute NuttX's own
+  # allocator calls, so the same renaming is applied to Armino code only:
+  # to each Armino library once it is archived, and to build-tree copies of
+  # the closed archives. Only names platform_stub.c wraps are listed; no
+  # Armino unit defines any of them. Board boot 2026-10-03 faulted in
+  # sta_mgmt_init() on a 0x55555555 list pointer from libwifi's unwrapped
+  # malloc.
+  set(alloc_wrap ${CMAKE_CURRENT_BINARY_DIR}/armino_alloc_wrap.syms)
+  file(WRITE ${alloc_wrap}.tmp
+       "malloc __wrap_malloc\ncalloc __wrap_calloc\nrealloc __wrap_realloc\n"
+       "free __wrap_free\nzalloc __wrap_zalloc\n_malloc_r __wrap__malloc_r\n"
+       "_calloc_r __wrap__calloc_r\n_realloc_r __wrap__realloc_r\n"
+       "_free_r __wrap__free_r\n")
+  file(COPY_FILE ${alloc_wrap}.tmp ${alloc_wrap} ONLY_IF_DIFFERENT)
+  file(REMOVE ${alloc_wrap}.tmp)
+
   foreach(comp IN LISTS components)
     string(MAKE_C_IDENTIFIER "armino_${comp}" target)
     nuttx_add_kernel_library(${target} ${srcs_${comp}})
     target_compile_options(${target} PRIVATE ${flags_${comp}})
+    add_custom_command(
+      TARGET ${target} POST_BUILD
+      COMMAND ${CMAKE_OBJCOPY} --redefine-syms=${alloc_wrap}
+              $<TARGET_FILE:${target}>
+      VERBATIM)
   endforeach()
 
-  # The closed archives on the baseline app.elf link line (build.ninja).
+  # The closed archives on the baseline app.elf link line (build.ninja),
+  # renamed as above into the build tree; the baseline tree is not touched.
+  set(closed_dir ${CMAKE_CURRENT_BINARY_DIR}/closed_libs)
+  file(MAKE_DIRECTORY ${closed_dir})
   foreach(lib libwifi libbk_phy libbk_coex libbk_phy_info libble_wifi_exchange libuid)
-    nuttx_add_extra_library(
-      ${BK7258_ARMINO_BASELINE_DIR}/cp/components/bk_libs/bk7258/libs/${lib}.a)
+    set(src ${BK7258_ARMINO_BASELINE_DIR}/cp/components/bk_libs/bk7258/libs/${lib}.a)
+    set(dst ${closed_dir}/${lib}.a)
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${src} ${alloc_wrap})
+    if(NOT EXISTS ${dst} OR ${src} IS_NEWER_THAN ${dst} OR ${alloc_wrap} IS_NEWER_THAN ${dst})
+      execute_process(
+        COMMAND ${CMAKE_OBJCOPY} --redefine-syms=${alloc_wrap} ${src} ${dst}
+        RESULT_VARIABLE objcopy_result)
+      if(NOT objcopy_result EQUAL 0)
+        message(FATAL_ERROR "objcopy failed on ${src}: ${objcopy_result}")
+      endif()
+    endif()
+    nuttx_add_extra_library(${dst})
   endforeach()
 
   target_sources(arch PRIVATE bk7258_armino_start.c
