@@ -172,6 +172,7 @@ if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
   endforeach()
 
   target_sources(arch PRIVATE bk7258_armino_start.c
-                 compat/bk7258_armino_shell.c compat/bk7258_armino_irq.c)
+                 compat/bk7258_armino_shell.c compat/bk7258_armino_irq.c
+                 compat/bk7258_freertos_nuttx.c)
 
 endif()
