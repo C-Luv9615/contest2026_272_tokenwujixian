@@ -14,6 +14,10 @@
  * demo_sta_app_init() copies both strings with os_strcpy() into 33- and
  * 65-byte fields, so the lengths are checked here first. The password is
  * never printed.
+ *
+ * `armino_sta disconnect` runs bk_wifi_sta_disconnect() instead, so the
+ * disconnect/reconnect path (and the stale-address guard in sta_ip_down())
+ * can be exercised without a reboot.
  ****************************************************************************/
 
 #include <nuttx/config.h>
@@ -31,15 +35,29 @@
 
 int demo_sta_app_init(char *oob_ssid, char *connect_key);
 
+/* wifi.h:103; drops the link without freeing the STA, so a reconnect does
+ * not need a full stop/start.
+ */
+
+int bk_wifi_sta_disconnect(void);
+
 int main(int argc, char *argv[])
 {
   char *password = argc > 2 ? argv[2] : "";
   size_t ssid_len;
   size_t password_len;
 
+  if (argc == 2 && strcmp(argv[1], "disconnect") == 0)
+    {
+      printf("disconnecting\n");
+      bk_wifi_sta_disconnect();
+      return 0;
+    }
+
   if (argc < 2 || argc > 3)
     {
       printf("usage: %s <ssid> [password]\n", argv[0]);
+      printf("       %s disconnect\n", argv[0]);
       return 1;
     }
 
