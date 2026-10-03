@@ -10,6 +10,7 @@
 #                                                    [--ap-app-bin PATH]
 #                                                    [--ap-validation-report PATH]
 #                                                    [--placeholder]
+#                                                    [--profile FILE]
 #                                                    [--output-dir DIR] [--overwrite]
 #
 # With no arguments this reads the CP component that build.sh produces for
@@ -74,6 +75,7 @@ while [[ $# -gt 0 ]]; do
     --ap-app-bin) AP_APP_BIN="$2"; AP_ARGUMENT_SEEN=1; shift 2 ;;
     --ap-validation-report) AP_VALIDATION_REPORT="$2"; AP_ARGUMENT_SEEN=1; shift 2 ;;
     --placeholder) USE_PLACEHOLDER=1; shift ;;
+    --profile) OPENVELA_PROFILE="$2"; shift 2 ;;
     --output-dir) OUTPUT_DIR="$2"; shift 2 ;;
     --overwrite) OVERWRITE=1; shift ;;
     -h|--help) sed -n '2,15p' "${BASH_SOURCE[0]}"; exit 0 ;;

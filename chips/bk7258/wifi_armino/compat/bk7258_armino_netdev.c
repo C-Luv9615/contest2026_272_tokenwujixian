@@ -452,9 +452,28 @@ void ethernetif_input(int iface, struct pbuf *p, uint8_t dst_idx)
  ****************************************************************************/
 
 /* net_wlan_initial() (net.c:1254) brings up lwip's stack at boot, from
- * bk_netif_init(). The NuttX stack is already up, so this registers the
- * netdev, which makes wlan0 visible before any association.
+ * bk_netif_init(): there tcpip_init() reaches lwip_init() (net.c:227-239,
+ * init.c:346-352). The NuttX stack is already up, so only the buffer side
+ * of that is done here -- stats_init(), mem_init(), memp_init(), in
+ * lwip_init()'s order -- plus registering the netdev, which makes wlan0
+ * visible before any association. sys_init() is not needed: it only
+ * creates the baseline sys_arch's mutexes, and
+ * compat/bk7258_lwip_sys.c has its own. pbuf_init() is an empty macro.
+ *
+ * Without mem_init() mem_mutex stays NULL and the first pbuf_alloc()
+ * asserts in sys_mutex_lock; without memp_init() every memp_malloc()
+ * returns NULL and RX frames are dropped. Board boot 2026-10-03 hit the
+ * first of those at scan result upload.
  */
+
+/* lwip_init()'s buffer-side modules (init.c:346-352), from the kept
+ * lwip units. Not declared in lwip/opt.h-visible headers we can include
+ * from this NuttX-compiled file; bodies live in mem.c, memp.c, stats.c.
+ */
+
+void stats_init(void);
+void mem_init(void);
+void memp_init(void);
 
 void net_wlan_initial(void)
 {
@@ -464,6 +483,10 @@ void net_wlan_initial(void)
     {
       return;
     }
+
+  stats_init();
+  mem_init();
+  memp_init();
 
   g_netdev.lower.ops = &g_netdev_ops;
   atomic_set(&g_netdev.lower.quota[NETPKT_TX], 1);
