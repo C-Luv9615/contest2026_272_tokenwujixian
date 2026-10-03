@@ -89,8 +89,6 @@ void bk7258_armino_early_initialize(void);
 
 void bk7258_armino_early_initialize(void)
 {
-  struct mallinfo mm;
-
   /* Reset_Handler (startup_bk7236.c:394-413). */
 
   bk_wdt_force_feed();
@@ -123,11 +121,6 @@ void bk7258_armino_early_initialize(void)
 #if CONFIG_MM_REGIONS > 1
   bk7258_psram_addregion();
 #endif
-
-  mm = mallinfo();
-  syslog(LOG_INFO, "[ARMINO] early init done: heap arena=%lu free=%lu "
-         "largest=%lu\n", (unsigned long)mm.arena,
-         (unsigned long)mm.fordblks, (unsigned long)mm.mxordblk);
 }
 
 /* CPU1 has one owner, NuttX (docs/compose/spec/bk7258-wifi-native.md,
@@ -173,8 +166,21 @@ static void bk7258_armino_wait_ap(void)
 
 static int bk7258_armino_entry(int argc, char *argv[])
 {
+  struct mallinfo mm;
+
   (void)argc;
   (void)argv;
+
+  /* Logged here, not at the end of bk7258_armino_early_initialize():
+   * that runs on the idle task, and mallinfo() walks the heap, which
+   * asserts !sched_idletask() (mm_foreach.c:94). Board boot 2026-10-03
+   * reset on exactly that assert.
+   */
+
+  mm = mallinfo();
+  syslog(LOG_INFO, "[ARMINO] heap arena=%lu free=%lu largest=%lu\n",
+         (unsigned long)mm.arena, (unsigned long)mm.fordblks,
+         (unsigned long)mm.mxordblk);
 
   bk7258_armino_wait_ap();
   entry_main();
