@@ -118,6 +118,30 @@ if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
   set(lwip_src_include
       "-I${BK7258_ARMINO_BASELINE_DIR}/cp/components/lwip_intf_v2_1/lwip-2.1.2/src/include")
 
+  # ram_regions.h is force-included by the baseline for 38 components, and
+  # that copy is generated for the baseline SRAM split: CONFIG_PWR_MNG_ADDR
+  # is 0x2805db00 there, while this board puts PWR_MNG at 0x2809f700
+  # (bk7258_memorymap.h). bk_pm_module_lv_sleep_state_get/clear and
+  # pm_debug_lv_state read that address, so without this replacement they
+  # touch AP RAM (0x2805db00 falls inside the AP window). pm/nuttx_port/
+  # include/ram_regions.h re-exports the board values instead. Same pattern
+  # as lwip_compat above: replaced in place, not by editing the manifest.
+  set(baseline_ram_regions
+      "-include${BK7258_ARMINO_BASELINE_DIR}/build/bk7258/iperf/partitions/ram_regions.h")
+  # The same baseline directory is also on -I and provides two headers:
+  # ram_regions.h, which pwr_clk.h includes by name (so it must not be
+  # found there, or the later include undoes the forced one above), and
+  # partitions_gen.h, which partitions.h needs. Put our own ram_regions.h
+  # first and keep the baseline directory behind it for the rest.
+  set(baseline_partitions_dir
+      "-I${BK7258_ARMINO_BASELINE_DIR}/build/bk7258/iperf/partitions")
+  set(nuttx_ram_regions
+      "-include${NUTTX_CHIP_ABS_DIR}/pm/nuttx_port/include/ram_regions.h"
+      "-DCONFIG_BK7258_RPMSG_SHM_ADDR=${CONFIG_BK7258_RPMSG_SHM_ADDR}")
+  set(nuttx_ram_regions_dirs
+      "-I${NUTTX_CHIP_ABS_DIR}/pm/nuttx_port/include"
+      "-I${NUTTX_CHIP_ABS_DIR}/include")
+
   foreach(row IN LISTS flag_rows)
     if(row MATCHES "^#" OR row MATCHES "^component\t")
       continue()
@@ -125,6 +149,17 @@ if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
     string(REPLACE "@ARMINO@" "${BK7258_ARMINO_BASELINE_DIR}" row "${row}")
     string(REPLACE "\t" ";" fields "${row}")
     list(POP_FRONT fields comp)
+    list(FIND fields "${baseline_ram_regions}" ram_regions_index)
+    if(ram_regions_index GREATER_EQUAL 0)
+      list(REMOVE_AT fields ${ram_regions_index})
+      list(INSERT fields ${ram_regions_index} ${nuttx_ram_regions})
+    endif()
+    list(FIND fields "${baseline_partitions_dir}" partitions_index)
+    if(partitions_index GREATER_EQUAL 0)
+      list(REMOVE_AT fields ${partitions_index})
+      list(INSERT fields ${partitions_index}
+           ${nuttx_ram_regions_dirs} ${baseline_partitions_dir})
+    endif()
     list(FIND fields "${lwip_bare_dir}" bare_index)
     if(bare_index GREATER_EQUAL 0)
       list(REMOVE_AT fields ${bare_index})
