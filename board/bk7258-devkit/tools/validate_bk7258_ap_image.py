@@ -14,11 +14,9 @@ import validate_bk7258_cp_image as elf
 
 FLASH_BASE = 0x02160000
 FLASH_SIZE = 0x002A0000
+# SRAM split comes from the build config (see main()); the values below are
+# only the legacy all-OpenVela tuple used where a literal is unavoidable.
 RAM_BASE = 0x28010000
-RAM_SIZE = 0x00054000
-RPMSG_BASE = 0x28064000
-RPMSG_SIZE = 0x0000AC00
-CP_RAM_BASE = 0x2806EC00
 IDLE_STACK_SIZE = None  # resolved from the build config below
 IMAGE_CONTRACT_OFFSET = 0x200
 IMAGE_CONTRACT = (
@@ -31,6 +29,13 @@ IMAGE_CONTRACT = (
 
 def fail(message: str) -> None:
     raise RuntimeError(message)
+
+
+def config_int(lines: list[str], name: str) -> int:
+    for line in lines:
+        if line.startswith(name + "="):
+            return int(line.split("=", 1)[1], 0)
+    fail(f"build config lacks required setting: {name}")
 
 
 def main() -> int:
@@ -58,9 +63,6 @@ def main() -> int:
             "CONFIG_NSH_CONSOLE=y",
             "CONFIG_NSH_BUILTIN_APPS=y",
             "CONFIG_RAM_START=0x28010000",
-            "CONFIG_RAM_SIZE=344064",
-            "CONFIG_BK7258_RPMSG_SHM_ADDR=0x28064000",
-            "CONFIG_BK7258_RPMSG_SHM_SIZE=0xac00",
             "CONFIG_BK7258_MAILBOX=y",
             'CONFIG_RPMSG_LOCAL_CPUNAME="ap"',
             "CONFIG_RPMSG_PING=y",
@@ -138,9 +140,17 @@ def main() -> int:
                 fail(f"ELF lacks required symbol {name}")
 
         flash_end = FLASH_BASE + FLASH_SIZE
-        ram_end = RAM_BASE + RAM_SIZE
-        if ram_end != RPMSG_BASE or RPMSG_BASE + RPMSG_SIZE != CP_RAM_BASE:
-            fail("compiled AP/RPMsg/CP constants are not contiguous")
+        # The SRAM split is a board decision in the build config, not a fixed
+        # tuple: the armino pair gives CP more SRAM than the standard pair.
+        ram_start = config_int(config_lines, "CONFIG_RAM_START")
+        ram_size = config_int(config_lines, "CONFIG_RAM_SIZE")
+        rpmsg_base = config_int(config_lines, "CONFIG_BK7258_RPMSG_SHM_ADDR")
+        rpmsg_size = config_int(config_lines, "CONFIG_BK7258_RPMSG_SHM_SIZE")
+        ram_end = ram_start + ram_size
+        if ram_start != RAM_BASE:
+            fail("AP RAM must still start at 0x28010000")
+        if ram_end != rpmsg_base:
+            fail("compiled AP/RPMsg constants are not contiguous")
         if text.addr != FLASH_BASE or symbols["_vectors"] != FLASH_BASE:
             fail("AP vector table is not at 0x02160000")
         if symbols["_vectors"] % 512:
@@ -226,8 +236,9 @@ def main() -> int:
             "config_sha256": hashlib.sha256(config_text.encode()).hexdigest(),
             "raw_length_bytes": len(raw),
             "flash": {"start": "0x02160000", "end": "0x02400000"},
-            "ram": {"start": "0x28010000", "end": "0x28064000"},
-            "rpmsg_shm": {"start": "0x28064000", "end": "0x2806ec00"},
+            "ram": {"start": f"0x{ram_start:08x}", "end": f"0x{ram_end:08x}"},
+            "rpmsg_shm": {"start": f"0x{rpmsg_base:08x}",
+                          "end": f"0x{rpmsg_base + rpmsg_size:08x}"},
             "vectors": {"msp": f"0x{msp:08x}", "reset": f"0x{reset:08x}"},
             "sections": {
                 "text": f"0x{text.addr:08x}",

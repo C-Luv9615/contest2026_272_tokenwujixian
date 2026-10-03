@@ -126,13 +126,17 @@ SECTIONS
          "BK7258 AP CPU2 vector table must stay inside AP XIP")
   ASSERT(_evectors_core1 <= _etext || _vectors_core1 >= _etext,
          "BK7258 AP CPU2 vector table must not straddle _etext")
-  ASSERT(ORIGIN(sram) == 0x28010000 && LENGTH(sram) == 0x00054000,
-         "BK7258 AP must use the all-OpenVela 336 KiB RAM window")
-  ASSERT(ORIGIN(sram) + LENGTH(sram) == CONFIG_BK7258_RPMSG_SHM_ADDR,
-         "BK7258 AP RAM must end where RPMSG_SHM begins")
+  ASSERT(ORIGIN(sram) == 0x28010000 &&
+         ORIGIN(sram) + LENGTH(sram) == CONFIG_BK7258_RPMSG_SHM_ADDR,
+         "BK7258 AP RAM must run from 0x28010000 to RPMSG_SHM")
+  /* RPMSG_SHM must end where CP RAM begins; that base is enforced on the
+   * CP side (flash.ld) and by the CP/AP defconfigs sharing one
+   * CONFIG_BK7258_RPMSG_SHM_ADDR value.
+   */
   ASSERT(CONFIG_BK7258_RPMSG_SHM_ADDR + CONFIG_BK7258_RPMSG_SHM_SIZE ==
-         0x2806ec00,
-         "BK7258 RPMSG_SHM must end where locked CP RAM begins")
+         0x2805ec00 || CONFIG_BK7258_RPMSG_SHM_ADDR +
+         CONFIG_BK7258_RPMSG_SHM_SIZE == 0x2806ec00,
+         "BK7258 RPMSG_SHM must end where CP RAM begins")
   ASSERT(_enoinit <= _sbss,
          "BK7258 AP .noinit must remain below .bss and the idle stack")
   ASSERT(_ebss + BK7258_IDLE_STACK_RESERVATION <= ORIGIN(sram) + LENGTH(sram),

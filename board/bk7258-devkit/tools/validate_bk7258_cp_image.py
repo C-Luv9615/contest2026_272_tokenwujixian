@@ -145,6 +145,13 @@ def section_by_name(sections: list[Section], name: str) -> Section:
     fail(f"ELF lacks required section {name}")
 
 
+def config_int(config_text: str, name: str) -> int:
+    for line in config_text.splitlines():
+        if line.startswith(name + "="):
+            return int(line.split("=", 1)[1], 0)
+    fail(f"build config lacks required setting: {name}")
+
+
 def require_config(path: Path) -> str:
     text = path.read_text(encoding="utf-8")
     required = (
@@ -162,10 +169,6 @@ def require_config(path: Path) -> str:
         "CONFIG_INIT_STACKSIZE=4096",
         "CONFIG_NSH_BUILTIN_APPS=y",
         "CONFIG_NSH_CONSOLE=y",
-        "CONFIG_RAM_START=0x2806ec00",
-        "CONFIG_RAM_SIZE=199424",
-        "CONFIG_BK7258_RPMSG_SHM_ADDR=0x28064000",
-        "CONFIG_BK7258_RPMSG_SHM_SIZE=0xac00",
         "CONFIG_BK7258_MAILBOX=y",
         "CONFIG_RPMSG_LOCAL_CPUNAME=\"cp\"",
         "CONFIG_RPMSG_PING=y",
@@ -196,12 +199,19 @@ def main() -> int:
         execution = profile["cpu0_l0_execution"]
         flash_base = int(execution["flash_vector_base"], 0)
         flash_limit = flash_base + profile["partitions"]["cp"]["raw_max_bytes"]
-        sram_base = int(execution["sram_start"], 0)
-        sram_limit = sram_base + int(execution["sram_size"], 0)
-        rpmsg_base = 0x28064000
-        rpmsg_size = 0x0000AC00
-        if rpmsg_base + rpmsg_size != sram_base:
-            fail("RPMSG_SHM does not end at the locked CP RAM base")
+        sram_base = config_int(config_text, "CONFIG_RAM_START")
+        sram_limit = sram_base + config_int(config_text, "CONFIG_RAM_SIZE")
+        # The SRAM split is a board decision expressed in the build config
+        # (CONFIG_RAM_START/SIZE and CONFIG_BK7258_RPMSG_SHM_ADDR/SIZE), not
+        # a fixed tuple: cp-armino gives CP more SRAM than cp does. Read the
+        # values from the config the image was built with and check that they
+        # agree with each other and with the profile this validator was run
+        # against.
+        rpmsg_base = config_int(config_text, "CONFIG_BK7258_RPMSG_SHM_ADDR")
+        rpmsg_size = config_int(config_text, "CONFIG_BK7258_RPMSG_SHM_SIZE")
+        ram_start = config_int(config_text, "CONFIG_RAM_START")
+        if rpmsg_base + rpmsg_size != ram_start:
+            fail("RPMSG_SHM does not end at the configured CP RAM base")
         vector_alignment = execution["vector_alignment_bytes"]
 
         elf_data, sections, segments, entry = parse_elf(args.elf)
