@@ -491,11 +491,13 @@ void net_wlan_initial(void)
   g_netdev.lower.ops = &g_netdev_ops;
   atomic_set(&g_netdev.lower.quota[NETPKT_TX], 1);
 
-  /* RX quota 4, the value a7de5d2 found on the board: with 1, an ARP reply
-   * arriving next to broadcast traffic was dropped.
+  /* RX quota 16: 4 was a7de5d2's value for ping traffic, but a TLS
+   * handshake response is a burst of segments and the upper half only
+   * runs when quota is available -- with 4 the tail of the burst was
+   * dropped and the handshake stalled waiting for a record it never got.
    */
 
-  atomic_set(&g_netdev.lower.quota[NETPKT_RX], 4);
+  atomic_set(&g_netdev.lower.quota[NETPKT_RX], 16);
 
   ret = netdev_lower_register(&g_netdev.lower, NET_LL_IEEE80211);
   if (ret < 0)

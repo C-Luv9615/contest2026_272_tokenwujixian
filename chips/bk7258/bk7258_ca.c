@@ -1,17 +1,19 @@
 /****************************************************************************
  * chips/bk7258/bk7258_ca.c
  *
- * The root CA that signs the LLM endpoint we talk to
- * (cn-beijing.maas.aliyuncs.com, issuer "GlobalSign RSA OV SSL CA 2018",
- * which chains to "GlobalSign Root CA - R3"), plus the longer-lived R46.
+ * Root CAs for the HTTPS endpoints the agent talks to:
+ *  - cn-beijing.maas.aliyuncs.com: issuer "GlobalSign RSA OV SSL CA 2018",
+ *    which chains to "GlobalSign Root CA - R3" (plus R46 for lifetime).
+ *  - ark.cn-beijing.volces.com: issuer "Xiaomi Intermediate CA", which
+ *    chains to "Xiaomi Root CA".
  *
  * Embedded as a string because the AP has only tmpfs: there is no
  * persistent filesystem to read a bundle from, and the ai_agent's TLS
  * stack must verify the server (packages/ai_agent/src/infra/vela_tls.c
  * uses agent_ca_pem(), a weak hook this file provides).
  *
- * Validity: R3 until 2029-03-18, R46 until 2046-03-20. Generated from the
- * system bundle at /etc/ssl/certs/ca-certificates.crt; do not edit by hand.
+ * Regenerate from the system bundle /etc/ssl/certs/ca-certificates.crt;
+ * do not edit by hand.
  ****************************************************************************/
 
 #include <nuttx/config.h>
@@ -70,24 +72,44 @@ const char bk7258_ca_pem[] =
     "4vkYxboznxSjBF25cfe1lNj2M8FawTSLfJvdkzrnE6JwYZ+vj+vYxXX4M2bUdGc6\n"
     "N3ec592kD3ZDZopD8p/7DEJ4Y9HiD2971KE9dJeFt0g5QdYg/NA6s/rob8SKunE3\n"
     "vouXsXgxT7PntgMTzlSdriVZzH81Xwj3QEUxeCp6\n"
+    "-----END CERTIFICATE-----\n"
+    "-----BEGIN CERTIFICATE-----\n"
+    "MIIENzCCAx+gAwIBAgIUdPFE4H51TBcVkmI+i2+A4n5RdxkwDQYJKoZIhvcNAQEL\n"
+    "BQAwdDELMAkGA1UEBhMCQ04xEDAOBgNVBAgTB0JlaWppbmcxEDAOBgNVBAcTB0Jl\n"
+    "aWppbmcxFDASBgNVBAoTC1hpYW9taSBJbmMuMRIwEAYDVQQLEwlYaWFvbWkgQ0Ex\n"
+    "FzAVBgNVBAMTDlhpYW9taSBSb290IENBMCAXDTIwMTAyODA2MTcwMFoYDzIwNTAx\n"
+    "MDIxMDYxNzAwWjB0MQswCQYDVQQGEwJDTjEQMA4GA1UECBMHQmVpamluZzEQMA4G\n"
+    "A1UEBxMHQmVpamluZzEUMBIGA1UEChMLWGlhb21pIEluYy4xEjAQBgNVBAsTCVhp\n"
+    "YW9taSBDQTEXMBUGA1UEAxMOWGlhb21pIFJvb3QgQ0EwggEiMA0GCSqGSIb3DQEB\n"
+    "AQUAA4IBDwAwggEKAoIBAQC8a9sI7MfELldYIkVGrtTyc8P9btEUYmkltPZRfpRg\n"
+    "B6PwC4kYp0ccmWaGg0oSMdJ/+kKg0HdwxHoSHlGyO/9JU93ONlqEeZGP96I6B2us\n"
+    "28nNdT29bjDixUEu5IVZ++++n3XYVQrDzeiLQxO+mmOss5/Of+Gn8G2rGUTN9RB3\n"
+    "Sqk+Gf23kJ6ADzN3JqGaxQ1XZvZ7fItBxrKNw88KeVu55pofVvR+MrahK+yRKKwz\n"
+    "ciJ0fM6p+sjWd4WRIHW0m/oQDNmZm1RhVyffFeTDLy91jxB3ljV+O7DDfu438bYy\n"
+    "wv1PrOKsME7se/7Ib/N5KQcX2FrtzacebvXd2lrY4CJZAgMBAAGjgb4wgbswDgYD\n"
+    "VR0PAQH/BAQDAgGmMA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYEFA+s1g4nFpXV\n"
+    "76x4RAOLjWDch/NSMEEGCCsGAQUFBwEBBDUwMzAxBggrBgEFBQcwAoYlaHR0cDov\n"
+    "L2NhLm1pb2ZmaWNlLmNuL2NhZGF0YS9yb290LnBlbTA2BgNVHR8ELzAtMCugKaAn\n"
+    "hiVodHRwOi8vY2EubWlvZmZpY2UuY24vY2FkYXRhL3Jvb3QuY3JsMA0GCSqGSIb3\n"
+    "DQEBCwUAA4IBAQARyzYtcVyN10DYBI9tteH8qboGFD27zaOz2UYdLdzwaOEJ0cc9\n"
+    "hxXksVE3ynyRyppGGq4p9caHS9YqCZyTurijeOlyWYZjcRe2N/zZzqCTjQn5iIPi\n"
+    "70fcl+QURi3zy20FLA4yYAHkK9pxmVRVVkNK/yTx1POoc83Jxq0VCv81gkTNiJCN\n"
+    "zk641VMFw2ACPCY+eIQzcAbVCgtDuzQ283f90PqZV5b3klLHNhhtYGwjY0pdiJAg\n"
+    "uRYa9tWSYIzU13D5qtyntCdVLM/hTSduvxASewUNZlaSx/zFXMxqEo//AmER+IRX\n"
+    "zKpxPLgZv7HPDs6S0wtkELRzmBMgUGF6FVGs\n"
     "-----END CERTIFICATE-----\n";
 
 const unsigned int bk7258_ca_pem_len = sizeof(bk7258_ca_pem) - 1u;
 
-/* Strong override of the weak hook in packages/ai_agent/src/infra/
- * vela_tls.c: with this present the agent verifies the server, without
- * it (any other board) it still runs but does not authenticate.
+/* Referenced from board_late_initialize() so the archive member is pulled
+ * in: nothing else names these symbols, and the weak fallback in
+ * vela_tls.c would otherwise satisfy the reference on its own.
  */
 
 const char *agent_ca_pem(void)
 {
   return bk7258_ca_pem;
 }
-
-/* Referenced from board_late_initialize() so the archive member is pulled
- * in: nothing else names these symbols, and the weak fallback in
- * vela_tls.c would otherwise satisfy the reference on its own.
- */
 
 void bk7258_ca_init(void)
 {
