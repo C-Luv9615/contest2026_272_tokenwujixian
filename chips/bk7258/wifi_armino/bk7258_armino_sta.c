@@ -15,9 +15,15 @@
  * 65-byte fields, so the lengths are checked here first. The password is
  * never printed.
  *
- * `armino_sta disconnect` runs bk_wifi_sta_disconnect() instead, so the
+ * `armino_sta disconnect` drops the link and stops the STA, so the
  * disconnect/reconnect path (and the stale-address guard in sta_ip_down())
- * can be exercised without a reboot.
+ * can be exercised without a reboot. Both calls are needed: disconnect
+ * clears only the CONNECTED bit and fires EVENT_WIFI_STA_DISCONNECTED
+ * (which drives sta_ip_down()), while bk_wifi_sta_start() returns "sta
+ * already started, ignored!" (wifi_v2.c:2429) unless the STARTED bit is
+ * cleared as well -- that is the wifi.h:75 note that a restart needs
+ * bk_wifi_sta_stop() first. bk_wifi_sta_stop() alone would not reliably
+ * fire the disconnect event.
  ****************************************************************************/
 
 #include <nuttx/config.h>
@@ -35,11 +41,12 @@
 
 int demo_sta_app_init(char *oob_ssid, char *connect_key);
 
-/* wifi.h:103; drops the link without freeing the STA, so a reconnect does
- * not need a full stop/start.
+/* wifi.h:103 drops the link but leaves the STA started; :97 tears it down.
+ * A restart needs both, see the header comment.
  */
 
 int bk_wifi_sta_disconnect(void);
+int bk_wifi_sta_stop(void);
 
 int main(int argc, char *argv[])
 {
@@ -51,6 +58,7 @@ int main(int argc, char *argv[])
     {
       printf("disconnecting\n");
       bk_wifi_sta_disconnect();
+      bk_wifi_sta_stop();
       return 0;
     }
 
