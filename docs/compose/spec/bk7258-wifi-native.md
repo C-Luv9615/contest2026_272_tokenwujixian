@@ -183,6 +183,9 @@ BK7258 CP 上的 Wi-Fi 要在 NuttX 下工作，目标有两条：
   - 网关 MAC 从网关发来的 ARP 帧里记下，不查 NuttX ARP 表。原因：`arp_find()` 是 `nuttx/net/` 的内部函数；公开的 `SIOCGARP` 要拿 `net_lock()`，而这个函数运行在 Wi-Fi 核心线程上，协议栈拿着锁时可能正在等这个线程的 TX 队列，两边会互相等住。
   - `etharp_tmr_flag`（保活期间 ARP 表项保留 3600 个 tick，`etharp.c:243`）在 NuttX 里没有对应机制，表项仍按 `CONFIG_NET_ARP_MAXAGE` 过期。
 - 一期不实现，被调用时打日志：SoftAP 地址和 DHCP 服务（`uap_ip_*`；`dhcp_lookup_mac` 返回 NULL，两个调用方都处理了 NULL）；lwip CLI 的 `ping_start/stop`，用 NSH 的 `ping` 代替；`etharp_request`，唯一调用方 `iperf.c:405` 只用它预热 lwip ARP 缓存。
+- 连接入口（2026-10-03，用户决定先用 Armino 原生 API，之后改为 NuttX 原生）：临时 NSH 命令 `armino_sta <ssid> [password]`（`chips/bk7258/wifi_armino/bk7258_armino_sta.c`），调用基线自带的 `demo_sta_app_init()`（`wifi_api.c:183`，即 `bk_wifi_sta_set_config()` + `bk_wifi_sta_start()`，与 `a7de5d2` 板上连通时的调用一致）。命令先检查 SSID 不超过 32 字节、密码为空或 8..64 字符，因为该函数用 `os_strcpy` 拷进 33/65 字节的字段；密码不打印。之后改为给 wlan0 接 wireless ops、走 `wapi`。
+- MTU（2026-10-03）：`NET_ETH_PKTSIZE` 原来是 Kconfig 默认值 590（IPv4），wlan0 的 MTU 因此是 576；改为 1514，即 MTU 1500，与基线 lwip 和 `a7de5d2` 的 `BK7258_WIFI_MTU` 一致。`IOB_BUFSIZE` 保持 640，一帧 1514 字节会跨 3 个 IOB；NuttX 上游多数 1514 配置用的是默认 196 字节的 IOB，链式 IOB 是常规用法。RX quota 为 4，最多同时占 12 个 IOB，`IOB_NBUFFERS` 为 24。
+- 中断日志：`bk7258_armino_irq.c` 只在某个源首次注册或更换处理函数时打日志。`bk_adc_init()`/`bk_adc_deinit()` 每次采样都会注册、注销 `INT_SRC_SARADC`（src 8，`adc_driver.c`），温度和电压检测大约每秒采样一次；基线也是如此，只是它的 `bk_int_isr_register()`（`interrupt_base.c:37`）不打日志。
 - 句柄：`net_get_sta_handle()` 返回一个不透明的占位对象。保留下来的读取方只把它传给 `net_get_if_addr()`（`bk_netif.c:126`、`wifi_at.c:1285`、`cif_wifi_api.c:580`、`iperf.c:273`）。把它当 netif 读字段的两处，`bk_netif.c:157`（`CONFIG_IPV6`）和 `rwnx_utils.c:255`（`#if 0`），都不会编进来。
 
 ### [S2.10] CPU1（AP）归属与跨核

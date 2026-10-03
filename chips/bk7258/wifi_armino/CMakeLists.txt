@@ -231,6 +231,12 @@ if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
     nuttx_add_extra_library(${dst})
   endforeach()
 
+  # Temporary connection entry until wlan0 has wireless ops (spec S2.9).
+  nuttx_add_application(
+    NAME armino_sta
+    SRCS ${CMAKE_CURRENT_SOURCE_DIR}/bk7258_armino_sta.c
+    STACKSIZE 4096)
+
   target_sources(arch PRIVATE bk7258_armino_start.c
                  compat/bk7258_armino_shell.c compat/bk7258_armino_irq.c
                  compat/bk7258_freertos_nuttx.c compat/bk7258_lwip_sys.c

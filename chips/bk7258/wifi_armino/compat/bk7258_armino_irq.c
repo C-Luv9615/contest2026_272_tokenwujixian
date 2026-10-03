@@ -51,6 +51,7 @@
 typedef void (*int_group_isr_t)(void);
 
 static int_group_isr_t g_armino_isr[ARMINO_INT_SRC_NONE];
+static int_group_isr_t g_armino_logged[ARMINO_INT_SRC_NONE];
 
 static int armino_irq_dispatch(int irq, void *context, void *arg)
 {
@@ -119,7 +120,19 @@ int bk_int_isr_register(uint8_t src, int_group_isr_t isr, void *arg)
   armino_set_priority(src, src == ARMINO_INT_SRC_LCD ?
                            0 : ARMINO_IQR_PRI_DEFAULT);
 
-  syslog(LOG_INFO, "[ARMINO] irq src=%u -> NuttX irq %d\n", src, irq);
+  /* Logged once per source and handler. bk_adc_init()/bk_adc_deinit()
+   * register and unregister INT_SRC_SARADC around every sample
+   * (adc_driver.c), about once a second from temperature and voltage
+   * detection; the baseline does the same and its bk_int_isr_register()
+   * (interrupt_base.c:37) logs nothing.
+   */
+
+  if (g_armino_logged[src] != isr)
+    {
+      g_armino_logged[src] = isr;
+      syslog(LOG_INFO, "[ARMINO] irq src=%u -> NuttX irq %d\n", src, irq);
+    }
+
   return BK_OK;
 }
 
