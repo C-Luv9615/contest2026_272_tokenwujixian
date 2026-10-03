@@ -52,4 +52,16 @@
 #define CONFIG_PWR_MNG_ADDR                  BK7258_PWR_MNG_BASE
 #define CONFIG_PWR_MNG_SIZE                  BK7258_PWR_MNG_SIZE
 
+/* Authority CSV PSRAM regions the kept Armino sources check pointers
+ * against (mem_arch.c, heap_4.c, trap_base.c, psram_driver.c). This port
+ * gives the whole PSRAM to the NuttX heap, so the sub-ranges only bound
+ * those range checks.
+ */
+
+#define CONFIG_PSRAM_CAPACITY                BK7258_PSRAM_CAPACITY
+#define CONFIG_CP_PSRAM_HEAP_ADDR            BK7258_CP_PSRAM_HEAP_BASE
+#define CONFIG_CP_PSRAM_HEAP_SIZE            BK7258_CP_PSRAM_HEAP_SIZE
+#define CONFIG_AP_PSRAM_HEAP_ADDR            BK7258_AP_PSRAM_HEAP_BASE
+#define CONFIG_AP_PSRAM_HEAP_SIZE            BK7258_AP_PSRAM_HEAP_SIZE
+
 #endif /* __BK7258_PM_NUTTX_RAM_REGIONS_H */

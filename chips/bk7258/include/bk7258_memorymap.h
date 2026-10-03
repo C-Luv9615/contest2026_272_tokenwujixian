@@ -62,7 +62,30 @@
 #define BK7258_AP_XIP_VECTOR_BASE UINT32_C(0x02160000)
 #define BK7258_AP_XIP_SIZE        UINT32_C(0x002a0000)
 #define BK7258_AP_RAM_BASE        UINT32_C(0x28010000)
-#define BK7258_AP_RAM_SIZE        UINT32_C(0x00054000)
+
+/* Authority CSV PSRAM partitioning (projects/wifi/iperf/partitions/bk7258/
+ * ram_regions.csv -> build/.../partitions/ram_regions.h). Our port gives the
+ * whole PSRAM to the NuttX heap, but imported Armino code still checks
+ * pointers against these sub-ranges: mem_arch.c os_check_heap_range() and
+ * heap_4.c use the CP heap, trap_base.c the AP heap, psram_driver.c the
+ * capacity. Restated here so pm/nuttx_port/include/ram_regions.h can
+ * re-export them to the Armino units, whose baseline copy of that header
+ * names the baseline SRAM split instead.
+ */
+
+#define BK7258_PSRAM_CAPACITY       UINT32_C(0x00800000)
+#define BK7258_CP_PSRAM_HEAP_BASE   UINT32_C(0x60700000)
+#define BK7258_CP_PSRAM_HEAP_SIZE   UINT32_C(0x00020000)
+#define BK7258_AP_PSRAM_HEAP_BASE   UINT32_C(0x60720000)
+#define BK7258_AP_PSRAM_HEAP_SIZE   UINT32_C(0x000a0000)
+
+/* The AP window ends where the RPMsg carveout begins. That base is a board
+ * decision living in Kconfig (CONFIG_BK7258_RPMSG_SHM_ADDR), so this header
+ * follows it instead of restating a second number.
+ */
+
+#define BK7258_AP_RAM_SIZE        (CONFIG_BK7258_RPMSG_SHM_ADDR - \
+                                   BK7258_AP_RAM_BASE)
 #define BK7258_AP_RAM_END         (BK7258_AP_RAM_BASE + BK7258_AP_RAM_SIZE)
 
 #define BK7258_SYS_BASE          UINT32_C(0x44010000)
