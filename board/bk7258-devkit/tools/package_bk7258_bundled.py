@@ -26,6 +26,10 @@ from bk7258_container import Section, build_image
 
 PLACEHOLDER_PROFILE = "bk7258-devkit-l0-bundled"
 OPENVELA_AP_PROFILE = "bk7258-devkit-openvela-ap"
+# The armino pair moves the SRAM split; the container contract is the
+# same, so the packer accepts it wherever it accepts the standard one.
+OPENVELA_AP_ARMINO_PROFILE = "bk7258-devkit-openvela-ap-armino"
+OPENVELA_AP_PROFILES = (OPENVELA_AP_PROFILE, OPENVELA_AP_ARMINO_PROFILE)
 
 
 def parse_args() -> argparse.Namespace:
@@ -310,7 +314,7 @@ def main() -> int:
         profile_path = args.profile.resolve()
         profile = json.loads(profile_path.read_text(encoding="utf-8"))
         profile_name = profile.get("profile")
-        if profile_name not in (PLACEHOLDER_PROFILE, OPENVELA_AP_PROFILE):
+        if profile_name not in (PLACEHOLDER_PROFILE, *OPENVELA_AP_PROFILES):
             fail(
                 f"unsupported profile: {profile_name!r}; this packer supports "
                 f"{PLACEHOLDER_PROFILE} and {OPENVELA_AP_PROFILE}"
@@ -357,12 +361,12 @@ def main() -> int:
                 args.cp_validation_report.resolve(), cp_path, cp_raw, packaging_dir
             )
             cp_source = "openvela-component"
-        elif profile_name == OPENVELA_AP_PROFILE:
+        elif profile_name in OPENVELA_AP_PROFILES:
             fail("the OpenVela AP profile requires --cp-validation-report")
         else:
             cp_validation = None
             cp_source = "unvalidated-test-fixture"
-        if profile_name == OPENVELA_AP_PROFILE:
+        if profile_name in OPENVELA_AP_PROFILES:
             if args.ap_app_bin is None:
                 fail("the OpenVela AP profile requires --ap-app-bin")
             if args.ap_validation_report is None:
@@ -452,7 +456,7 @@ def main() -> int:
             "hardware_status": (
                 "host package validation only; OpenVela AP execution and heartbeat "
                 "require a recorded BK7258 cold-boot run"
-                if profile_name == OPENVELA_AP_PROFILE
+                if profile_name in OPENVELA_AP_PROFILES
                 else "CP-only placeholder recovery profile"
             ),
         }
