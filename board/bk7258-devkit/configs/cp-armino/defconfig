@@ -68,7 +68,19 @@ CONFIG_NET_STATISTICS=y
 CONFIG_NETDEV_STATISTICS=y
 CONFIG_NET_ARP_IPIN=y
 CONFIG_NET_ARPTAB_SIZE=48
+# TLS (ai_agent) needs far more buffering than a bare ping: one mbedTLS
+# record is up to 16 KiB and a handshake certificate is several KiB, while
+# the stock 24 x 640 B pool is 15 KiB. IOB_ALLOC lets the pool overflow
+# into the heap (PSRAM here), the rest is raised so the static base can
+# hold a full record burst.
+CONFIG_IOB_ALLOC=y
+CONFIG_IOB_NBUFFERS=32
+CONFIG_IOB_NCHAINS=32
 CONFIG_IOB_BUFSIZE=640
+CONFIG_NET_TCP_PREALLOC_CONNS=16
+CONFIG_NET_TCP_ALLOC_CONNS=8
+CONFIG_NET_UDP_PREALLOC_CONNS=16
+CONFIG_NET_UDP_ALLOC_CONNS=8
 CONFIG_NET_SOCKOPTS=y
 CONFIG_NET_ICMP_SOCKET=y
 CONFIG_NETDB_DNSCLIENT=y
