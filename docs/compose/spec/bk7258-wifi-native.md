@@ -1,7 +1,7 @@
 ---
 feature: bk7258-wifi-native
 status: designed
-updated: 2026-10-01
+updated: 2026-10-03
 branch: feat/bk7258-wifi-native
 commits:
 ---
@@ -118,7 +118,19 @@ BK7258 CP 上的 Wi-Fi 要在 NuttX 下工作，目标有两条：
 目前已定的排除只有两项：
 
 - `os_source`（FreeRTOS 内核 11 个单元）：调度器只能有一个，用 NuttX 的。`bk_rtos` 原样保留，它调用的 FreeRTOS API 由 T9 的接缝在 NuttX 上实现。
-- `lwip_intf_v2_1`（52 个单元）：用户决定第一阶段就使用 NuttX 自己的 TCP/IP 协议栈（NuttX 不带 lwip，`nuttx/net/` 是它自己的实现）。lwip 被用到的符号由 T10 的 netdev 胶水提供。
+- `lwip_intf_v2_1`（52 个单元）：用户决定第一阶段就使用 NuttX 自己的 TCP/IP 协议栈（NuttX 不带 lwip，`nuttx/net/` 是它自己的实现）。lwip 被用到的符号由 T10 的 netdev 胶水提供。例外：保留 6 个缓冲区和工具单元，见下一条。
+- `lwip_intf_v2_1` 保留单元（2026-10-03，用户决定"1A"）：`src/core/pbuf.c`、`mem.c`、`memp.c`、`def.c`、`ipv4/ip4_addr.c`、`stats.c`。协议单元（tcp、udp、ip、etharp、dhcp、netif、tcpip、sockets 等）和 `port/` 下的全部文件仍然排除。
+  - 为什么保留：保留下来的 `bk_wifi` 代码以 lwip 的 `struct pbuf` 作为收发缓冲区（`rwnx_rx`、`rwnx_tx`、`skbuff`、`rw_task`、`bk_wifi_adapter` 共调用 `pbuf_*` 6 个），并依赖它的引用计数、`PBUF_POOL` 和 108+600 字节的预留头部（`PBUF_LINK_ENCAPSULATION_HLEN`）。手写替代品要自己保证布局和语义一致；`a7de5d2` 就是那样做的（`hosted pbuf.c` 加手写 `pbuf_shim.c`），这正是 S1 要避免的做法。`bk_wifi/src/pbuf.c` 只在 `CONFIG_FULLY_HOSTED || SEMI_HOSTED` 时编译（第 4 行），基线两者都没开，所以基线实际用的就是这份 lwip `pbuf.c`。
+  - 为什么不冲突：这 6 个单元定义的 106 个符号，和 cp-armino 23 个 NuttX 库导出的 4371 个符号比对，交集为 0（`nm --defined-only`，2026-10-03）。它们只在 Wi-Fi 驱动内部使用，NuttX 网络栈看到的边界仍是 `netdev_lowerhalf`，收发时在 pbuf 和 netpkt 之间拷贝。以后要去掉 lwip，只需替换这 6 个文件，netdev 胶水和 NuttX 上层不用改。
+  - 带进来的依赖和处理：
+    - `pbuf.c` 在 `PBUF_POOL_FREE_OOSEQ=1`（`pbuf.h:283` 默认值）时引用 `tcp_active_pcbs`、`tcp_free_ooseq`、`tcpip_try_callback`，会把 lwip TCP 拉进来。组件参数加 `-DPBUF_POOL_FREE_OOSEQ=0` 切掉；代价是 PBUF_POOL 用完时不再回收 TCP 乱序段，而这里没有 lwip TCP，本来就没有可回收的。
+    - `pbuf.c`、`mem.c`、`memp.c` 要 `sys_arch_protect/unprotect`、`sys_mutex_new/lock/unlock`。基线由 `port/sys_arch.c` 提供，但该文件还带着 lwip 的线程、mbox、per-thread 信号量，且按 FreeRTOS 的 `pthread_key_t` 编译，与 NuttX 冲突（第一次保留它时报 `pthread_internal.h:17` 类型冲突）。所以不保留它，改由 `compat/bk7258_lwip_sys.c` 用 NuttX mutex 提供这 5 个函数，语义照基线的 `CFG_ENABLE_LWIP_MUTEX`（`sys_arch.c:55,463-485`）：一把全局锁。和基线的区别：这里用递归锁（lwip 的约定要求可递归，基线的 FreeRTOS 互斥量不是）。
+    - Beken 把 `pbuf_debug_flag` 定义在 OOSEQ 分支里（`pbuf.c:116`），而 `pbuf.c:181,186` 无条件使用；关掉 OOSEQ 后由 `bk7258_lwip_sys.c` 定义，声明放在 `compat/bk7258_lwip_compat.h`，对整个组件 `-include`。
+    - 同一个头里取消 NuttX `<unistd.h>` 的 `opterr` 宏：`stats.c:76` 读 `proto->opterr` 字段。`lwip_os/lwip/stats.h` 只在头文件周围暂停这个宏，函数体里仍会被展开。
+    - `memp.c` 包含的 `lwip/netdb.h` 重复定义 `struct hostent`、`struct addrinfo`、`EAI_*`、`AI_*`、`h_errno`。新增 `lwip_os/lwip/netdb.h`，先包含 NuttX `<netdb.h>`，再用 lwip 自己的 4 个 `LWIP_DNS_API_*` 开关关掉这些定义，然后 `#include_next`。`memp.c` 需要的 `NETDB_ELEM_SIZE` 保留。
+    - `memp.c` 经 `sockets_priv.h:164` 用到 `nfds_t`：`lwip_os/lwip/sockets.h` 补 `#include <poll.h>`。
+  - 代价：memp 静态池约 31.7 KB（`nm -S` 实测，2026-10-03），其中 PBUF_POOL 23 KB 是 Wi-Fi 收包要用的，约 8 KB（TCP_PCB、TCP_SEG、NETCONN、NETDB 等）在 NuttX 下没有用户。保持和基线 lwipopts 一致，暂不裁剪；裁剪要改 lwipopts，属于对基线配置的偏离，需要另行决定。
+  - 被否决的方案"1B"：像 `a7de5d2` 那样手写 pbuf、底层用 kmm。占 RAM 少，但又回到手写仿造。
 
 原则：OS 和 POSIX 接口（libc、signal、pthread、socket、spinlock）一律用 NuttX 的。Armino 自带的同名副本排除或屏蔽，由 `chips/bk7258/wifi_armino/compat` 对接，不改 Armino 源码。lwip 协议栈内部接口（pbuf、netif、memp 等）不是 OS 接口，归 T10。
 
@@ -148,10 +160,66 @@ BK7258 CP 上的 Wi-Fi 要在 NuttX 下工作，目标有两条：
 
 不抓寄存器、不插桩。第一阶段编进来的是 Armino 原文件，它们自带的日志（`wifid`、`wpa`、`rwnx`、`hitf`、`lwip` 等前缀）在我们的固件里会原样打印，所以直接比较两份 UART 日志里关键事件的顺序和次数：scan 开始与完成、auth、assoc、4 次握手各状态、DHCP、重握手次数、`tx_dma_dead`、assert、重启。Armino 参照固件不需要另开 debug 分支。
 
+### [S2.9] netdev 胶水行为（T10）
+
+代码在 `chips/bk7258/wifi_armino/compat/bk7258_armino_netdev.c`，替代基线 `lwip_intf_v2_1/lwip-2.1.2/port/net.c`、`wlanif.c` 提供的 20 个符号，数据面接 NuttX `netdev_lowerhalf` 的 `wlan0`。每条后面写明依据，出问题时按依据回查。
+
+- 注册：`net_wlan_initial()` 由 `bk_netif_init()` 开机调用（`bk_netif.c:76`）。基线在这里启动 lwip 栈；NuttX 栈已经在运行，所以改为注册 wlan0，让它在连接前就可见。`net_wlan_add_netif()` 只接受 STA vif，记下 vif 索引和 MAC（基线 `low_level_init()`、`low_level_output()` 从 vif 读的就是这两项）。RX quota 取 4，沿用 `a7de5d2` 的板上结论：quota 为 1 时，ARP 应答会被同时到达的广播帧挤掉。
+- 收包：照 `ethernetif_input()`（`wlanif.c:331-451`）。EAPOL 先交给 wpa（`ke_l2_packet_tx`），即使 netif 还没注册也交，基线注释写明了原因；自己发出又回环的帧丢弃；其余帧拷进 netpkt，offset 0 让以太头落在 link-layer 预留区，这是 NuttX 栈读取以太头的位置。
+- 发包：照 `low_level_output()`（`wlanif.c:230-262`）。netpkt 拷进 `PBUF_RAW_TX` pbuf 交给 `bmsg_tx_sender()`。`bmsg_tx_sender()` 自己另取一份引用，所以 `pbuf_alloc()` 那份在本函数里释放。
+- 取址（2026-10-03，用户决定"2A"）：保持基线流程。`bk_netif.c:38-50` 在 `EVENT_WIFI_STA_CONNECTED` 时调 `sta_ip_start()`，在 `DISCONNECTED` 时调 `sta_ip_down()`；胶水在这两处开关 carrier、启动和停止 DHCP。拿到地址后，像 `wm_netif_status_callback()`（`net.c:405-406`）一样调 `wifi_netif_call_status_cb_when_sta_got_ip()` 和 `wifi_netif_notify_sta_got_ip(IP4)`。
+  - 为什么：`notify_sta_got_ip` 会把 Armino 链路状态设为 `GOT_IP` 并调 `wlan_dhcp_done_ind()`（`wifi_netif.c:109-131`）。不调的话，Armino 状态机停在 CONNECTED，与原厂行为不一致。
+  - 被否决的"2B"：由用户手动 `renew wlan0`，事后补发通知。每次连接都需要人工操作。
+- DHCP 续租（2026-10-03）：
+  - 为什么要自己调度：NuttX `dhcpc` 每次调用只完成一次申请（`dhcpc_request()`，`apps/netutils/dhcpc/dhcpc.c:695`），没有续租。`dhcpc_request_async()` 只是每过半个租期重新完整申请一次，不区分 T2，也不处理租约到期（`dhcpc.c:468-510`）。NSH 的 `renew` 也只申请一次（`netlib_obtainipv4addr.c` 注释写明没有续租逻辑）。基线 lwip DHCP 是完整的续租状态机，为了对齐，胶水按 lwip 的时间线调度，每一步调用一次 `dhcpc_request()`。
+  - 没有地址时：按 `dhcp_discover()` 的退避重试，间隔 2^n 秒，上限 60 秒。
+  - T1 = 租期 ÷ 2 续租，T2 = 租期 × 7/8 重新绑定（`dhcp_handle_ack()` 的默认值）。失败后在距下一个节点一半的时刻重试；剩余不足 60 秒就直接等到下一个节点（`dhcp_t1_timeout()`、`dhcp_t2_timeout()`）。
+  - T0（租期到）：清掉地址，从头申请（`dhcp_coarse_tmr()`）。租期上限 0xffff × 20 秒、下限 20 秒，照 `dhcp_bind()`；0xffffffff 视为永久租约。
+  - 通知 Armino：got_ip 每次连接只发一次，对应 `net.c:400` 的 `ip4_addr_set`。已拿到的地址丢失（收到 NAK 或到 T0）时发 `wifi_netif_call_status_cb_when_sta_dhcp_timeout()`，对应 `net.c:466-471`。首次申请失败只重试、不通知，和 lwip 相同。
+  - 断线竞态：`dhcpc_cancel()` 只在两次重试之间检查取消标志，断线后迟到的 ACK 会被 dhcpc 自己写到 wlan0 上（`dhcpc.c:845`）。胶水给每次连接编号，识别出迟到的结果后撤销这个地址。
+  - 与基线不一致的两点，都来自 dhcpc：每次申请都从广播 DISCOVER 开始，基线续租是单播 REQUEST；租约到期不发 DHCPRELEASE。改 `apps/netutils/dhcpc` 属于上游代码，要另提 PR。
+- ARP 保活（2026-10-03）：闭源 MAC 库在 `CONFIG_WIFI6` 下发 `ME_INDICATE_SEND_ARP_IND`，`rw_msg_rx.c:1736` 收到后调 `net_begin_send_arp_reply()`。基线（`net.c:1382-1401`、`etharp.c:286-320`）给网关发一个主动 ARP reply，网关 MAC 未知时改发 ARP request，帧都走 `bmsg_special_tx_sender()`（由 `special_arp_flag` 选择）。胶水照这个流程做，有两点差异：
+  - 网关 MAC 从网关发来的 ARP 帧里记下，不查 NuttX ARP 表。原因：`arp_find()` 是 `nuttx/net/` 的内部函数；公开的 `SIOCGARP` 要拿 `net_lock()`，而这个函数运行在 Wi-Fi 核心线程上，协议栈拿着锁时可能正在等这个线程的 TX 队列，两边会互相等住。
+  - `etharp_tmr_flag`（保活期间 ARP 表项保留 3600 个 tick，`etharp.c:243`）在 NuttX 里没有对应机制，表项仍按 `CONFIG_NET_ARP_MAXAGE` 过期。
+- 一期不实现，被调用时打日志：SoftAP 地址和 DHCP 服务（`uap_ip_*`；`dhcp_lookup_mac` 返回 NULL，两个调用方都处理了 NULL）；lwip CLI 的 `ping_start/stop`，用 NSH 的 `ping` 代替；`etharp_request`，唯一调用方 `iperf.c:405` 只用它预热 lwip ARP 缓存。
+- 句柄：`net_get_sta_handle()` 返回一个不透明的占位对象。保留下来的读取方只把它传给 `net_get_if_addr()`（`bk_netif.c:126`、`wifi_at.c:1285`、`cif_wifi_api.c:580`、`iperf.c:273`）。把它当 netif 读字段的两处，`bk_netif.c:157`（`CONFIG_IPV6`）和 `rwnx_utils.c:255`（`#if 0`），都不会编进来。
+
+### [S2.10] CPU1（AP）归属与跨核
+
+决定（2026-10-03，用户定方向）：CP、AP 各跑一个 NuttX。跨核传输用 NuttX 的 RPTUN/RPMsg，mailbox 硬件只做门铃，归 NuttX。Armino 的跨核协议 mb_ipc 承载在 RPMsg 端点 `bk7258-mb-ipc` 上（`chips/bk7258/mb_ipc/bk_mailbox_rpmsg.c`），不再单独使用 mailbox 硬件。CPU1 的启停只由 NuttX 做。
+
+- 争用的资源：CPU1 启停寄存器 `SYS_CPU1_INT_HALT_CLK_OP`（SYS+0x14，NuttX 中名为 `BK7258_SYS_CPU1_CTRL`），字段为 sw_rst bit0、pwr_dw bit1、rxevt_sel bit5、offset bit8-31（`soc/bk7258/soc/sys_struct.h:89-96`）。有两个写入方：
+  - NuttX：`BOARDIOC_START_CPU`（`bk7258_ap_control.c:379-468`）。
+  - Armino：`reset_cpu1_core()`（`system_main.c`），由 `start_cpu1_core()` 调用，入口有两处：启动投票（`pwr_clk.c:347`）和心跳重启（`mb_ipc_heartbeat.c:166`）。
+  - 两者的启动地址不同：NuttX 用 `BK7258_AP_XIP_VECTOR_BASE`，Armino 用分区 1（`get_partition_addr(1)`）。
+- 为什么阶段一 Armino 那条路径不会触发（依据是代码阅读，未上板）：
+  - 启动投票：`user_app_main()`（`cp_main.c:15`）调 `bk_pm_module_vote_boot_cp1_ctrl()`，`pwr_clk.c:331` 只在 `sys_drv_module_power_state_get(CPU1) == PM_POWER_MODULE_STATE_OFF`（值为 1，`pm.h:236-237`）时才启动 CPU1。这个函数在 bk7258 上读的是 `SYS_CPU_CURRENT_RUN_STATUS`（SYS+0x0c）的 bit9 `cpu1_pwr_dw_state`（`soc/bk7258/hal/sys_hal.c` 及其 `sys_ll` 访问函数，`sys_struct.h:64`）。NuttX `START_CPU` 在释放复位前，等待的正是这一位清 0（`bk7258_ap_control.c:419-423`，`BK7258_SYS_CPU1_PWR_DW_STATE` = bit9）。因此 NuttX 启动 AP 之后，Armino 读到的是 ON，会跳过 `start_cpu1_core()`。
+  - 先后顺序（2026-10-03 更正）：AP 的启动是异步的。`bk7258_rptun_initialize()` 调 `rptun_boot("ap")`，`rptun_dev_start()` 只创建优先级 90 的 `rptun` 线程就返回（`nuttx/drivers/rptun/rptun.c:898-925`）。`RPTUN_START` → `bk7258_rptun_start()` → `BOARDIOC_START_CPU` 都在那个线程里执行，而我们的 `is_autostart()` 返回 false（`bk7258_rptun.c:245`）。所以 `bringup` 返回时 AP 不一定已经启动，"NuttX 先"原本只是靠 `armino-entry`（优先级 85）低于 `rptun`（90）这个优先级关系得来的。
+  - 现在由代码保证：`bk7258_armino_start.c` 的 `bk7258_armino_wait_ap()` 在调用 `entry_main()` 之前，轮询 `BK7258_SYS_CPU_STATUS` 的 bit9，直到它清零，即 Armino 在 `pwr_clk.c:331` 判断用的同一位。轮询间隔 10 ms，最长 5 s。日志 `[ARMINO] CPU1 powered up by NuttX after <n> ms` 或 `[ARMINO] CPU1 still powered down after 5000 ms`。没有用 `rptun_wait()`：它要求 rptun 驱动提供 `set_phase`/`get_phase`，`bk7258_rptun.c` 没有实现，而且它是忙等（`rptun.c:rptun_dev_wait`）。超时后 Armino 照常启动，这样 AP 启动失败不会连带 Wi-Fi 起不来。
+- RPMsg 没有就绪时（依据是代码阅读）：
+  - 不会卡死。`bk_mailbox_send()`、`bk_mailbox_ready()` 在端点未绑定时立刻返回 `BK_ERR_MAILBOX_TIMEOUT`（`bk_mailbox_rpmsg.c:426-455`）。Armino 的 `mailbox_channel.c` 遇到这个返回值会重试，物理通道忙的超时为 200 ms（`:34,651-653`）。`ipc_send_cmd()` 等应答的上限是 `IPC_RSP_TIMEOUT` 600 ms（`mb_ipc_cmd.c:46`）；它用 `WAIT_FOREVER` 等的只是串行化用的通道锁。这条命令最终失败，消息不会排队等待重发。
+  - 阶段一 CP 不会主动发 IPC：CP 编成 AMP 资源锁的服务端（`mb_ipc_cmd.h:63-65`，`CONFIG_CPU_CNT=3`），获取和释放计数都在本地完成（`amp_res_lock.c:34,166,203`）。只有在其他核也申请过同一资源（`others_req_cnt > 0`）时，释放才会发 `ipc_send_available_ind()`（`:298-301`）。AP 不运行 Armino 的 amp_res，所以这个计数一直为 0。`bk_phy_notify.c`、`flash_notify.c`、`saradc_notify.c` 里都没有 `ipc_send_*` 调用。心跳 master 不主动发消息。这个结论不是对所有保留单元的穷举。
+  - 以后在 `bk7258-armino-otp-mb-ipc.md` 里接入 PHY、flash、SARADC 服务时，由这些服务负责等端点绑定后才对外提供；后端仍保持立刻失败。
+  - 心跳：master 的 `cpu_x_state` 只在两种情况下改变：`start_cpu1_core()` 经 `mb_ipc_reset_notify()` 置为 STARTING；或收到 AP 发来的 `IPC_CPU1_POWER_UP_INDICATION` 后置为 POWER_ON（`mb_ipc_cmd.c:650`）。两者都不发生，状态就一直是 `CORE_POWER_OFF`，`ipc_heartbeat_timeout()` 直接返回 0，不会调用 `restart_cpu_x()`。
+- 遗留风险：
+  - 如果 NuttX 启动 AP 失败，或者 5 s 内 bit9 仍未清零，Armino 的启动投票会把 CPU1 复位到分区 1 的地址。要彻底消除这个风险，只能修改 `system_main.c` 或 `pwr_clk.c`，S2.3 不允许，因此保留这项风险，靠日志里的 `still powered down` 发现。
+  - 以后 AP 一旦发送 `IPC_CPU1_POWER_UP_INDICATION`（属于 `bk7258-armino-otp-mb-ipc.md` 的范围），Armino 的心跳 master 就开始监控。AP 必须同时每 2 秒发一次心跳，否则 6 秒后 `restart_cpu_x()` 会按分区 1 的地址重启 CPU1。到那时，要么 AP 同时实现心跳 slave，要么屏蔽 master 的重启。
+  - AP 异常后的重启由 NuttX 负责（`ap-monitor`、RPTUN）。
+- AP 侧：
+  - 数据面经 `NET_USRSOCK_RPMSG` 使用 CP 上的 NuttX 协议栈（`configs/ap` 有 `NET_USRSOCK_RPMSG_CPUNAME="cp"`，`cp-armino` 有 `NET_USRSOCK_RPMSG_SERVER`），wlan0 换实现对 AP 透明。
+  - AP 已开启 `BK7258_MB_IPC_RPMSG=y`（10-01 构建的 `.config`；Kconfig 默认 y），但只导入了传输状态机（`mb_ipc/armino_ap/` 下的 `mailbox_channel.c`、`mb_ipc.c`、`mb_chnl_buff.c`）。基线 AP 上负责发送 `PM_CPU1_BOOT_READY_CMD`（`ap/.../pwr_clk.c:137`）、POWER_UP 和心跳（`ap/.../mb_ipc_cmd.c:813-821`、`mb_ipc_heartbeat.c`）的单元都没有导入。阶段一用不到它们：CP 跳过启动投票后，就不会等 BOOT_READY。
+  - RPMsg 后端目前只转发逻辑通道 `BK_MB_IPC_LOGICAL`=1（`bk_mailbox_rpmsg.c:116-117`），PM 通道 `MB_CHNL_PWC` 不经过它。
+- 参照 team 135（`open-vela/contest2026_135_yongwangzhiqian`，`/tmp/t135-full` 浅克隆，`6052156`，2026-10-03）：做法相同，CP 上的 NuttX 独占 CPU1。
+  - 启动：`chips/bk7258/cp/bk7258_ap_control.c:619-650` 先调 `bk_pm_module_vote_power_ctrl(CPU1, ON)`，再按 SDK 顺序调 `sys_drv_set_cpu1_pwr_dw(0)`、`rxevt_sel(1)`、`boot_address_offset(AP 向量 >> 8)`、`reset(1)`，然后等共享内存里的 AP 状态变为 `BK7258_AP_STATE_READY`。他们的注释写明：PM 投票不等于 pwr_dw=0，投票还会清 CPU1 的 halt 位、恢复时钟并等待时钟稳定。
+  - 停止和重启：只有 `bk7258_cpu1_sdk_stop()`（`:94-104`，等同 `reset_cpu1_core(0, 0)`）和 `bk7258_ap_restart()`（`:891`）。
+  - 跨核：CP、AP 都用 `common/bk7258_rptun_mbox.c` 和 `bk7258_rptun.c`；低功耗协调另走 SDK 的 PWC mailbox（`ap/bk7258_pm_coord_ap.c`）。
+  - 整个仓库（tests 除外）搜不到 `mb_ipc_heartbeat`、`restart_cpu_x`、`start_cpu1_core`、`user_app_main`、`vote_boot_cp1`、`PM_CPU1_BOOT_READY`：他们不编译 Armino 的 `system_main.c`、`cp_main.c` 和心跳，所以没有我们这里的双写入方问题。我们按 S2.2 原样保留了这些单元，所以要靠上面"不会触发"的论证，并在 T20 上板验证。
+  - 与我们的差异：我们的 `START_CPU` 在释放前调用的是 `sys_hal_module_power_ctrl(17 /* CPU1 */, ON)`（`bk7258_ap_control.c:342-347`，理由见 `:331` 的注释），而不是 135 用的 `bk_pm_module_vote_power_ctrl`。也就是说，硬件上电走的是同一个 hal 函数，只是跳过了 PM 层。135 注释里说 PM 投票还会清 halt、恢复时钟并等待稳定，这些动作有多少是 hal 之外额外做的，尚未核实。跳过 PM 层带来的已知后果：Armino `pm.c` 的 `s_pm_on_modules` 里没有记录 CPU1，阶段二接入 PM 时要处理。
+
 ## [S3] Out of Scope
 
 - 把 wpa 加密迁移到 NuttX mbedtls：另起 feature。
-- AP 核侧改动、SoftAP、BLE、WPA3/SAE 验证。
+- AP 核侧改动、SoftAP、BLE、WPA3/SAE 验证。CPU1 归属见 S2.10：阶段一 AP 不改；AP 侧 PM 握手和心跳 slave 属于 `bk7258-armino-otp-mb-ipc.md`。
 - 整体合入 `dev` 那 81 个提交。
 - 推送分支、发 PR：由用户另行决定。
 
@@ -166,8 +234,8 @@ BK7258 CP 上的 Wi-Fi 要在 NuttX 下工作，目标有两条：
 - [ ] T7: 排除记录。根据 T8 的链接输出和资源冲突，为每个被排除的单元下 S2.7 要求的证据。acceptance：每个排除单元都能对应到一行链接输出，或一条写明双方代码位置的资源冲突说明；`os_source`、`lwip_intf_v2_1` 两项的依据已写入。(covers: S2.7; depends: T8)
 - [x] T8: 阶段一 CMake 接入和首次链接。结果：开关 `BK7258_WIFI_ARMINO_BASELINE`、`chips/bk7258/wifi_armino/`、`configs/cp-armino`；保留单元全部编译通过（第 6 次 keep-going 构建只剩链接失败）。首次链接清单在 `chips/bk7258/tools/armino_baseline/phase1_link.txt`：93 个 undefined（os_source 48、lwip 31、链接脚本符号 10、其他 4）、6 个重复定义（`bk_mailbox_*`）、flash 超出 111660 字节。开关关闭时 `cp` 的 `app.bin` 仍是 `1c8011f5`；`nuttx.elf` 去掉调试段后与改动前逐字节一致（`425b6535`），差异只在 `bk7258_bringup.c` 的行号表。新的 Kconfig 开关打开时，CP 的 CMake 读取 T4 清单，按组件参数编译保留单元，路径来自 `BK7258_ARMINO_BASELINE_DIR`，配置用基线 `sdkconfig.h`。acceptance：开关关闭时，`a7de5d2` 的构建结果不变；开关打开时，所有保留单元都能编过；链接输出里的 undefined 和重复定义符号整理成清单入库。(covers: S2.2, S2.4; depends: T3, T4)
 - [ ] T9: OS 接缝。在 NuttX 上实现 T8 清单里 FreeRTOS API 那部分 undefined 符号，供原样保留的 `bk_rtos` 调用。sdk-source 分支修过的 9 个问题（队列 item_size、栈按字计、临界区嵌套、ISR 上下文判断、`nxmq_*` 无取消点等）要带过来。acceptance：这些符号各定义一次；主机测试覆盖队列 item_size、栈按字计、临界区嵌套、ISR 上下文发送四项。(covers: S2.2, S2.7; depends: T7, T8)
-- [ ] T10: netdev 胶水。实现 T8 清单里原本由 lwip 提供的符号，接到 NuttX netdev。acceptance：链接 map 里没有 lwip 目标文件；`wapi` 连接后 `renew wlan0` 能拿到地址。(covers: S2.2, S2.7; depends: T7, T8)
-- [ ] T11: 阶段一链接和上板验收。acceptance：链接没有 undefined 符号；重复定义只出现在 T7 记录过的位置；L1 校验、decode、完整性门禁都通过；`Luv` 上连接 3/3；ping 公网 4/4；T5 对比显示重握手次数、`tx_dma_dead` 次数不多于 Armino 参照。(covers: S2.2, S2.6; depends: T5, T9, T10)
+- [ ] T10: netdev 胶水。实现 T8 清单里原本由 lwip 提供的符号，接到 NuttX netdev，行为按 S2.9。acceptance：链接 map 里 lwip 目标文件只有 S2.7 列出的 6 个保留单元，ELF 里没有 `tcp_*`、`tcpip_*`、`udp_*`、`etharp_output`、`dhcp_start`；连接后不需要 `renew`，UART 出现 `[ARMINO] wlan0 ip <地址>`，`bk_wifi_sta_get_linkstate_with_reason` 报 `GOT_IP`；ping 网关 4/4；断开再连接，能再次拿到地址且 wlan0 上没有残留的旧地址。验收标准 2026-10-03 修改：原来写的"链接 map 里没有 lwip 目标文件"与 S2.7 的 1A 决定冲突；原来写的"`renew wlan0` 能拿到地址"与 S2.9 的 2A 决定冲突（地址由连接事件自动获取）。进度：cp-armino 链接通过，0 个 undefined（`/tmp/t9-link17.log`），尚未提交、尚未上板。(covers: S2.2, S2.7, S2.9; depends: T7, T8)
+- [ ] T11: 阶段一链接和上板验收。acceptance：链接没有 undefined 符号；重复定义只出现在 T7 记录过的位置；L1 校验、decode、完整性门禁都通过；`Luv` 上连接 3/3；ping 公网 4/4；T5 对比显示重握手次数、`tx_dma_dead` 次数不多于 Armino 参照。(covers: S2.2, S2.6; depends: T5, T9, T10, T20)
 - [ ] T12: 阶段二：PM 和电源类原生化，范围为 `pm`、`sys_pm_hal`、`sys_wifi_driver`、`sys_ps_driver`、`sys_int_driver`。acceptance：链接 map 证明这些目标文件不再来自 Armino 源文件；T5 对比没有新增差异；连接 3/3；ping 4/4。(covers: S2.5; depends: T11)
 - [ ] T13: 阶段二：DMA、时钟、定时器类，范围为 `dma_driver`、`ckmn_driver`、`timer_driver`、`aon_rtc_driver_64bit`。acceptance 同 T12。(covers: S2.5; depends: T12)
 - [ ] T14: 阶段二：Flash，范围为 `flash_driver`、`flash_driver_ext`、`flash_partition`，改为基于 NuttX MTD。acceptance 同 T12，另外 easyflash 写入的数据重启后仍在。(covers: S2.5; depends: T11)
@@ -175,4 +243,5 @@ BK7258 CP 上的 Wi-Fi 要在 NuttX 下工作，目标有两条：
 - [ ] T16: 阶段二：mailbox 类，范围为 `mailbox_channel`、`mb_ipc`、`mb_ipc_heartbeat`，与 `bk7258-armino-otp-mb-ipc.md` 对齐。acceptance 同 T12。(covers: S2.5; depends: T11)
 - [ ] T17: 阶段二：杂项，范围为 `interrupt_base`、`trap_base`、`printf`、`uart_driver`、`wdt_driver`、`reset_reason`、`gpio_driver`、`gpio_driver_base`。acceptance 同 T12。(covers: S2.5; depends: T11)
 - [ ] T18: 最终验收。按 T6 的同一种负载跑 30 分钟。acceptance：`tx_dma_dead`、assert、重启的次数不多于 T6 中 Armino 的结果；ping 20/20；证据按 S2.6 齐全。(covers: S2.6; depends: T6, T12, T13, T14, T15, T16, T17)
+- [ ] T20: CPU1 归属，按 S2.10 由 NuttX 独占。acceptance：上板日志中 `[AP] start: cpu1 powered up` 和 `[AP] release` 各出现一次，且 `[ARMINO] CPU1 powered up by NuttX after <n> ms` 出现在 Armino 启动日志之前，没有 `still powered down`；连接后 10 分钟内 AP 没有重启（不出现第二次 `[AP] release`，也没有新的 AP 启动横幅）；AP 的 NSH 可用；在 AP 上经 usrsock ping 网关 4/4。说明：Armino 的 `reset_cpu1_core at:`、`boot cp1 fail` 是 `BK_LOGD` 级别，可能被过滤，不作为判据。(covers: S2.10; depends: T10)
 - [ ] T19: 导入仓库。把阶段一仍在使用的 Armino 原文件按 AGENTS.md 导入 `chips/bk7258/`，保留模块结构和来源记录，去掉对 `BK7258_ARMINO_BASELINE_DIR` 的依赖。acceptance：干净检出、不设该变量也能构建；T3 门禁对导入目录返回 0。(covers: S2.2, S2.3; depends: T11)
