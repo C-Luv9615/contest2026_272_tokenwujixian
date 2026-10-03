@@ -43,6 +43,20 @@ if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
   # lwip_intf_v2_1 is replaced by NuttX's own TCP/IP stack (user decision).
   set(excluded os_source lwip_intf_v2_1)
 
+  # Except lwip's buffer and utility units, which bk_wifi uses as its packet
+  # buffer (pbuf) and address helpers; none is protocol code, and none of
+  # their symbols is defined by NuttX. The lwip OS calls they make are
+  # compat/bk7258_lwip_sys.c. PBUF_POOL_FREE_OOSEQ=0 drops pbuf.c's only
+  # reference into lwip TCP (tcp_free_ooseq on pool exhaustion).
+  set(lwip_dir cp/components/lwip_intf_v2_1/lwip-2.1.2)
+  set(lwip_kept_units
+      ${lwip_dir}/src/core/pbuf.c
+      ${lwip_dir}/src/core/mem.c
+      ${lwip_dir}/src/core/memp.c
+      ${lwip_dir}/src/core/def.c
+      ${lwip_dir}/src/core/ipv4/ip4_addr.c
+      ${lwip_dir}/src/core/stats.c)
+
   # Single units left out because NuttX owns the OS interface they provide
   # (S2.7): pthread TLS (its only callers are the excluded lwip and
   # os_source), and the bk_patch signal stubs (empty bodies, now static
@@ -134,6 +148,12 @@ if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
     if(comp IN_LIST spinlock_compat_components)
       list(APPEND fields -include ${CMAKE_CURRENT_SOURCE_DIR}/compat/bk7258_wifi_spinlock.h)
     endif()
+    # stats.c and pbuf.c need compat/bk7258_lwip_compat.h; the other kept
+    # lwip units neither use getopt's opterr nor define pbuf_debug_flag.
+    if(comp STREQUAL "lwip_intf_v2_1")
+      list(APPEND fields -DPBUF_POOL_FREE_OOSEQ=0
+           -include ${CMAKE_CURRENT_SOURCE_DIR}/compat/bk7258_lwip_compat.h)
+    endif()
     set(flags_${comp} "${fields}")
   endforeach()
 
@@ -147,7 +167,8 @@ if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
     list(GET fields 0 comp)
     list(GET fields 1 src)
     list(GET fields 3 file_define)
-    if(comp IN_LIST excluded OR src IN_LIST excluded_units)
+    if((comp IN_LIST excluded AND NOT src IN_LIST lwip_kept_units) OR
+       src IN_LIST excluded_units)
       continue()
     endif()
     set(src ${BK7258_ARMINO_BASELINE_DIR}/${src})
@@ -158,6 +179,7 @@ if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
     endif()
   endforeach()
   list(REMOVE_DUPLICATES components)
+
 
   foreach(comp IN LISTS components)
     string(MAKE_C_IDENTIFIER "armino_${comp}" target)
@@ -173,6 +195,7 @@ if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
 
   target_sources(arch PRIVATE bk7258_armino_start.c
                  compat/bk7258_armino_shell.c compat/bk7258_armino_irq.c
-                 compat/bk7258_freertos_nuttx.c)
+                 compat/bk7258_freertos_nuttx.c compat/bk7258_lwip_sys.c
+                 compat/bk7258_armino_netdev.c)
 
 endif()
