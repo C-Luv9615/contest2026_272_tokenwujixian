@@ -38,6 +38,7 @@
 #  include <arch/chip/bk7258_audio.h>
 int bk7258_devkit_audio_pa_register(void);
 void bk7258_urandom_register(void);
+void bk7258_ca_init(void);
 #endif
 
 #ifdef CONFIG_BK7258_COMPONENT_CP
@@ -161,6 +162,9 @@ void board_late_initialize(void)
    */
 
   bk7258_urandom_register();
+
+  /* Root CA for the ai_agent's TLS: pulls in chips/bk7258/bk7258_ca.c. */
+  bk7258_ca_init();
 
 #ifdef CONFIG_BK7258_COMPONENT_CP
 #ifdef CONFIG_BK7258_TIMER0

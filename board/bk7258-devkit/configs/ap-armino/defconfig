@@ -116,6 +116,13 @@ CONFIG_NET_IGMP=y
 # usrsock transfer path can still buffer here. IOB_ALLOC lets that overflow
 # into the heap (the AP has the upper 8 MiB of PSRAM).
 CONFIG_IOB_ALLOC=y
+# TLS certificates are only valid inside their date window, so the AP needs
+# a real clock. The board has no RTC sync; vela_tls used to force the clock
+# to a 2026 guess ("Clock too old, forcing to 2026").
+CONFIG_NETUTILS_NTPCLIENT=y
+CONFIG_NETUTILS_NTPCLIENT_SERVER="0.pool.ntp.org;1.pool.ntp.org;2.pool.ntp.org"
+# NSH `ntpc_start` / `ntpc_stop`, plus netinit_auto-starts the daemon
+CONFIG_SYSTEM_NTPC=y
 CONFIG_IOB_BUFSIZE=640
 CONFIG_NET_ETH_PKTSIZE=590
 CONFIG_NET_LL_GUARDSIZE=48
