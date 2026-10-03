@@ -19,12 +19,20 @@
 #include <syslog.h>
 
 #include <nuttx/arch.h>
+#include <nuttx/clock.h>
 #include <nuttx/kthread.h>
+#include <nuttx/signal.h>
 
 #include "arm_internal.h"
+#include "bk7258_memorymap.h"
 
 #define BK7258_ARMINO_ENTRY_PRIORITY  85
 #define BK7258_ARMINO_ENTRY_STACKSIZE 8192
+
+/* How long entry_main() waits for NuttX to have powered CPU1 up. */
+
+#define BK7258_ARMINO_AP_WAIT_MS      5000
+#define BK7258_ARMINO_AP_POLL_US      10000
 
 /* REBOOT_TAG_ADDR (cp/middleware/driver/reset_reason/reset_reason.h:28) is
  * 0x20003FF8 + SOC_ADDR_OFFSET, and SOC_ADDR_OFFSET is 0 because the
@@ -122,11 +130,53 @@ void bk7258_armino_early_initialize(void)
          (unsigned long)mm.fordblks, (unsigned long)mm.mxordblk);
 }
 
+/* CPU1 has one owner, NuttX (docs/compose/spec/bk7258-wifi-native.md,
+ * S2.10). Armino's own boot path, user_app_main() ->
+ * bk_pm_module_vote_boot_cp1_ctrl(), starts CPU1 from its partition 1
+ * address only while sys_drv_module_power_state_get(CPU1) reads OFF, which
+ * on BK7258 is SYS_CPU_CURRENT_RUN_STATUS bit 9 (pwr_clk.c:331). NuttX
+ * releases CPU1 asynchronously, from the rptun thread rptun_boot() creates,
+ * and clears that bit before the release (bk7258_ap_control.c:419-423).
+ * Waiting for it here makes "NuttX first" an ordering guarantee instead of
+ * a consequence of thread priorities.
+ *
+ * rptun_wait() is not used: it needs the set_phase/get_phase ops, which
+ * bk7258_rptun.c does not provide, and it spins.
+ *
+ * On a timeout Armino still starts, so a failed AP start does not take
+ * Wi-Fi down with it; Armino may then boot CPU1 itself, the residual risk
+ * S2.10 records.
+ */
+
+static void bk7258_armino_wait_ap(void)
+{
+  clock_t start = clock_systime_ticks();
+
+  while ((getreg32(BK7258_SYS_CPU_STATUS) &
+          BK7258_SYS_CPU1_PWR_DW_STATE) != 0)
+    {
+      if (clock_systime_ticks() - start >=
+          MSEC2TICK(BK7258_ARMINO_AP_WAIT_MS))
+        {
+          syslog(LOG_WARNING, "[ARMINO] CPU1 still powered down after "
+                 "%d ms; Armino may boot it itself\n",
+                 BK7258_ARMINO_AP_WAIT_MS);
+          return;
+        }
+
+      nxsig_usleep(BK7258_ARMINO_AP_POLL_US);
+    }
+
+  syslog(LOG_INFO, "[ARMINO] CPU1 powered up by NuttX after %lu ms\n",
+         (unsigned long)TICK2MSEC(clock_systime_ticks() - start));
+}
+
 static int bk7258_armino_entry(int argc, char *argv[])
 {
   (void)argc;
   (void)argv;
 
+  bk7258_armino_wait_ap();
   entry_main();
   return 0;
 }
