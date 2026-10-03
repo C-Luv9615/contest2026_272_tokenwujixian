@@ -152,6 +152,18 @@ SECTIONS
 
   _sstack = _ebss;
   _estack = _ebss + CONFIG_IDLETHREAD_STACKSIZE;
+
+  /* Armino's os_free() asserts on a pointer outside [_heap_start,
+   * _heap_end) and its PSRAM window (bk_rtos/freertos/mem_arch.c:29-56,
+   * 207). The NuttX heap is the SRAM after the idle stack plus the PSRAM
+   * region, so the range spans from the first up to the end of the PSRAM
+   * window. ponytail: the span also covers the non-heap gap between SRAM
+   * and PSRAM, so a stray pointer there is no longer caught; tighten to two
+   * ranges if that check is ever needed.
+   */
+
+  _heap_start = _ebss + CONFIG_IDLETHREAD_STACKSIZE;
+  _heap_end = 0x64000000;   /* BK7258_PSRAM_BASE + BK7258_PSRAM_WINDOW_SIZE */
 #endif
 
   /* Link options disable build-id generation. If another toolchain adds an
