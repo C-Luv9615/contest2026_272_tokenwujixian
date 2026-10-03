@@ -160,3 +160,7 @@ CONFIG_SERIAL_NPOLLWAITERS=8
 # CONFIG_AI_AGENT_TOOLS_WEARABLE is not set
 # CONFIG_AI_AGENT_TOOLS_MEDIA is not set
 # CONFIG_AI_AGENT_TOOLS_QUICKAPP is not set
+# Both channels default to y and long-poll without credentials, holding
+# sockets and IOBs that starve the TLS path during the LLM bring-up.
+# CONFIG_AI_AGENT_FEISHU is not set
+# CONFIG_AI_AGENT_WEIXIN is not set
