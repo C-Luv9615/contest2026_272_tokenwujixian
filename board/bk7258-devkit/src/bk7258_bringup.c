@@ -37,6 +37,7 @@
 #ifdef CONFIG_AUDIO_BK7258
 #  include <arch/chip/bk7258_audio.h>
 int bk7258_devkit_audio_pa_register(void);
+void bk7258_urandom_register(void);
 #endif
 
 #ifdef CONFIG_BK7258_COMPONENT_CP
@@ -153,6 +154,13 @@ void board_late_initialize(void)
    * time board_late_initialize runs; up_putc remains independent of syslog.
    */
   up_putc('K');
+
+  /* /dev/urandom over the hardware TRNG. The ai_agent TLS stack opens it
+   * and refuses to fall back to anything predictable (agent_compat.h), so
+   * it has to be there before any user program runs.
+   */
+
+  bk7258_urandom_register();
 
 #ifdef CONFIG_BK7258_COMPONENT_CP
 #ifdef CONFIG_BK7258_TIMER0

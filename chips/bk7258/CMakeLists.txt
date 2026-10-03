@@ -6,7 +6,8 @@ set(SRCS
     bk7258_timer.c
     bk7258_flash.c
     bk7258_ap_boot.c
-    bk7258_gpio.c)
+    bk7258_gpio.c
+    bk7258_urandom.c)
 
 if(CONFIG_ARM_MPU)
   list(APPEND SRCS bk7258_mpuinit.c)
