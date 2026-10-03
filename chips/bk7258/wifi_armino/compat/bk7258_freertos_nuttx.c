@@ -418,6 +418,21 @@ void rtos_init_base_time(void)
 
 struct armino_queue_s
 {
+  /* FreeRTOS's Queue_t starts with pcHead, which for a semaphore points at
+   * the queue itself (queue.c:516). bk_api_ipc.c:868 passes a semaphore
+   * handle where rtos_get_semaphore() expects its address, and rtos_pub.c
+   * dereferences it; on FreeRTOS that yields the same handle, so the
+   * baseline works by accident. Keep the same first word. Board boot
+   * 2026-10-03 took an unaligned-access fault there (handle read as 0x2,
+   * the type byte, so the semaphore count landed at 0x6).
+   *
+   * Only semaphores set it. A FreeRTOS mutex has pcHead NULL
+   * (queueQUEUE_IS_MUTEX), which kmm_zalloc() already gives; a data queue
+   * points it at its storage, so the same slip on a queue fails on the
+   * baseline too.
+   */
+
+  void *head;
   uint8_t type;
   union
     {
@@ -457,6 +472,7 @@ static QueueHandle_t armino_sem_create(uint8_t type, UBaseType_t max,
 
   if (q != NULL)
     {
+      q->head = q;
       q->type = type;
       q->max_count = max;
       nxsem_init(&q->u.sem, 0, (int)initial);
