@@ -32,6 +32,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <netdb.h>
+#include <poll.h>      /* nfds_t, struct pollfd: lwip/priv/sockets_priv.h */
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
