@@ -165,7 +165,6 @@ def require_config(path: Path) -> str:
         "CONFIG_DEV_CONSOLE=y",
         "CONFIG_DEV_SIMPLE_ADDRENV=y",
         "CONFIG_SERIAL=y",
-        'CONFIG_INIT_ENTRYPOINT="nsh_main"',
         "CONFIG_INIT_STACKSIZE=4096",
         "CONFIG_NSH_BUILTIN_APPS=y",
         "CONFIG_NSH_CONSOLE=y",
@@ -183,6 +182,13 @@ def require_config(path: Path) -> str:
     for setting in required:
         if setting not in text.splitlines():
             fail(f"CP build config lacks required setting: {setting}")
+    # bk7258_cp_init_main (board/.../bk7258_console.c) attaches the console
+    # to the AP and then runs nsh_main; it is only valid with that option.
+    entry = 'CONFIG_INIT_ENTRYPOINT="nsh_main"'
+    if "CONFIG_BK7258_CONSOLE_AUTO_AP=y" in text.splitlines():
+        entry = 'CONFIG_INIT_ENTRYPOINT="bk7258_cp_init_main"'
+    if entry not in text.splitlines():
+        fail(f"CP build config lacks required setting: {entry}")
     if "CONFIG_BK7258_COMPONENT_AP=y" in text.splitlines():
         fail("CP build config also selects the AP component")
     return text

@@ -8,6 +8,10 @@ if(CONFIG_BOARDCTL_RESET)
   target_sources(board PRIVATE bk7258_reset.c)
 endif()
 
+if(CONFIG_BK7258_COMPONENT_CP)
+  target_sources(board PRIVATE bk7258_console.c)
+endif()
+
 if(CONFIG_RPTUN)
   target_sources(board PRIVATE bk7258_rptun.c)
 endif()

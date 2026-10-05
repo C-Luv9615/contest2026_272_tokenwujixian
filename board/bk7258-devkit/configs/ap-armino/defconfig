@@ -126,6 +126,8 @@ CONFIG_NETUTILS_NTPCLIENT_NUM_SAMPLES=1
 # plus a 512 B query buffer on the stack, which overflows the 2048 default.
 CONFIG_NETUTILS_NTPCLIENT_STACKSIZE=4096
 CONFIG_STACK_COLORATION=y
+# ps showed rpmsg-cp-0 at 3588 of 4016 B (89%) with the console on the AP.
+CONFIG_RPMSG_WQUEUE_STACKSIZE=8192
 # NSH `ntpc_start` / `ntpc_stop`, plus netinit_auto-starts the daemon
 CONFIG_SYSTEM_NTPC=y
 CONFIG_IOB_BUFSIZE=640

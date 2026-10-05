@@ -12,6 +12,12 @@
 #include <nuttx/board.h>
 #include <sys/boardctl.h>
 
+#include <arch/chip/bk7258_ap_boot.h>
+
+/* AP: how long to wait for the CP to run the bootloader chip reset. */
+
+#define BK7258_AP_BOOTREQ_TIMEOUT_MS 5000
+
 /* Chip-level reset for BOARDIOC_SOFTRESETCAUSE_ENTER_BOOTLOADER.
  *
  * The generic SYSRESETREQ path below only resets the CPU0 core: on this SoC
@@ -165,7 +171,21 @@ int board_reset(int status)
       bk7258_enter_bootloader_reset();
     }
 #else
-  (void)status;
+  if (status == (int)BOARDIOC_SOFTRESETCAUSE_ENTER_BOOTLOADER)
+    {
+      int ms;
+
+      /* With the console attached to the AP NSH the command lands here.
+       * Ask the CP, whose AP monitor polls SWAP once a second and runs the
+       * AON WDT chip reset that covers this core too.  If the CP does not
+       * answer, fall back to the plain reset below. */
+
+      bk7258_ap_bootreq_set();
+      for (ms = 0; ms < BK7258_AP_BOOTREQ_TIMEOUT_MS; ms++)
+        {
+          up_udelay(1000);
+        }
+    }
 #endif
 
   up_systemreset();
