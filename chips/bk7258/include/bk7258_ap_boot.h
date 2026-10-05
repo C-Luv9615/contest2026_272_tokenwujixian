@@ -112,4 +112,38 @@ bool bk7258_ap_c2flag_test(void);
 void bk7258_ap_dbg_mark(uint32_t mark);
 uint32_t bk7258_ap_dbg_read(void);
 
+/* AP panic record.  The AP console is an RPMsg UART, so NuttX's own panic
+ * dump never leaves CPU1 once interrupts are off.  The AP panic notifier
+ * copies the essentials here and the CP monitor prints them.  It sits at
+ * SWAP offset 0x100, behind every word listed in the map above.  magic is
+ * cleared while the record is rewritten and stored last. */
+
+#define BK7258_AP_PANIC_OFFSET    UINT32_C(0x100)
+#define BK7258_AP_PANIC_MAGIC     UINT32_C(0x4150504e) /* "APPN" */
+#define BK7258_AP_PANIC_NBT       16
+
+struct bk7258_ap_panic_s
+{
+  uint32_t magic;
+  uint32_t boot_sequence;
+  uint32_t linenum;
+  uint32_t pc;
+  uint32_t lr;
+  uint32_t sp;
+  uint32_t nbt;
+  uint32_t bt[BK7258_AP_PANIC_NBT];
+  char     filename[64];
+  char     task[24];
+  char     msg[48];
+};
+
+/* AP side: stamps magic and the current boot sequence. */
+
+void bk7258_ap_panic_write(struct bk7258_ap_panic_s *panic);
+
+/* CP side: true only for a complete record of the given boot sequence. */
+
+bool bk7258_ap_panic_read(struct bk7258_ap_panic_s *panic,
+                          uint32_t boot_sequence);
+
 #endif /* __VENDOR_BEKEN_CHIP_BK7258_AP_BOOT_H */

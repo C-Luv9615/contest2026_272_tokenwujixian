@@ -7,9 +7,12 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
 #include <syslog.h>
 
 #include <sys/mount.h>
+
+#include <arch/irq.h>
 
 #include <nuttx/board.h>
 #include <nuttx/arch.h>
@@ -317,6 +320,79 @@ static void bk7258_ap_heartbeat_led_initialize(void)
   bk7258_ap_heartbeat_led_write(false);
 }
 
+/* Copy the panic essentials into SWAP for the CP monitor: the AP console is
+ * an RPMsg UART and cannot carry NuttX's own dump once interrupts are off. */
+
+static void bk7258_ap_panic_capture(FAR struct panic_notifier_s *info)
+{
+  static bool captured;
+  struct bk7258_ap_panic_s panic;
+  FAR uint32_t *regs;
+  size_t len;
+
+  if (captured || info == NULL)
+    {
+      return;
+    }
+
+  captured = true;
+  memset(&panic, 0, sizeof(panic));
+  panic.linenum = (uint32_t)info->linenum;
+
+  /* Keep the tail of a long path: the file name is the useful part. */
+
+  if (info->filename != NULL)
+    {
+      len = strlen(info->filename);
+      strlcpy(panic.filename,
+              len >= sizeof(panic.filename) ?
+              info->filename + len - (sizeof(panic.filename) - 1) :
+              info->filename,
+              sizeof(panic.filename));
+    }
+
+  if (info->msg != NULL)
+    {
+      strlcpy(panic.msg, info->msg, sizeof(panic.msg));
+    }
+
+#if CONFIG_TASK_NAME_SIZE > 0
+  if (info->rtcb != NULL)
+    {
+      strlcpy(panic.task, info->rtcb->name, sizeof(panic.task));
+    }
+#endif
+
+  regs = info->regs;
+  if (regs != NULL)
+    {
+      panic.pc = regs[REG_PC];
+      panic.lr = regs[REG_LR];
+      panic.sp = regs[REG_SP];
+    }
+
+  /* Publish before unwinding: a fault inside up_backtrace() must not cost
+   * the location that is already known. */
+
+  bk7258_ap_panic_write(&panic);
+
+#ifdef CONFIG_ARCH_HAVE_BACKTRACE
+  {
+    FAR void *bt[BK7258_AP_PANIC_NBT];
+    int n = up_backtrace(info->rtcb, bt, BK7258_AP_PANIC_NBT, 0);
+    int i;
+
+    for (i = 0; i < n && i < BK7258_AP_PANIC_NBT; i++)
+      {
+        panic.bt[i] = (uint32_t)(uintptr_t)bt[i];
+      }
+
+    panic.nbt = i;
+    bk7258_ap_panic_write(&panic);
+  }
+#endif
+}
+
 static int bk7258_ap_panic_notify(struct notifier_block *block,
                                   unsigned long action, void *data)
 {
@@ -330,6 +406,10 @@ static int bk7258_ap_panic_notify(struct notifier_block *block,
 
   if (action != PANIC_TASK)
     {
+      /* Before the FAULT stage, so the CP never sees a fault without it. */
+
+      bk7258_ap_panic_capture(info);
+
       /* Encode the assertion location into the fault word so the CP-side
        * monitor can point at the failing source: high byte = a short hash of
        * the filename, low byte = line number. */
