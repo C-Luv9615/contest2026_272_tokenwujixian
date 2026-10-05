@@ -35,6 +35,17 @@ static_assert((BK7258_AP_SWAP_C2_WORD + 1) * sizeof(uint32_t) <=
                 BK7258_SWAP_SIZE,
               "BK7258 AP CPU2 flag word exceeds the locked SWAP region");
 
+static_assert(BK7258_AP_PANIC_OFFSET >
+                (BK7258_AP_SWAP_C2_WORD + 1) * sizeof(uint32_t),
+              "BK7258 AP panic record overlaps the SWAP word map");
+static_assert(BK7258_AP_PANIC_OFFSET + sizeof(struct bk7258_ap_panic_s) <=
+                BK7258_SWAP_SIZE,
+              "BK7258 AP panic record exceeds the locked SWAP region");
+
+static volatile struct bk7258_ap_panic_s *const g_ap_panic =
+  (volatile struct bk7258_ap_panic_s *)
+    (BK7258_SWAP_BASE + BK7258_AP_PANIC_OFFSET);
+
 static volatile struct bk7258_ap_boot_record_s *const g_ap_record =
   (volatile struct bk7258_ap_boot_record_s *)BK7258_SWAP_BASE;
 static volatile struct bk7258_ap_generation_s *const g_ap_generation =
@@ -345,4 +356,59 @@ uint32_t bk7258_ap_dbg_read(void)
   volatile uint32_t *words = (volatile uint32_t *)g_ap_record;
 
   return words[BK7258_AP_SWAP_DBG_WORD];
+}
+
+void bk7258_ap_panic_write(struct bk7258_ap_panic_s *panic)
+{
+  volatile uint32_t *destination = (volatile uint32_t *)g_ap_panic;
+  const uint32_t *source = (const uint32_t *)panic;
+  struct bk7258_ap_boot_record_s record;
+  size_t index;
+
+  bk7258_ap_current(&record);
+  panic->boot_sequence = record.boot_sequence;
+  panic->magic = BK7258_AP_PANIC_MAGIC;
+
+  destination[0] = 0;
+  bk7258_ap_barrier();
+  for (index = 1; index < sizeof(*panic) / sizeof(uint32_t); index++)
+    {
+      destination[index] = source[index];
+    }
+
+  bk7258_ap_barrier();
+  destination[0] = BK7258_AP_PANIC_MAGIC;
+  bk7258_ap_barrier();
+}
+
+bool bk7258_ap_panic_read(struct bk7258_ap_panic_s *panic,
+                          uint32_t boot_sequence)
+{
+  const volatile uint32_t *source = (const volatile uint32_t *)g_ap_panic;
+  uint32_t *destination = (uint32_t *)panic;
+  size_t index;
+
+  bk7258_ap_barrier();
+  for (index = 0; index < sizeof(*panic) / sizeof(uint32_t); index++)
+    {
+      destination[index] = source[index];
+    }
+
+  bk7258_ap_barrier();
+  if (source[0] != BK7258_AP_PANIC_MAGIC ||
+      panic->magic != BK7258_AP_PANIC_MAGIC ||
+      panic->boot_sequence != boot_sequence)
+    {
+      return false;
+    }
+
+  panic->filename[sizeof(panic->filename) - 1] = '\0';
+  panic->task[sizeof(panic->task) - 1] = '\0';
+  panic->msg[sizeof(panic->msg) - 1] = '\0';
+  if (panic->nbt > BK7258_AP_PANIC_NBT)
+    {
+      panic->nbt = BK7258_AP_PANIC_NBT;
+    }
+
+  return true;
 }

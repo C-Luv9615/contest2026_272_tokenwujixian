@@ -661,6 +661,35 @@ out:
   return ret;
 }
 
+/* Print the AP panic record.  The AP writes it once without and once with
+ * its backtrace, so give the unwinder a moment before reading. */
+
+static void bk7258_ap_print_panic(uint32_t boot_sequence)
+{
+  struct bk7258_ap_panic_s panic;
+  uint32_t i;
+
+  nxsig_usleep(200 * 1000);
+  if (!bk7258_ap_panic_read(&panic, boot_sequence))
+    {
+      syslog(LOG_ERR, "[AP] panic record missing for seq=%u\n",
+             (unsigned int)boot_sequence);
+      return;
+    }
+
+  syslog(LOG_ERR, "[AP] panic %s:%u task=%s msg=%s\n",
+         panic.filename, (unsigned int)panic.linenum, panic.task,
+         panic.msg);
+  syslog(LOG_ERR, "[AP] panic pc=0x%08x lr=0x%08x sp=0x%08x\n",
+         (unsigned int)panic.pc, (unsigned int)panic.lr,
+         (unsigned int)panic.sp);
+  for (i = 0; i < panic.nbt; i++)
+    {
+      syslog(LOG_ERR, "[AP] panic bt[%u]=0x%08x\n", (unsigned int)i,
+             (unsigned int)panic.bt[i]);
+    }
+}
+
 static int bk7258_ap_monitor(int argc, char *argv[])
 {
   struct bk7258_ap_boot_record_s record;
@@ -737,6 +766,7 @@ static int bk7258_ap_monitor(int argc, char *argv[])
                      (unsigned int)record.boot_sequence,
                      (unsigned int)((record.fault >> 8) & UINT32_C(0xff)),
                      (unsigned int)(record.fault & UINT32_C(0xff)));
+              bk7258_ap_print_panic(record.boot_sequence);
             }
           else
             {
