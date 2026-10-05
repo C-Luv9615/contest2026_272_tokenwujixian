@@ -1,7 +1,7 @@
 ---
 feature: bk7258-wifi-native
 status: phase-one-accepted
-updated: 2026-10-03
+updated: 2026-10-06
 branch: feat/bk7258-wifi-native
 commits:
 ---
@@ -206,11 +206,11 @@ BK7258 CP 上的 Wi-Fi 要在 NuttX 下工作，目标有两条：
 - RPMsg 没有就绪时（依据是代码阅读）：
   - 不会卡死。`bk_mailbox_send()`、`bk_mailbox_ready()` 在端点未绑定时立刻返回 `BK_ERR_MAILBOX_TIMEOUT`（`bk_mailbox_rpmsg.c:426-455`）。Armino 的 `mailbox_channel.c` 遇到这个返回值会重试，物理通道忙的超时为 200 ms（`:34,651-653`）。`ipc_send_cmd()` 等应答的上限是 `IPC_RSP_TIMEOUT` 600 ms（`mb_ipc_cmd.c:46`）；它用 `WAIT_FOREVER` 等的只是串行化用的通道锁。这条命令最终失败，消息不会排队等待重发。
   - 阶段一 CP 不会主动发 IPC：CP 编成 AMP 资源锁的服务端（`mb_ipc_cmd.h:63-65`，`CONFIG_CPU_CNT=3`），获取和释放计数都在本地完成（`amp_res_lock.c:34,166,203`）。只有在其他核也申请过同一资源（`others_req_cnt > 0`）时，释放才会发 `ipc_send_available_ind()`（`:298-301`）。AP 不运行 Armino 的 amp_res，所以这个计数一直为 0。`bk_phy_notify.c`、`flash_notify.c`、`saradc_notify.c` 里都没有 `ipc_send_*` 调用。心跳 master 不主动发消息。这个结论不是对所有保留单元的穷举。
-  - 以后在 `bk7258-armino-otp-mb-ipc.md` 里接入 PHY、flash、SARADC 服务时，由这些服务负责等端点绑定后才对外提供；后端仍保持立刻失败。
+  - 以后接入 PHY、flash、SARADC 服务时（尚未排期，见 `bk7258-armino-otp-mb-ipc.md` Report 的未完成项），由这些服务负责等端点绑定后才对外提供；后端仍保持立刻失败。
   - 心跳：master 的 `cpu_x_state` 只在两种情况下改变：`start_cpu1_core()` 经 `mb_ipc_reset_notify()` 置为 STARTING；或收到 AP 发来的 `IPC_CPU1_POWER_UP_INDICATION` 后置为 POWER_ON（`mb_ipc_cmd.c:650`）。两者都不发生，状态就一直是 `CORE_POWER_OFF`，`ipc_heartbeat_timeout()` 直接返回 0，不会调用 `restart_cpu_x()`。
 - 遗留风险：
   - 如果 NuttX 启动 AP 失败，或者 5 s 内 bit9 仍未清零，Armino 的启动投票会把 CPU1 复位到分区 1 的地址。要彻底消除这个风险，只能修改 `system_main.c` 或 `pwr_clk.c`，S2.3 不允许，因此保留这项风险，靠日志里的 `still powered down` 发现。
-  - 以后 AP 一旦发送 `IPC_CPU1_POWER_UP_INDICATION`（属于 `bk7258-armino-otp-mb-ipc.md` 的范围），Armino 的心跳 master 就开始监控。AP 必须同时每 2 秒发一次心跳，否则 6 秒后 `restart_cpu_x()` 会按分区 1 的地址重启 CPU1。到那时，要么 AP 同时实现心跳 slave，要么屏蔽 master 的重启。
+  - 以后 AP 一旦发送 `IPC_CPU1_POWER_UP_INDICATION`（尚未排期，见 `bk7258-armino-otp-mb-ipc.md` Report 的未完成项），Armino 的心跳 master 就开始监控。AP 必须同时每 2 秒发一次心跳，否则 6 秒后 `restart_cpu_x()` 会按分区 1 的地址重启 CPU1。到那时，要么 AP 同时实现心跳 slave，要么屏蔽 master 的重启。
   - AP 异常后的重启由 NuttX 负责（`ap-monitor`、RPTUN）。
 - AP 侧：
   - 数据面经 `NET_USRSOCK_RPMSG` 使用 CP 上的 NuttX 协议栈（`configs/ap` 有 `NET_USRSOCK_RPMSG_CPUNAME="cp"`，`cp-armino` 有 `NET_USRSOCK_RPMSG_SERVER`），wlan0 换实现对 AP 透明。
@@ -226,7 +226,7 @@ BK7258 CP 上的 Wi-Fi 要在 NuttX 下工作，目标有两条：
 ## [S3] Out of Scope
 
 - 把 wpa 加密迁移到 NuttX mbedtls：另起 feature。
-- AP 核侧改动、SoftAP、BLE、WPA3/SAE 验证。CPU1 归属见 S2.10：阶段一 AP 不改；AP 侧 PM 握手和心跳 slave 属于 `bk7258-armino-otp-mb-ipc.md`。
+- AP 核侧改动、SoftAP、BLE、WPA3/SAE 验证。CPU1 归属见 S2.10：阶段一 AP 不改；AP 侧 PM 握手和心跳 slave 尚未排期（`bk7258-armino-otp-mb-ipc.md` 已 superseded，其 Report 列为未完成项）。
 - 整体合入 `dev` 那 81 个提交。
 - 推送分支、发 PR：由用户另行决定。
 
@@ -258,7 +258,7 @@ BK7258 CP 上的 Wi-Fi 要在 NuttX 下工作，目标有两条：
 - [ ] T13: 阶段二：DMA、时钟、定时器类，范围为 `dma_driver`、`ckmn_driver`、`timer_driver`、`aon_rtc_driver_64bit`。acceptance 同 T12。(covers: S2.5; depends: T12)
 - [ ] T14: 阶段二：Flash，范围为 `flash_driver`、`flash_driver_ext`、`flash_partition`，改为基于 NuttX MTD。acceptance 同 T12，另外 easyflash 写入的数据重启后仍在。(covers: S2.5; depends: T11)
 - [ ] T15: 阶段二：校准类，范围为 `adc_driver`、`sdmadc_driver`、`otp_driver_v1_1`、`trng_driver`。acceptance 同 T12，另外校准日志里的 `xtal`、`pwr_gain` 与参照一致。(covers: S2.5; depends: T11)
-- [ ] T16: 阶段二：mailbox 类，范围为 `mailbox_channel`、`mb_ipc`、`mb_ipc_heartbeat`，与 `bk7258-armino-otp-mb-ipc.md` 对齐。acceptance 同 T12。(covers: S2.5; depends: T11)
+- [ ] T16: 阶段二：mailbox 类，范围为 `mailbox_channel`、`mb_ipc`、`mb_ipc_heartbeat`。阶段一它们经 RPMsg 端点 `bk7258-mb-ipc` 运行（S2.10）；`bk7258-armino-otp-mb-ipc.md` 已于 2026-10-06 标为 superseded，不再作为对齐目标。acceptance 同 T12。(covers: S2.5; depends: T11)
 - [ ] T17: 阶段二：杂项，范围为 `interrupt_base`、`trap_base`、`printf`、`uart_driver`、`wdt_driver`、`reset_reason`、`gpio_driver`、`gpio_driver_base`。acceptance 同 T12。(covers: S2.5; depends: T11)
 - [ ] T18: 最终验收。按 T6 的同一种负载跑 30 分钟。acceptance：`tx_dma_dead`、assert、重启的次数不多于 T6 中 Armino 的结果；ping 20/20；证据按 S2.6 齐全。(covers: S2.6; depends: T6, T12, T13, T14, T15, T16, T17)
 - [x] T20: CPU1 归属，按 S2.10 由 NuttX 独占。acceptance：上板日志中 `[AP] start: cpu1 powered up` 和 `[AP] release` 各出现一次，且 `[ARMINO] CPU1 powered up by NuttX after <n> ms` 出现在 Armino 启动日志之前，没有 `still powered down`；连接后 10 分钟内 AP 没有重启（不出现第二次 `[AP] release`，也没有新的 AP 启动横幅）；AP 的 NSH 可用；在 AP 上经 usrsock ping 网关 4/4。说明：Armino 的 `reset_cpu1_core at:`、`boot cp1 fail` 是 `BK_LOGD` 级别，可能被过滤，不作为判据。结果（2026-10-03，同上固件 `b5dcfc40…`，板测日志 `~/102-13.log` 与串口观察）：(1) `[AP] start: cpu1 powered up, cpu_status=00007000 after 0` 与 `[AP] release seq=1` 各 1 次；(2) `[ARMINO] CPU1 powered up by NuttX after 0 ms` 在 `[ARMINO] queue 1` 之前，无 `still powered down`；(3) AP 启动日志显示 `ram=[28010000..28054000]`，即 S2.10 的新窗口，`[AP] stage=scheduler-running seq=1 fault=0x00000000`；(4) `cu -l /dev/ttyAP` 进入 `nsh-ap>`，音频/GDMA/PA/按键注册正常；(5) AP 上 `ping 10.153.235.208` 10/10、0% 丢包（经 RPMsg usrsock 走 CP 的 wlan0）；(6) 连接保持 11 分钟以上（日志到 527 s），无第二次 `[AP] release`、无新启动横幅、无 FAULT/assert，其后 ping 仍 10/10。(covers: S2.10; depends: T10)

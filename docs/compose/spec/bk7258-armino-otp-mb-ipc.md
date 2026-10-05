@@ -1,7 +1,8 @@
 ---
 feature: bk7258-armino-otp-mb-ipc
-status: in-progress
-updated: 2026-09-07
+status: superseded
+superseded-by: bk7258-wifi-native
+updated: 2026-10-06
 branch: bk7258-hal-alignment
 commits: 112a116c2d6cb7ee666a2bd0e221173f7462ec3b..HEAD
 ---
@@ -9,6 +10,29 @@ commits: 112a116c2d6cb7ee666a2bd0e221173f7462ec3b..HEAD
 # BK7258 Armino OTP and mailbox IPC authority import
 
 ## Report
+
+Superseded on 2026-10-06 by `bk7258-wifi-native.md`. That feature compiles
+the Armino baseline sources unmodified (phase one, accepted) instead of
+importing selected closures behind hand-written shims, which removes the
+problem stated in S1. T1-T5 below are closed without being done; they are
+kept for the record.
+
+Where each section went:
+
+- S2 (OTP): Armino `otp_driver_v1_1` and `otp_hal` compile from the baseline
+  in phase one. Moving them to a native provider is wifi-native T15. In the
+  cp-armino build `chips/bk7258/otp/` contributes include paths only, no
+  compiled sources.
+- S3 (mailbox channel and mb_ipc over Vela): done in phase one. The Armino
+  mailbox_channel/mb_ipc state machines run over the RPMsg endpoint
+  `bk7258-mb-ipc` (`chips/bk7258/mb_ipc/bk_mailbox_rpmsg.c`, wifi-native
+  S2.10). Moving them to a native provider is wifi-native T16.
+- S6 (configuration): replaced by the phase-one configuration
+  (`configs/cp-armino`, baseline `sdkconfig.h`).
+- Still open and not scheduled by any spec: S4 (PHY server/client), S5
+  (SARADC server/client), and the AP-side PM handshake and heartbeat slave
+  referenced by wifi-native S2.10. A future feature should take these over
+  instead of reopening this one.
 
 ## [S1] Problem
 
