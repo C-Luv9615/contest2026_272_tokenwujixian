@@ -115,7 +115,7 @@ SECTIONS
      * That is the "[AMP] CP mailbox IPC init failed: -4097" line.
      *
      * Folded here rather than by dropping the attribute in
-     * mb_ipc/authority/middleware/driver/mailbox/mb_ipc.c: that file is
+     * mb_ipc/armino/middleware/driver/mailbox/mb_ipc.c: that file is
      * imported authority source and stays byte-identical.  Nothing is lost by
      * the fold, because the DTCM those objects were meant for does not exist in
      * this port either way. */

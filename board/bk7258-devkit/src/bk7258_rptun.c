@@ -313,9 +313,13 @@ static int bk7258_rptun_reset(struct rptun_dev_s *dev,
    * afterwards and its normal bring-up will release AP again. */
   return bk7258_ap_reset_for_rptun();
 #else
-  /* AP must never reset CP as a side effect of an AP-local reboot: 0, not
-   * -ENOTSUP, because the NuttX default path would make the CP reboot. */
-  return 0;
+  /* A reboot from the AP is a whole-chip reboot.  -ENOTSUP selects the
+   * NuttX default path: flag the reason in the resource table status and
+   * kick the CP, whose rptun_check_peer_status() runs
+   * boardctl(BOARDIOC_RESET, reason), i.e. the AON WDT chip reset.  The CP
+   * owns the CPU1 lifecycle; an AP-local SYSRESETREQ raced the CP monitor's
+   * generation check and asserted in rpmsg_virtio_buf_held_dec_test(). */
+  return -ENOTSUP;
 #endif
 }
 
