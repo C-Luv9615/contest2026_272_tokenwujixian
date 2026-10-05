@@ -33,6 +33,25 @@ config BK7258_CONSOLE_AUTO_AP
 		"cu -l /dev/ttyAP", and starts the CP NSH when cu exits on "~.".
 		Disable to boot straight into the CP NSH as before.
 
+config BK7258_RPTUN_PANIC_PEER
+	bool "Panic the other core when this core panics"
+	depends on RPTUN && !RPTUN_AUTO_RESET_DISABLE
+	default y
+	---help---
+		On a kernel panic, bk7258_rptun_reset() hands the PANIC reason to
+		the NuttX default path, which flags it in the resource table and
+		kicks the peer; the peer then panics and prints its own dump
+		after this core's.  Disable to leave the peer running.  Set per
+		core: each defconfig decides whether its own panic takes the
+		other core down.  Normal reboots are unaffected.
+
+config BK7258_PANIC_TEST
+	bool "bk7258_panic NSH command (forces a kernel panic)"
+	depends on NSH_BUILTIN_APPS
+	default y
+	---help---
+		Development aid to exercise the panic dump path on either core.
+
 config BK7258_CONSOLE_AUTO_AP_TIMEOUT
 	int "Seconds to wait for the AP before staying on the CP NSH"
 	depends on BK7258_CONSOLE_AUTO_AP

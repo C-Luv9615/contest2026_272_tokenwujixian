@@ -117,12 +117,31 @@ void __start(void)
     }
 }
 
+/* UART0 belongs to the CP.  The AP writes its FIFO only while it holds the
+ * panic token (bk7258_ap_boot.h); otherwise its output goes through RPMsg.
+ * The CP has already set up the UART clock, pinmux and baud. */
+
 void arm_lowputc(char ch)
 {
-  (void)ch;
+  unsigned int spin;
+
+  if (!bk7258_ap_uart_token_held())
+    {
+      return;
+    }
+
+  for (spin = 0; spin < 100000; spin++)
+    {
+      if ((getreg32(BK7258_UART_FIFO_STATUS) &
+           BK7258_UART_FIFO_WR_READY) != 0)
+        {
+          putreg32((uint8_t)ch, BK7258_UART_FIFO_PORT);
+          return;
+        }
+    }
 }
 
 void up_putc(int ch)
 {
-  (void)ch;
+  arm_lowputc((char)ch);
 }

@@ -69,7 +69,7 @@ def main() -> int:
             "CONFIG_RPMSG_UART=y",
             "CONFIG_RPMSG_UART_CONSOLE=y",
             "CONFIG_RPTUN=y",
-            "CONFIG_RPTUN_AUTO_RESET_DISABLE=y",
+            "CONFIG_RPTUN_AUTO_RESET_IN_REBOOT_NOTIFIER=y",
             "CONFIG_RPTUN_PRIORITY=90",
             "CONFIG_SERIAL=y",
             "CONFIG_SYSTEM_NSH=y",

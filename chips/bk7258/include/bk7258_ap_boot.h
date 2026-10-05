@@ -124,6 +124,20 @@ uint32_t bk7258_ap_dbg_read(void);
 void bk7258_ap_bootreq_set(void);
 bool bk7258_ap_bootreq_test(uint32_t boot_sequence);
 
+/* UART0 panic token, SWAP word 50.  UART0 belongs to the CP; the AP has no
+ * console UART.  An AP panic takes the token and writes the FIFO directly
+ * (its RPMsg console is dead with interrupts off), and the CP drops its own
+ * output while the token is held so the two never interleave.  The AP
+ * releases it at PANIC_KERNEL_FINAL, before RPTUN wakes the CP; the CP clears
+ * it at boot, in bk7258_ap_record_prepare(), and after a timeout. */
+
+#define BK7258_AP_SWAP_UART_WORD  UINT32_C(50)
+#define BK7258_AP_UART_MAGIC      UINT32_C(0x41505554) /* "APUT" */
+
+void bk7258_ap_uart_token_take(void);
+void bk7258_ap_uart_token_release(void);
+bool bk7258_ap_uart_token_held(void);
+
 /* AP panic record.  The AP console is an RPMsg UART, so NuttX's own panic
  * dump never leaves CPU1 once interrupts are off.  The AP panic notifier
  * copies the essentials here and the CP monitor prints them.  It sits at

@@ -21,6 +21,7 @@
 #include <nuttx/nuttx.h>
 #include <nuttx/rptun/rptun.h>
 #include <nuttx/signal.h>
+#include <sys/boardctl.h>
 
 #include <arch/chip/bk7258_mailbox.h>
 #include <arch/chip/bk7258_memorymap.h>
@@ -289,7 +290,22 @@ static int bk7258_rptun_reset(struct rptun_dev_s *dev,
                               unsigned long value)
 {
   (void)dev;
-  (void)value;
+
+  if (value == BOARDIOC_SOFTRESETCAUSE_PANIC)
+    {
+#ifdef CONFIG_BK7258_RPTUN_PANIC_PEER
+      /* -ENOTSUP selects the NuttX default: post PANIC in the resource
+       * table status, kick the peer and wait for it to answer, so the peer
+       * panics and dumps its own state too.  Resetting CPU1 here would wipe
+       * the AP before it could print anything. */
+
+      return -ENOTSUP;
+#else
+      /* Leave the peer running. */
+
+      return 0;
+#endif
+    }
 
 #ifdef CONFIG_BK7258_COMPONENT_CP
   /* CP owns the CPU1 lifecycle.  A successful callback means the remote AP
@@ -297,8 +313,9 @@ static int bk7258_rptun_reset(struct rptun_dev_s *dev,
    * afterwards and its normal bring-up will release AP again. */
   return bk7258_ap_reset_for_rptun();
 #else
-  /* AP must never reset CP as a side effect of an AP-local reboot. */
-  return -ENOTSUP;
+  /* AP must never reset CP as a side effect of an AP-local reboot: 0, not
+   * -ENOTSUP, because the NuttX default path would make the CP reboot. */
+  return 0;
 #endif
 }
 

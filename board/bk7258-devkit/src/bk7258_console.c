@@ -28,17 +28,11 @@ int cu_main(int argc, FAR char *argv[]);
 
 #define BK7258_CONSOLE_POLL_MS 200
 
-/* The AP health thread starts in the AP board_late_initialize(), just
- * before the AP NSH, and bumps the heartbeat once a second. */
+/* bk7258_ap_control.c: the AP of this boot runs its scheduler and has
+ * heartbeat at least twice (its health thread starts just before the AP
+ * NSH). */
 
-static bool bk7258_console_ap_ready(void)
-{
-  struct bk7258_ap_boot_record_s record;
-
-  return bk7258_ap_record_read(&record) &&
-         record.stage == BK7258_AP_STAGE_SCHEDULER_RUNNING &&
-         record.heartbeat >= 2;
-}
+bool bk7258_ap_is_running(void);
 
 static void bk7258_console_attach_ap(void)
 {
@@ -50,7 +44,7 @@ static void bk7258_console_attach_ap(void)
   int polls = 0;
   pid_t pid;
 
-  while (!bk7258_console_ap_ready())
+  while (!bk7258_ap_is_running())
     {
       if (++polls * BK7258_CONSOLE_POLL_MS >
           CONFIG_BK7258_CONSOLE_AUTO_AP_TIMEOUT * 1000)

@@ -18,9 +18,11 @@
 #include <nuttx/arch.h>
 #include <nuttx/kthread.h>
 #include <nuttx/panic_notifier.h>
+#include <nuttx/sched.h>
 #include <nuttx/semaphore.h>
 #include <nuttx/serial/uart_rpmsg.h>
 #include <nuttx/signal.h>
+#include <nuttx/syslog/syslog.h>
 
 #ifdef CONFIG_INPUT_BUTTONS_LOWER
 #  include <nuttx/input/buttons.h>
@@ -44,11 +46,103 @@ void bk7258_urandom_register(void);
 void bk7258_ca_init(void);
 #endif
 
+/* Exceptions 15 and up (SysTick and every peripheral IRQ) enter through
+ * exception_direct (arm_vectors.c, bk7258_smp.c _vectors_core1), which does
+ * not save the interrupted context into xcp.regs.  A panic raised there --
+ * the RPTUN peer-panic kick from the other core is one -- made the NuttX
+ * dump read a stale saved SP, and the unwinder walked off the task stack
+ * into a precise BusFault on both cores.  Rebuild the interrupted context
+ * from the hardware frame on PSP (r0-r3, r12, lr, pc, xpsr lead both the
+ * basic and the FP extended frame) into a private buffer.  Nothing is
+ * scheduled after a panic, so repointing xcp.regs only affects the dump. */
+
+#define BK7258_EXC_DIRECT_FIRST 15
+
+static void bk7258_panic_fix_irq_regs(void)
+{
+  static uint32_t regs[XCPTCONTEXT_REGS];
+  FAR struct tcb_s *rtcb;
+  FAR uint32_t *frame;
+  uintptr_t base;
+  uintptr_t top;
+  uint32_t psp;
+
+  if (!up_interrupt_context() || getipsr() < BK7258_EXC_DIRECT_FIRST)
+    {
+      return;
+    }
+
+  rtcb = running_task();
+  base = (uintptr_t)rtcb->stack_base_ptr;
+  top = base + rtcb->adj_stack_size;
+
+  __asm__ volatile ("mrs %0, psp" : "=r"(psp));
+
+  memset(regs, 0, sizeof(regs));
+  if (psp >= base && psp + 8 * sizeof(uint32_t) <= top)
+    {
+      frame = (FAR uint32_t *)(uintptr_t)psp;
+      regs[REG_R0]   = frame[0];
+      regs[REG_R1]   = frame[1];
+      regs[REG_R2]   = frame[2];
+      regs[REG_R3]   = frame[3];
+      regs[REG_R12]  = frame[4];
+      regs[REG_LR]   = frame[5];
+      regs[REG_PC]   = frame[6];
+      regs[REG_XPSR] = frame[7];
+
+      /* The walk starts at the frame, so the interrupted PC/LR are in it. */
+
+      regs[REG_SP] = psp;
+    }
+  else
+    {
+      /* PSP is not on this task's stack: start at the top, scan nothing. */
+
+      regs[REG_SP] = top;
+    }
+
+  rtcb->xcp.regs = regs;
+}
+
 #ifdef CONFIG_BK7258_COMPONENT_CP
 int bk7258_ap_start_monitor(void);
 #ifdef CONFIG_BK7258_WIFI_ARMINO_BASELINE
 int bk7258_armino_start(void);
+int bk_wdt_stop(void);
+int bk_aon_wdt_stop(void);
 #endif
+
+static int bk7258_cp_panic_notify(struct notifier_block *block,
+                                  unsigned long action, void *data)
+{
+  (void)block;
+  (void)data;
+
+  if (action == PANIC_KERNEL)
+    {
+      bk7258_panic_fix_irq_regs();
+
+#ifdef CONFIG_BK7258_WIFI_ARMINO_BASELINE
+      /* Armino starts its interrupt watchdog (CONFIG_INT_WDT_PERIOD_MS,
+       * 8 s) and AON watchdog (10 s) and feeds them from the tick.  A panic
+       * stops the tick, so they reset the chip about 8 s in, before the AP
+       * has printed its half of a dual-core dump.  Stop both; what happens
+       * after the dump is then BOARD_RESET_ON_ASSERT's call. */
+
+      bk_wdt_stop();
+      bk_aon_wdt_stop();
+#endif
+    }
+
+  return 0;
+}
+
+static struct notifier_block g_bk7258_cp_panic_notifier =
+{
+  .notifier_call = bk7258_cp_panic_notify,
+  .priority = 100,
+};
 
 #ifdef CONFIG_BK7258_WIFI_VENDOR_RUNTIME
 #  define BK7258_WIFI_INIT_PRIORITY  85
@@ -186,6 +280,7 @@ void board_late_initialize(void)
     up_putc('L');
   }
 #endif
+  panic_notifier_chain_register(&g_bk7258_cp_panic_notifier);
 #ifdef CONFIG_RPTUN
   int ret = bk7258_rptun_initialize();
   if (ret < 0)
@@ -388,6 +483,14 @@ static void bk7258_ap_panic_capture(FAR struct panic_notifier_s *info)
 
   bk7258_ap_panic_write(&panic);
 
+  /* Inside an interrupt (the RPTUN peer-panic kick from the CP) the unwinder
+   * took a precise BusFault on the board; keep the record without frames. */
+
+  if (up_interrupt_context())
+    {
+      return;
+    }
+
 #ifdef CONFIG_ARCH_HAVE_BACKTRACE
   {
     FAR void *bt[BK7258_AP_PANIC_NBT];
@@ -405,6 +508,45 @@ static void bk7258_ap_panic_capture(FAR struct panic_notifier_s *info)
 #endif
 }
 
+/* Panic-time syslog channel: the RPMsg console is dead once interrupts are
+ * off, so the dump goes straight to the UART0 FIFO (up_putc, token held). */
+
+static int bk7258_ap_panic_putc(FAR syslog_channel_t *channel, int ch)
+{
+  (void)channel;
+  up_putc(ch);
+  return ch;
+}
+
+static ssize_t bk7258_ap_panic_puts(FAR syslog_channel_t *channel,
+                                    FAR const char *buf, size_t len)
+{
+  size_t i;
+
+  (void)channel;
+  for (i = 0; i < len; i++)
+    {
+      up_putc(buf[i]);
+    }
+
+  return len;
+}
+
+static const struct syslog_channel_ops_s g_bk7258_ap_panic_ops =
+{
+  bk7258_ap_panic_putc,
+  bk7258_ap_panic_putc,
+  NULL,
+  bk7258_ap_panic_puts,
+  bk7258_ap_panic_puts,
+  NULL
+};
+
+static syslog_channel_t g_bk7258_ap_panic_channel =
+{
+  .sc_ops = &g_bk7258_ap_panic_ops,
+};
+
 static int bk7258_ap_panic_notify(struct notifier_block *block,
                                   unsigned long action, void *data)
 {
@@ -416,8 +558,30 @@ static int bk7258_ap_panic_notify(struct notifier_block *block,
   /* PANIC_TASK can describe a task-local assertion. Only kernel panic stages
    * are fatal evidence for this AP instance. */
 
+  if (action == PANIC_KERNEL_FINAL)
+    {
+      /* The dump is out.  Hand UART0 back before _assert() runs the reboot
+       * notifier chain, where RPTUN (RPTUN_AUTO_RESET_IN_REBOOT_NOTIFIER)
+       * wakes the CP to dump its own state. */
+
+      /* An interrupt-context dump goes through SYSLOG_INTBUFFER; drain its
+       * tail to UART0 while the token is still ours. */
+
+      syslog_flush();
+      bk7258_ap_uart_token_release();
+      return 0;
+    }
+
   if (action != PANIC_TASK)
     {
+      bk7258_panic_fix_irq_regs();
+
+      /* Mute the CP and route the coming NuttX dump to UART0.  The single
+       * syslog slot is replaced, not shared (SYSLOG_MAX_CHANNELS=1). */
+
+      bk7258_ap_uart_token_take();
+      syslog_channel_register(&g_bk7258_ap_panic_channel);
+
       /* Before the FAULT stage, so the CP never sees a fault without it. */
 
       bk7258_ap_panic_capture(info);

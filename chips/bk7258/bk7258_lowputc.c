@@ -8,6 +8,7 @@
 
 #include "arm_internal.h"
 #include "bk7258_internal.h"
+#include "include/bk7258_ap_boot.h"
 #include "include/bk7258_memorymap.h"
 
 void bk7258_lowsetup(void)
@@ -25,10 +26,21 @@ void bk7258_lowsetup(void)
   config = BK7258_UART_CONFIG_TX_EN | BK7258_UART_CONFIG_8BITS |
            BK7258_UART_CONFIG_DIV(divider);
   putreg32(config, BK7258_UART_CONFIG);
+
+  /* SWAP survives a reset: drop a token left by a previous AP panic. */
+
+  bk7258_ap_uart_token_release();
 }
 
 void bk7258_lowputc(char ch)
 {
+  /* An AP panic dump owns the FIFO; dropping beats interleaving. */
+
+  if (bk7258_ap_uart_token_held())
+    {
+      return;
+    }
+
   while ((getreg32(BK7258_UART_FIFO_STATUS) & BK7258_UART_FIFO_WR_READY) == 0)
     {
     }
