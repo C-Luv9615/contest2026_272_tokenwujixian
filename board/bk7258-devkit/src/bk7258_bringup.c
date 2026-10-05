@@ -221,6 +221,18 @@ void board_late_initialize(void)
 
 int board_app_initialize(uintptr_t arg)
 {
+  static bool initialized;
+
+  /* The CP init task runs this before handing the console to the AP, and
+   * nsh_main runs it again (CONFIG_NSH_ARCHINIT) when cu exits. */
+
+  if (initialized)
+    {
+      return 0;
+    }
+
+  initialized = true;
+
 #ifdef CONFIG_FS_PROCFS
   /* nshlib does not mount procfs by itself, and neither component has a startup
    * script (CONFIG_NSH_ROMFSETC is unset for both): mount it here so `ps` and

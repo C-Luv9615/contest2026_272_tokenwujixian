@@ -23,6 +23,21 @@ config ARCH_BOARD_BK7258_DEVKIT_BUTTONS
 		KEY1=GPIO13, KEY2=GPIO12, KEY3=GPIO8, all active-low with
 		internal pull-up.
 
+config BK7258_CONSOLE_AUTO_AP
+	bool "Attach the console to the AP NSH at boot"
+	depends on BK7258_COMPONENT_CP && SYSTEM_CUTERM && RPMSG_UART
+	default y
+	---help---
+		UART0 stays on the CP.  The CP init task (bk7258_cp_init_main,
+		set as INIT_ENTRYPOINT) waits for the AP heartbeat, runs
+		"cu -l /dev/ttyAP", and starts the CP NSH when cu exits on "~.".
+		Disable to boot straight into the CP NSH as before.
+
+config BK7258_CONSOLE_AUTO_AP_TIMEOUT
+	int "Seconds to wait for the AP before staying on the CP NSH"
+	depends on BK7258_CONSOLE_AUTO_AP
+	default 10
+
 config BK7258_MPU_TEST
 	bool "MPU/D-cache diagnostic (bk7258_mpu_test NSH command)"
 	depends on ARM_MPU
