@@ -105,12 +105,26 @@ static void bk7258_panic_fix_irq_regs(void)
   rtcb->xcp.regs = regs;
 }
 
+/* With BOARD_RESET_ON_ASSERT an AP panic ends in its own board_reset(),
+ * i.e. SYSRESETREQ of CPU1 alone, unless the CP was flagged to reset the
+ * whole chip.  CPU1 restarting under a running CP races the CP's RPTUN
+ * rebuild (rpmsg_virtio.c:900 assert), so require the peer flag. */
+
+#if defined(CONFIG_BK7258_COMPONENT_AP) && \
+    defined(CONFIG_BOARD_RESET_ON_ASSERT) && \
+    CONFIG_BOARD_RESET_ON_ASSERT >= 1 && \
+    !defined(CONFIG_BK7258_RPTUN_PANIC_PEER)
+#  error "AP BOARD_RESET_ON_ASSERT needs BK7258_RPTUN_PANIC_PEER"
+#endif
+
 #ifdef CONFIG_BK7258_COMPONENT_CP
 int bk7258_ap_start_monitor(void);
 #ifdef CONFIG_BK7258_WIFI_ARMINO_BASELINE
 int bk7258_armino_start(void);
 int bk_wdt_stop(void);
 int bk_aon_wdt_stop(void);
+int bk_wdt_feed(void);
+int bk_aon_wdt_feed(void);
 #endif
 
 static int bk7258_cp_panic_notify(struct notifier_block *block,
@@ -125,13 +139,20 @@ static int bk7258_cp_panic_notify(struct notifier_block *block,
 
 #ifdef CONFIG_BK7258_WIFI_ARMINO_BASELINE
       /* Armino starts its interrupt watchdog (CONFIG_INT_WDT_PERIOD_MS,
-       * 8 s) and AON watchdog (10 s) and feeds them from the tick.  A panic
-       * stops the tick, so they reset the chip about 8 s in, before the AP
-       * has printed its half of a dual-core dump.  Stop both; what happens
-       * after the dump is then BOARD_RESET_ON_ASSERT's call. */
+       * 8 s) and AON watchdog (10 s) and feeds them from the tick, which a
+       * panic stops.  If the board halts after the dump
+       * (BOARD_RESET_ON_ASSERT == 0), stop both so the dump stays on the
+       * console.  If it resets (>= 1), feed both once instead: the two
+       * dumps take about 2 s, and a dump that hangs is still reset. */
 
+#  if defined(CONFIG_BOARD_RESET_ON_ASSERT) && \
+      CONFIG_BOARD_RESET_ON_ASSERT >= 1
+      bk_wdt_feed();
+      bk_aon_wdt_feed();
+#  else
       bk_wdt_stop();
       bk_aon_wdt_stop();
+#  endif
 #endif
     }
 
