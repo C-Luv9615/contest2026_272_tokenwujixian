@@ -14,6 +14,13 @@ if(CONFIG_BK7258_PSRAM)
     STACKSIZE 4096)
 endif()
 
+if(CONFIG_BK7258_PANIC_TEST)
+  nuttx_add_application(
+    NAME bk7258_panic
+    SRCS ${NUTTX_BOARD_ABS_DIR}/src/bk7258_panic_test.c
+    STACKSIZE 2048)
+endif()
+
 if(CONFIG_BK7258_MPU_TEST)
   nuttx_add_application(
     NAME bk7258_mpu_test

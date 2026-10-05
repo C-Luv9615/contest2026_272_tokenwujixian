@@ -26,6 +26,7 @@
 #define BK7258_AP_MONITOR_PRIORITY       100
 #define BK7258_AP_MONITOR_STACK_SIZE     2048
 #define BK7258_AP_STALL_SAMPLES          3
+#define BK7258_AP_UART_TOKEN_SAMPLES     15 /* s an AP dump may hold UART0 */
 #define BK7258_AP_POWER_STABILIZE_LOOPS  1000
 #define BK7258_AP_POWER_WAIT_LOOPS       10000
 #define BK7258_AP_RESET_WAIT_ATTEMPTS    50
@@ -670,6 +671,16 @@ static void bk7258_ap_print_panic(uint32_t boot_sequence)
   uint32_t i;
 
   nxsig_usleep(200 * 1000);
+
+  /* The AP is still printing its own dump on UART0; output from here would
+   * be dropped until it hands the token back. */
+
+  for (i = 0; i < BK7258_AP_UART_TOKEN_SAMPLES * 10 &&
+              bk7258_ap_uart_token_held(); i++)
+    {
+      nxsig_usleep(100 * 1000);
+    }
+
   if (!bk7258_ap_panic_read(&panic, boot_sequence))
     {
       syslog(LOG_ERR, "[AP] panic record missing for seq=%u\n",
@@ -701,12 +712,27 @@ static int bk7258_ap_monitor(int argc, char *argv[])
   bool invalid_reported = false;
   bool stalled_reported = false;
   bool heartbeat_seen = false;
+  unsigned int token_samples = 0;
 
   (void)argc;
   (void)argv;
 
   for (; ; )
     {
+      /* An AP that died while dumping must not mute the CP for good. */
+
+      if (!bk7258_ap_uart_token_held())
+        {
+          token_samples = 0;
+        }
+      else if (++token_samples >= BK7258_AP_UART_TOKEN_SAMPLES)
+        {
+          bk7258_ap_uart_token_release();
+          syslog(LOG_ERR, "[AP] UART0 panic token held %u s; reclaimed\n",
+                 token_samples);
+          token_samples = 0;
+        }
+
       if (!bk7258_ap_record_read(&record) ||
           (record.boot_sequence != g_ap_boot_sequence &&
            !g_ap_recovering))
@@ -818,6 +844,20 @@ static int bk7258_ap_monitor(int argc, char *argv[])
     }
 
   return 0;
+}
+
+/* True once the AP released in this CP boot runs its scheduler.  SWAP
+ * survives a watchdog reset, so the previous boot's RUNNING record must not
+ * count: require the sequence board_start_cpu() prepared. */
+
+bool bk7258_ap_is_running(void)
+{
+  struct bk7258_ap_boot_record_s record;
+
+  return g_ap_started && bk7258_ap_record_read(&record) &&
+         record.boot_sequence == g_ap_boot_sequence &&
+         record.stage == BK7258_AP_STAGE_SCHEDULER_RUNNING &&
+         record.heartbeat >= 2;
 }
 
 int bk7258_ap_start_monitor(void)

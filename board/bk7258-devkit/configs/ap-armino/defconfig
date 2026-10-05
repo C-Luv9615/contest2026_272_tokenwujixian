@@ -56,7 +56,7 @@ CONFIG_RPMSG_PING=y
 CONFIG_RPMSG_UART=y
 CONFIG_RPMSG_UART_CONSOLE=y
 CONFIG_RPTUN=y
-CONFIG_RPTUN_AUTO_RESET_DISABLE=y
+CONFIG_RPTUN_AUTO_RESET_IN_REBOOT_NOTIFIER=y
 CONFIG_RPTUN_PRIORITY=90
 CONFIG_RPTUN_STACKSIZE=8192
 CONFIG_RR_INTERVAL=200
@@ -176,4 +176,14 @@ CONFIG_SERIAL_NPOLLWAITERS=8
 # CONFIG_AI_AGENT_WEIXIN is not set
 CONFIG_FRAME_POINTER=y
 CONFIG_SCHED_BACKTRACE=y
+# The ARM EHABI unwinder took a precise BusFault when the AP panicked inside
+# the RPTUN mailbox interrupt (CP-first dual-core dump); the stack-pointer
+# unwinder only dereferences addresses inside the stack and .text.
+CONFIG_UNWINDER_STACK_POINTER=y
+# The syslog channel is the RPMsg console, whose write takes a mutex: a
+# syslog() from an interrupt (rptun.c:768 "Panic by remote core") asserted
+# in nxmutex_wait.  Buffer interrupt output; task-context syslog and the
+# panic flush drain it.
+CONFIG_SYSLOG_INTBUFFER=y
+CONFIG_SYSLOG_INTBUFSIZE=1024
 # CONFIG_NSH_DISABLE_DATE is not set
