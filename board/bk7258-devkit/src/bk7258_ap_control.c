@@ -767,15 +767,6 @@ static int bk7258_ap_monitor(int argc, char *argv[])
       invalid_samples = 0;
       invalid_reported = false;
 
-      /* "reboot bootloader" typed into the AP NSH (bk7258_reset.c AP path). */
-
-      if (bk7258_ap_bootreq_test(record.boot_sequence))
-        {
-          syslog(LOG_INFO, "[AP] seq=%u requested reboot bootloader\n",
-                 (unsigned int)record.boot_sequence);
-          board_reset(BOARDIOC_SOFTRESETCAUSE_ENTER_BOOTLOADER);
-        }
-
       {
         uint32_t dbg = bk7258_ap_dbg_read();
 

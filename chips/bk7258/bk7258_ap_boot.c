@@ -38,11 +38,7 @@ static_assert((BK7258_AP_SWAP_C2_WORD + 1) * sizeof(uint32_t) <=
 static_assert(BK7258_AP_PANIC_OFFSET >
                 (BK7258_AP_SWAP_C2_WORD + 1) * sizeof(uint32_t),
               "BK7258 AP panic record overlaps the SWAP word map");
-static_assert(BK7258_AP_SWAP_BOOTREQ_WORD > BK7258_AP_SWAP_C2_WORD &&
-              (BK7258_AP_SWAP_BOOTREQ_WORD + 2) * sizeof(uint32_t) <=
-                BK7258_AP_PANIC_OFFSET,
-              "BK7258 AP bootloader request overlaps the SWAP word map");
-static_assert(BK7258_AP_SWAP_UART_WORD > BK7258_AP_SWAP_BOOTREQ_WORD + 1 &&
+static_assert(BK7258_AP_SWAP_UART_WORD > BK7258_AP_SWAP_C2_WORD &&
               (BK7258_AP_SWAP_UART_WORD + 1) * sizeof(uint32_t) <=
                 BK7258_AP_PANIC_OFFSET,
               "BK7258 AP UART token overlaps the SWAP word map");
@@ -229,7 +225,6 @@ uint32_t bk7258_ap_record_prepare(void)
   struct bk7258_ap_boot_record_s record = {0};
   volatile uint32_t *words = (volatile uint32_t *)g_ap_record;
 
-  words[BK7258_AP_SWAP_BOOTREQ_WORD] = 0;
   words[BK7258_AP_SWAP_UART_WORD] = 0;
 
   record.boot_sequence = bk7258_ap_next_sequence();
@@ -368,27 +363,6 @@ uint32_t bk7258_ap_dbg_read(void)
   volatile uint32_t *words = (volatile uint32_t *)g_ap_record;
 
   return words[BK7258_AP_SWAP_DBG_WORD];
-}
-
-void bk7258_ap_bootreq_set(void)
-{
-  volatile uint32_t *words = (volatile uint32_t *)g_ap_record;
-  struct bk7258_ap_boot_record_s record;
-
-  bk7258_ap_current(&record);
-  words[BK7258_AP_SWAP_BOOTREQ_WORD + 1] = record.boot_sequence;
-  bk7258_ap_barrier();
-  words[BK7258_AP_SWAP_BOOTREQ_WORD] = BK7258_AP_BOOTREQ_MAGIC;
-  bk7258_ap_barrier();
-}
-
-bool bk7258_ap_bootreq_test(uint32_t boot_sequence)
-{
-  volatile uint32_t *words = (volatile uint32_t *)g_ap_record;
-
-  bk7258_ap_barrier();
-  return words[BK7258_AP_SWAP_BOOTREQ_WORD] == BK7258_AP_BOOTREQ_MAGIC &&
-         words[BK7258_AP_SWAP_BOOTREQ_WORD + 1] == boot_sequence;
 }
 
 void bk7258_ap_uart_token_take(void)

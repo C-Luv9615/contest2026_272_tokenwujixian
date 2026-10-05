@@ -112,18 +112,6 @@ bool bk7258_ap_c2flag_test(void);
 void bk7258_ap_dbg_mark(uint32_t mark);
 uint32_t bk7258_ap_dbg_read(void);
 
-/* AP -> CP "reboot bootloader" request, SWAP words 48..49 (magic, boot
- * sequence).  Only the CP can run the AON WDT chip reset that opens the BL2
- * download window, so the AP board_reset() posts this and the CP AP monitor
- * acts on it.  CP clears it in bk7258_ap_record_prepare(), and the sequence
- * check rejects a stale request that survived a reset in SRAM. */
-
-#define BK7258_AP_SWAP_BOOTREQ_WORD UINT32_C(48)
-#define BK7258_AP_BOOTREQ_MAGIC     UINT32_C(0x41504252) /* "APBR" */
-
-void bk7258_ap_bootreq_set(void);
-bool bk7258_ap_bootreq_test(uint32_t boot_sequence);
-
 /* UART0 panic token, SWAP word 50.  UART0 belongs to the CP; the AP has no
  * console UART.  An AP panic takes the token and writes the FIFO directly
  * (its RPMsg console is dead with interrupts off), and the CP drops its own
