@@ -122,6 +122,10 @@ CONFIG_IOB_ALLOC=y
 CONFIG_NETUTILS_NTPCLIENT=y
 CONFIG_NETUTILS_NTPCLIENT_SERVER="ntp1.aliyun.com;ntp1.ntsc.ac.cn;ntp1.cstnet.cn"
 CONFIG_NETUTILS_NTPCLIENT_NUM_SAMPLES=1
+# The daemon resolves the server itself: lib_dnsquery.c keeps qname[258]
+# plus a 512 B query buffer on the stack, which overflows the 2048 default.
+CONFIG_NETUTILS_NTPCLIENT_STACKSIZE=4096
+CONFIG_STACK_COLORATION=y
 # NSH `ntpc_start` / `ntpc_stop`, plus netinit_auto-starts the daemon
 CONFIG_SYSTEM_NTPC=y
 CONFIG_IOB_BUFSIZE=640
@@ -147,6 +151,9 @@ CONFIG_TTY_SIGINT_CHAR=0x03
 CONFIG_NETDB_DNSCLIENT=y
 CONFIG_FS_TMPFS=y
 CONFIG_CRYPTO_MBEDTLS=y
+# One TLS record must fit in 3 of the 4 AP->CP rptun buffers (2 KiB each):
+# usrsock_rpmsg_server holds every fragment until the request is complete.
+CONFIG_MBEDTLS_SSL_OUT_CONTENT_LEN=4096
 CONFIG_NETUTILS_CJSON=y
 CONFIG_EXAMPLES_AI_AGENT_VELA=y
 CONFIG_EXAMPLES_AI_AGENT_VELA_STACKSIZE=32768
