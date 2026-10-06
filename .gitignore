@@ -24,3 +24,5 @@ research/
 compile_commands.json
 .mimocode/
 .env
+# Armino/Windows-style build artifacts (gitignored *.o covers the POSIX name)
+*.obj
