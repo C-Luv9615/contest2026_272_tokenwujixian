@@ -10,33 +10,31 @@
 
 if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
 
+  # Phase one compiles the Armino baseline unchanged. T19 imported the
+  # compiled units, their include closure and the closed archives into
+  # chips/bk7258/armino_baseline/ (see its PROVENANCE.md), so a clean
+  # checkout builds with no local Armino tree. The variable remains as an
+  # override for regenerating the manifest from a real baseline checkout
+  # (tools/armino_compile_manifest.py).
   if(NOT BK7258_ARMINO_BASELINE_DIR AND DEFINED ENV{BK7258_ARMINO_BASELINE_DIR})
     set(BK7258_ARMINO_BASELINE_DIR "$ENV{BK7258_ARMINO_BASELINE_DIR}"
         CACHE PATH "Armino baseline tree compiled by BK7258_WIFI_ARMINO_BASELINE")
   endif()
-  if(NOT BK7258_ARMINO_BASELINE_DIR OR NOT IS_DIRECTORY "${BK7258_ARMINO_BASELINE_DIR}/cp")
+  if(NOT BK7258_ARMINO_BASELINE_DIR)
+    set(BK7258_ARMINO_BASELINE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../armino_baseline")
+  endif()
+  if(NOT IS_DIRECTORY "${BK7258_ARMINO_BASELINE_DIR}/cp")
     message(FATAL_ERROR
-      "BK7258_WIFI_ARMINO_BASELINE needs BK7258_ARMINO_BASELINE_DIR (CMake "
-      "variable or environment variable) to name the Armino baseline tree; "
-      "got '${BK7258_ARMINO_BASELINE_DIR}'")
+      "BK7258_WIFI_ARMINO_BASELINE: no Armino tree at "
+      "'${BK7258_ARMINO_BASELINE_DIR}' (want cp/ beneath it)")
   endif()
 
   set(manifest ${CMAKE_CURRENT_SOURCE_DIR}/../tools/armino_baseline)
 
-  # The manifest was generated from one Armino commit; refuse any other tree.
+  # The manifest records one baseline commit (its first line). The imported
+  # tree is byte-identical to it by armino_source_gate.py, so no runtime
+  # commit check is needed here.
   file(STRINGS ${manifest}/component_flags.tsv flag_rows)
-  list(GET flag_rows 0 manifest_head)
-  string(REGEX REPLACE "^# baseline " "" manifest_head "${manifest_head}")
-  execute_process(
-    COMMAND git -C ${BK7258_ARMINO_BASELINE_DIR} rev-parse HEAD
-    OUTPUT_VARIABLE armino_head
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-    RESULT_VARIABLE armino_head_result)
-  if(NOT armino_head_result EQUAL 0 OR NOT armino_head STREQUAL manifest_head)
-    message(FATAL_ERROR
-      "Armino tree ${BK7258_ARMINO_BASELINE_DIR} is at '${armino_head}', "
-      "the manifest was generated from ${manifest_head}")
-  endif()
 
   # Components left out of phase one, with the evidence required by S2.7:
   # os_source is the FreeRTOS kernel (one scheduler only, NuttX's);

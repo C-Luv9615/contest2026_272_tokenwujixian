@@ -9,6 +9,12 @@ build/
 out/
 *.o
 *.a
+# ...but the imported Armino baseline needs its generated config headers and
+# the six closed archives on the baseline link line (T19, chips/bk7258/
+# armino_baseline/PROVENANCE.md).
+!chips/bk7258/armino_baseline/build/
+!chips/bk7258/armino_baseline/build/**
+!chips/bk7258/armino_baseline/cp/components/bk_libs/bk7258/libs/*.a
 *.elf
 *.hex
 *.map
