@@ -28,6 +28,9 @@ DEFAULT_MAP = (
     "board/=cp/middleware/boards/",
     "include/common/=cp/components/bk_common/include/",
     "include/=cp/include/",
+    # chips/bk7258/armino_baseline/ mirrors the baseline paths, so check it
+    # with --tree chips/bk7258/armino_baseline and this identity fallback.
+    "=",
 )
 SUFFIXES = (".c", ".h", ".S")
 
