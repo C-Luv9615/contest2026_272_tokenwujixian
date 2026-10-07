@@ -152,3 +152,10 @@ CONFIG_PREALLOC_MQ_MSGS=32
 CONFIG_PREALLOC_MQ_IRQ_MSGS=64
 # CP panic dumps print per-task backtraces too (dual-core dump).
 CONFIG_SCHED_BACKTRACE=y
+
+# /dev/urandom from the hardware TRNG. DEV_URANDOM_ARCH means the arch
+# supplies the whole implementation including devurandom_register()
+# (chips/bk7258/bk7258_trng.c); nuttx's software PRNG compiles out. The
+# ai_agent TLS stack opens /dev/urandom and refuses a predictable fallback.
+CONFIG_DEV_URANDOM=y
+CONFIG_DEV_URANDOM_ARCH=y
