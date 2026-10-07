@@ -51,6 +51,11 @@ void bk7258_ca_init(void);
  */
 int bk_trng_driver_init(void);
 
+/* chips/bk7258/wlan_ctrl/wlan_ctrl_server.c -- the CP half of the
+ * cross-core Wi-Fi control plane.  Needs RPMsg up first.
+ */
+int wlan_ctrl_server_init(void);
+
 /* Exceptions 15 and up (SysTick and every peripheral IRQ) enter through
  * exception_direct (arm_vectors.c, bk7258_smp.c _vectors_core1), which does
  * not save the interrupted context into xcp.regs.  A panic raised there --
@@ -325,6 +330,14 @@ void board_late_initialize(void)
           syslog(LOG_ERR, "[AMP] CP mailbox IPC init failed: %d\n", ret);
         }
 #endif
+      /* AP-side apps drive Wi-Fi through here (scan / connect /
+       * disconnect) rather than over usrsock.
+       */
+      ret = wlan_ctrl_server_init();
+      if (ret != 0)
+        {
+          syslog(LOG_ERR, "[WLAN-CTRL] init failed: %d\n", ret);
+        }
     }
 
   up_putc('M');
