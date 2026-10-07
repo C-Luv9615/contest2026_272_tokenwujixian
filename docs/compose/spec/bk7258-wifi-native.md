@@ -102,6 +102,48 @@ BK7258 CP 上的 Wi-Fi 要在 NuttX 下工作，目标有两条：
 - 语义以基线源码为准；
 - 验证方法见 S2.6。
 
+**2026-10-07 补记（用户决定，原话："要原生化的不止是pm/电源吧，毕竟编译进来了这么多东西"）**：上面的 27 个是「Wi-Fi 侧直接引用」的优先集，**不是阶段二的全部范围**。对 `cp-armino` 镜像的链接表（`668fb2a` 构建，`nuttx.map`）按外设归类，真正链入的硬件类目标文件是 **117 个**，全表如下。标记：**[必换]** = 上述 27 个；**[可换]** = NuttX 有对应驱动但不在 27 个里；**[必留]** = 闭源库接口面，只能留 Armino 形态；**[待定]** = 工具/杂项，逐个小件定。基线：本表之前 S2.5 只有 27 个的清单。
+
+| 类别 | 模块 | 目标文件 | 标记 |
+|---|---|---|---|
+| 电源 | PM | `pm` `pm_misc` `low_vol` `pwr_clk` `low_pwr_core` `low_pwr_misc` | [必换]`pm` + [可换] |
+| 电源 | AON PMU | `aon_pmu_driver` `aon_pmu_hal` | [可换] |
+| 电源 | 电源状态 | `sys_pm_hal` `sys_ps_driver` `sys_psram_driver` `sys_wifi_driver` | [必换]`sys_pm_hal` `sys_ps_driver` `sys_wifi_driver` + [可换] |
+| 电源 | 低电 | `low_vol` | [可换] |
+| 时钟 | 时钟/CMN | `sys_clock_driver` `ckmn_driver` `ckmn_hal` `rosc_32k` | [必换]`ckmn_driver` + [可换] |
+| 时钟 | 系统控制 | `sys_driver` `sys_driver_common` `sys_hal` | [可换] |
+| 中断 | 中断控制器 | `sys_int_driver` | [必换] |
+| 中断 | 异常/启动 | `trap_base` `arm` `stack_base` | [必换]`trap_base` + [可换] |
+| 中断 | AMP 锁 | `amp_res_lock` | [待定] |
+| DMA | GDMA | `dma_driver` `dma_hal` | [必换]`dma_driver` + [可换] |
+| 定时器 | 定时器 | `timer_driver` `timer_hal` | [必换]`timer_driver` + [可换] |
+| 定时器 | AON RTC | `aon_rtc_driver_64bit` `aon_rtc_hal_64bit` | [必换]`aon_rtc_driver_64bit` + [可换] |
+| 复位 | 看门狗 | `wdt_driver` `wdt_hal` `aon_wdt_driver` `aon_wdt_hal` | [必换]`wdt_driver` + [可换] |
+| 复位 | 复位原因 | `reset_reason` `reboot` | [必换]`reset_reason` + [可换] |
+| 存储 | Flash | `flash_driver` `flash_driver_ext` `flash_partition` `flash_hal` `flash_bypass` `flash_notify` `flash_server` | [必换]3 个 + [可换] |
+| 存储 | EFUSE | `efuse_driver` `efuse_hal` | [可换] |
+| 存储 | OTP | `otp_driver_v1_1` `otp_hal` | [必换]`otp_driver_v1_1` + [可换] |
+| 存储 | PSRAM | `psram_driver` `psram_hal` | [可换] |
+| 存储 | KV | `easyflash` `ef_env` `ef_port` `ef_utils` `bk_ef` | [待定] |
+| 通用 | GPIO | `gpio_driver` `gpio_driver_base` `gpio_hal` | [必换]2 个 + [可换] |
+| 通用 | UART | `uart_driver` `uart_hal` | [必换]`uart_driver` + [可换] |
+| 通用 | TRNG | `trng_driver` `trng_hal` | [必换]`trng_driver` + [可换] |
+| 通用 | UID | `bk_uid` `bk_uid_adaptor` | [待定] |
+| 采样 | ADC | `adc_driver` `adc_statis` `adc_hal` | [必换]`adc_driver` + [可换] |
+| 采样 | SDMADC | `sdmadc_driver` `sdmadc_hal` | [必换]`sdmadc_driver` + [可换] |
+| 采样 | SARADC 服务 | `saradc_notify` `saradc_server` | [可换] |
+| 采样 | 触摸 | `touch_driver_v1_1` `sys_touch_driver` | [可换] |
+| 采样 | 温度/电压 | `temp_detect` `bk_sensor` `volt_detect` | [可换] |
+| 跨核 | Mailbox/IPC | `mailbox_channel` `mb_ipc` `mb_ipc_cmd` `mb_ipc_heartbeat` `mb_chnl_buff` `bk_api_ipc` `bk_api_rpc_server` | [必换]3 个 + [可换] |
+| 跨核 | 控制器接口 | `cif_cntrl` `cif_ipc` `cif_main` `cif_mem_mgmt` `cif_ps` `cif_wifi_api` `cif_wifi_dp` | **[必留]**（`libwifi.a` 接口面） |
+| 射频 | PHY/RF | `bk_phy_adapter` `bk_phy_notify` `bk_phy_server` `bk_rf_adapter` `cli_phy` | **[必留]**（`libbk_phy.a` 接口面） |
+| 打印 | printf | `printf` `printf_base` | [必换]`printf` + [可换] |
+| 系统 | 杂项 | `delay` `tick` `mac` `bk_init` `components_init` `rtos_init` `system_main` `driver` `drv_model` `dd` `event` `lib_adapter` `bk_crc` `bk_feature` `bk_netif` `cm_backtrace` `sys_audio_driver` `ate` `bk_cli_ble` `bk_system_at` `vnd_cal` `command_line` | [待定] |
+
+**不可换的边界**：`controller_if` 7 个 + `bk_phy` 5 个是闭源库 `libwifi.a`/`libbk_phy.a` 的调用面，只能以 Armino 拷贝形式存在。`bk_wifi` 26 个（MAC/主机接口）同理——NuttX 没有本芯片的 MAC 驱动。按 2026-09 的架构规则，这三类属于「手写麻烦易错、没必要再一次实现」的合法保留。
+
+**范围结论**：上表「[可换]」的条目都在镜像里，按本节原规则（「另外 52 个只有在被保留代码实际引用时才纳入」）**属于阶段二范围**。原 T12–T17 点名的 27 个仍是最优先（Wi-Fi 侧直接引用），但排期不能以它们做完为准；硬件面要收敛到只剩「[必留]」的 12 个（`controller_if` + `bk_phy`）和 `bk_wifi` 的 26 个。
+
 ### [S2.6] 验证模型
 
 - 每个改变运行行为的任务都要上板：连接 `Luv`，确认 4 次握手完成、DHCP 拿到地址，再 ping 一个公网 IP 4/4。
@@ -254,12 +296,12 @@ BK7258 CP 上的 Wi-Fi 要在 NuttX 下工作，目标有两条：
 - [x] T9: OS 接缝。在 NuttX 上实现 T8 清单里 FreeRTOS API 那部分 undefined 符号，供原样保留的 `bk_rtos` 调用。sdk-source 分支修过的 9 个问题（队列 item_size、栈按字计、临界区嵌套、ISR 上下文判断、`nxmq_*` 无取消点等）要带过来。acceptance：这些符号各定义一次；主机测试覆盖队列 item_size、栈按字计、临界区嵌套、ISR 上下文发送四项。结果（2026-10-03，`compat/bk7258_freertos_nuttx.c` + `board/bk7258-devkit/tests/test_bk7258_os_seam.py`）：接缝符号各定义一次（cp-armino 链接无 multiple definition）；`python3 test_bk7258_os_seam.py` 5 项全过，四项分别为 16 字节消息原样往返、32 字栈深变成 `32*4+1024` 字节、两层临界区只在最外层用首次保存的标志恢复中断一次、ISR 里对满队列发送返回 `errQUEUE_FULL` 且不进临界区。测试编译真实接缝源码并链接打桩的 NuttX 原语（`tests/os_seam/`），验的是转换逻辑本身而非副本。板上另有一条独立证据：`rtos_set_semaphore` 在中断上下文走 `xSemaphoreGiveFromISR`，SARADC 中断每秒触发并由信号量同步；队列的 FromISR 路径仅由主机测试覆盖。(covers: S2.2, S2.7; depends: T7, T8)
 - [x] T10: netdev 胶水。实现 T8 清单里原本由 lwip 提供的符号，接到 NuttX netdev，行为按 S2.9。acceptance：链接 map 里 lwip 目标文件只有 S2.7 列出的 6 个保留单元，ELF 里没有 `tcp_*`、`tcpip_*`、`udp_*`、`etharp_output`、`dhcp_start`；连接后不需要 `renew`，UART 出现 `[ARMINO] wlan0 ip <地址>`，`bk_wifi_sta_get_linkstate_with_reason` 报 `GOT_IP`；ping 网关 4/4；断开再连接，能再次拿到地址且 wlan0 上没有残留的旧地址。验收标准 2026-10-03 修改：原来写的"链接 map 里没有 lwip 目标文件"与 S2.7 的 1A 决定冲突；原来写的"`renew wlan0` 能拿到地址"与 S2.9 的 2A 决定冲突（地址由连接事件自动获取）。结果（2026-10-03，固件 `b5dcfc40c319f66c8b7e1b6fad5bc7d23885d7370af58cfdf8d98a6753118583`，kit `bk7258-kit-f9abf35-b5dcfc40`，板测日志 `~/102-12.log`，热点 `Luv`）：(1) `nm` 显示 lwip 目标只有 `pbuf.c`、`mem.c`、`memp.c`、`def.c`、`ip4_addr.c`、`stats.c`，ELF 无 `tcp_*`/`tcpip_*`/`udp_*`/`etharp_output`/`dhcp_start`；(2) 连接后 UART 有 `[ARMINO] wlan0 ip 10.153.235.166` 和 `BK STA got ip4`（`GOT_IP`），未用 `renew`；(3) `ping 10.153.235.208` 两次均 10/10、0% 丢包；(4) `armino_sta disconnect` 后 `[ARMINO] sta ip down`、`ifconfig` 为 `0.0.0.0`，重连走完整 `SCANNING → … → COMPLETED` 流程并再次拿到地址，ping 10/10。(covers: S2.2, S2.7, S2.9; depends: T7, T8)
 - [x] T11: 阶段一链接和上板验收。acceptance：链接没有 undefined 符号；重复定义只出现在 T7 记录过的位置；L1 校验、decode、完整性门禁都通过；`Luv` 上连接 3/3；ping 公网 4/4；T5 对比显示重握手次数、`tx_dma_dead` 次数不多于 Armino 参照。结果（2026-10-03，固件 `b5dcfc40c319f66c8b7e1b6fad5bc7d23885d7370af58cfdf8d98a6753118583`，kit `bk7258-kit-f9abf35-b5dcfc40`，热点 `Luv`）：(1) cp-armino 链接 0 个 undefined、0 个 multiple definition（`nm` 与链接输出）；(2) L1 校验 pass、打包 `decode pass`、kit 的完整性门禁 pass；(3) 连接 3/3：同一固件上 3 次成功 0 次失败（`~/102-12.log` 的连接与断开重连，`/tmp/102-13.log` 的连接），每次均有 `[ARMINO] wlan0 ip` 与 `BK STA got ip4`；(4) `ping 223.5.5.5` 10/10、0% 丢包（在 AP 的 NSH 上经 RPMsg usrsock 走 CP 的 wlan0，CP 侧另有多次 ping 网关 10/10）；(5) T5 对比 `/home/czp/iperf-ref-1001.log` 与 `/tmp/102-13.log`：重握手 0 对 0、`tx_dma_dead` 0 对 0，握手序列逐条相同，退出 0（candidate not worse）。注意：日志证据里的密码需替换为 `<PSK-REDACTED>`，`WPA: TK` 行需删除，方可入库。(covers: S2.2, S2.6; depends: T5, T9, T10, T20)
-- [ ] T12: 阶段二：PM 和电源类原生化，范围为 `pm`、`sys_pm_hal`、`sys_wifi_driver`、`sys_ps_driver`、`sys_int_driver`。acceptance：链接 map 证明这些目标文件不再来自 Armino 源文件；T5 对比没有新增差异；连接 3/3；ping 4/4。(covers: S2.5; depends: T11)
-- [ ] T13: 阶段二：DMA、时钟、定时器类，范围为 `dma_driver`、`ckmn_driver`、`timer_driver`、`aon_rtc_driver_64bit`。acceptance 同 T12。(covers: S2.5; depends: T12)
-- [ ] T14: 阶段二：Flash，范围为 `flash_driver`、`flash_driver_ext`、`flash_partition`，改为基于 NuttX MTD。acceptance 同 T12，另外 easyflash 写入的数据重启后仍在。(covers: S2.5; depends: T11)
-- [ ] T15: 阶段二：校准类，范围为 `adc_driver`、`sdmadc_driver`、`otp_driver_v1_1`、`trng_driver`。acceptance 同 T12，另外校准日志里的 `xtal`、`pwr_gain` 与参照一致。(covers: S2.5; depends: T11)
-- [ ] T16: 阶段二：mailbox 类，范围为 `mailbox_channel`、`mb_ipc`、`mb_ipc_heartbeat`。阶段一它们经 RPMsg 端点 `bk7258-mb-ipc` 运行（S2.10）；`bk7258-armino-otp-mb-ipc.md` 已于 2026-10-06 标为 superseded，不再作为对齐目标。acceptance 同 T12。(covers: S2.5; depends: T11)
-- [ ] T17: 阶段二：杂项，范围为 `interrupt_base`、`trap_base`、`printf`、`uart_driver`、`wdt_driver`、`reset_reason`、`gpio_driver`、`gpio_driver_base`。acceptance 同 T12。(covers: S2.5; depends: T11)
-- [ ] T18: 最终验收。跑 30 分钟 TX 负载（优先 `iperf -c`；热点有客户端隔离时，改用最大包长的连续 ping 公网）。acceptance：`tx_dma_dead`、assert、重启均为 0 次；ping 20/20；证据按 S2.6 齐全。判据说明（2026-10-07 随 T6 取消而调整）：原写法是「不多于 T6 中 Armino 的结果」，T6 取消后改为绝对门槛；负载方式从 T6 移到本行。(covers: S2.6; depends: T12, T13, T14, T15, T16, T17)
+- [ ] T12: 阶段二：电源与低功耗原生化。范围（S2.5 全表「电源」+「中断控制器」，16 个目标文件）：PM 组 `pm`、`pm_misc`、`low_vol`、`pwr_clk`、`low_pwr_core`、`low_pwr_misc`；AON PMU 组 `aon_pmu_driver`、`aon_pmu_hal`；电源状态组 `sys_pm_hal`、`sys_ps_driver`、`sys_psram_driver`、`sys_wifi_driver`；SoC 控制组 `sys_driver`、`sys_driver_common`、`sys_hal`；中断控制器 `sys_int_driver`。NuttX 侧落点：PM 框架 / 时钟电源控制。**换完后 `driver_init()` 注册表里这些项消失，初始化改在 `board_late_initialize()`/`up_initialize()` 注册**。acceptance：链接 map 证明这些目标文件不再来自 Armino 源文件；闭源库 `libwifi.a`/`libbk_phy.a` 对这批的调用（`bk_api_*`、`drv_model` 名）仍能解析且语义一致；T5 对比没有新增差异；连接 3/3；ping 4/4。(covers: S2.5; depends: T11)
+- [ ] T13: 阶段二：DMA、时钟、定时器原生化。范围（S2.5 全表「DMA」+「时钟」+「定时器」，10 个目标文件）：DMA 组 `dma_driver`、`dma_hal`；时钟组 `sys_clock_driver`、`ckmn_driver`、`ckmn_hal`、`rosc_32k`；定时器组 `timer_driver`、`timer_hal`；AON RTC 组 `aon_rtc_driver_64bit`、`aon_rtc_hal_64bit`。NuttX 侧落点：DMA / clock / timer / RTC 驱动。acceptance 同 T12。(covers: S2.5; depends: T12)
+- [ ] T14: 阶段二：Flash 与内存原生化。范围（S2.5 全表「存储」的 Flash + PSRAM，9 个目标文件）：`flash_driver`、`flash_driver_ext`、`flash_partition`、`flash_hal`、`flash_bypass`、`flash_notify`、`flash_server`、`psram_driver`、`psram_hal`。改为基于 NuttX MTD（PSRAM 走 NuttX 内存侧）。acceptance 同 T12，另外 easyflash 写入的数据重启后仍在。(covers: S2.5; depends: T11)
+- [ ] T15: 阶段二：校准、采样与身份原生化。范围（S2.5 全表「采样」+ 校准/身份，16 个目标文件）：ADC 组 `adc_driver`、`adc_statis`、`adc_hal`；SDMADC 组 `sdmadc_driver`、`sdmadc_hal`；SARADC 服务 `saradc_notify`、`saradc_server`；OTP/EFUSE 组 `otp_driver_v1_1`、`otp_hal`、`efuse_driver`、`efuse_hal`；随机数 `trng_driver`、`trng_hal`；身份 `bk_uid`、`bk_uid_adaptor`；校准 `vnd_cal`。acceptance 同 T12，另外校准日志里的 `xtal`、`pwr_gain` 与参照一致。**进度（2026-10-07）：TRNG 一组已完成**——`chips/bk7258/bk7258_trng.c` 提供同名 6 个符号（`bk_trng_driver_init/deinit`、`bk_trng_start/stop`、`bk_rand`、`bk_fill_rand`），语义按 `trng_driver.c` 逐条保留（丢弃 16 个读数、使能后等 50 µs、`& RAND_MAX`、小端字填充）；排除 4 个 Armino 单元 `trng_driver.c`/`trng_hal.c`/`trng_ll.c`/`trng_hal_debug.c`，链接表上 0 次出现，符号零增减。闭源库对这 6 个符号引用为 0。板测证据待补（TLS 熵、`srand`、MAC 随机字节都走 `bk_rand`）。(covers: S2.5; depends: T11)
+- [ ] T16: 阶段二：跨核原生化。范围（S2.5 全表「跨核」的 mailbox 侧 + AMP 锁，8 个目标文件）：`mb_ipc_cmd`、`mb_ipc_heartbeat`、`mb_chnl_buff`、`bk_api_ipc`、`bk_api_rpc_server`、`amp_res_lock`，以及基线清单里的 `mailbox_channel`、`mb_ipc`（本镜像里对应我们自己的 `armino_cp_mailbox_channel`、`armino_cp_mb_ipc`，见 S2.10；基线里那两个名字不在我们链接表上）。阶段一它们经 RPMsg 端点 `bk7258-mb-ipc` 运行（S2.10）；`bk7258-armino-otp-mb-ipc.md` 已于 2026-10-06 标为 superseded，不再作为对齐目标。**`controller_if` 7 个是 `libwifi.a` 的接口面，本项不碰。**acceptance 同 T12。(covers: S2.5; depends: T11)
+- [ ] T17: 阶段二：通用外设与杂项原生化。范围（S2.5 全表「复位」+「通用」+「打印」+ 系统杂项中属硬件的，25 个目标文件）：中断/异常 `trap_base`、`arm`、`stack_base`（基线清单的 `interrupt_base` 在本镜像不存在）；打印 `printf`、`printf_base`；UART `uart_driver`、`uart_hal`；看门狗 `wdt_driver`、`wdt_hal`、`aon_wdt_driver`、`aon_wdt_hal`；GPIO `gpio_driver`、`gpio_driver_base`、`gpio_hal`；复位 `reset_reason`、`reboot`；触摸 `touch_driver_v1_1`、`sys_touch_driver`；温度/电压 `temp_detect`、`bk_sensor`、`volt_detect`；音频 `sys_audio_driver`；驱动注册表 `driver`、`drv_model`、`dd`（随各模块迁走而缩小）。**不纳入本项**：`controller_if` 7 个 + `bk_phy` 5 个（闭源接口面，[必留]）、`bk_wifi` 26 个（MAC，无 NuttX 等价物）、`bk_cli`/`at_server`/`easy_flash` 等工具层（另行决定）。acceptance 同 T12。(covers: S2.5; depends: T11)
+- [ ] T18: 最终验收。跑 30 分钟 TX 负载（优先 `iperf -c`；热点有客户端隔离时，改用最大包长的连续 ping 公网）。acceptance：`tx_dma_dead`、assert、重启均为 0 次；ping 20/20；证据按 S2.6 齐全；**链接 map 上属硬件类的 Armino 目标文件只剩 S2.5 标 [必留] 的 12 个（`controller_if` 7 + `bk_phy` 5）**。判据说明（2026-10-07 随 T6 取消而调整）：原写法是「不多于 T6 中 Armino 的结果」，T6 取消后改为绝对门槛；负载方式从 T6 移到本行。范围判据（2026-10-07 随 S2.5 全表补记而增加）：防止只做完原 27 个就以为齐了。(covers: S2.6; depends: T12, T13, T14, T15, T16, T17)
 - [x] T20: CPU1 归属，按 S2.10 由 NuttX 独占。acceptance：上板日志中 `[AP] start: cpu1 powered up` 和 `[AP] release` 各出现一次，且 `[ARMINO] CPU1 powered up by NuttX after <n> ms` 出现在 Armino 启动日志之前，没有 `still powered down`；连接后 10 分钟内 AP 没有重启（不出现第二次 `[AP] release`，也没有新的 AP 启动横幅）；AP 的 NSH 可用；在 AP 上经 usrsock ping 网关 4/4。说明：Armino 的 `reset_cpu1_core at:`、`boot cp1 fail` 是 `BK_LOGD` 级别，可能被过滤，不作为判据。结果（2026-10-03，同上固件 `b5dcfc40…`，板测日志 `~/102-13.log` 与串口观察）：(1) `[AP] start: cpu1 powered up, cpu_status=00007000 after 0` 与 `[AP] release seq=1` 各 1 次；(2) `[ARMINO] CPU1 powered up by NuttX after 0 ms` 在 `[ARMINO] queue 1` 之前，无 `still powered down`；(3) AP 启动日志显示 `ram=[28010000..28054000]`，即 S2.10 的新窗口，`[AP] stage=scheduler-running seq=1 fault=0x00000000`；(4) `cu -l /dev/ttyAP` 进入 `nsh-ap>`，音频/GDMA/PA/按键注册正常；(5) AP 上 `ping 10.153.235.208` 10/10、0% 丢包（经 RPMsg usrsock 走 CP 的 wlan0）；(6) 连接保持 11 分钟以上（日志到 527 s），无第二次 `[AP] release`、无新启动横幅、无 FAULT/assert，其后 ping 仍 10/10。(covers: S2.10; depends: T10)
 - [x] T19: 导入仓库。把阶段一仍在使用的 Armino 原文件按 AGENTS.md 导入 `chips/bk7258/`，保留模块结构和来源记录，去掉对 `BK7258_ARMINO_BASELINE_DIR` 的依赖。acceptance：干净检出、不设该变量也能构建；T3 门禁对导入目录返回 0。结果（2026-10-06，提交 `5ce85c3`；2026-10-07 补记 checkbox，此前做完了没勾）：(1) `chips/bk7258/armino_baseline/` 2065 个文件 / 34.5 MB = 470 个保留单元 + 全部 130 个 `-I` 目录下的头文件 + 生成的配置头 + 6 个闭源 `.a`，基线 `d5b0278`，来源记在 `chips/bk7258/armino_baseline/PROVENANCE.md`；(2) `chips/bk7258/wifi_armino/CMakeLists.txt` 的 `BK7258_ARMINO_BASELINE_DIR` 默认改指它并去掉 git-HEAD 校验，不设该变量编 CP 和 AP 均通过；去调试段的 `nuttx.elf` 与导入前逐字节一致（CP `3281ae83…`、AP `ee4fe515…`），`objdump -d` 只差自身的文件路径行；(3) T3 门禁对导入目录 identity map 2058 相同 / 0 修改，返回 0；(4) 2026-10-07 复核：`env -u BK7258_ARMINO_BASELINE_DIR` 从 `5ce85c3` 干净检出重编 CP 2091 个目标通过，镜像 `83d83bba…`，板测 wlan0 拿到 IP、网关 ping 4/4。已知残留：清单里 `cp_main.c` 的 `__FILE__` 是绝对路径（其余 469 个是 `components/…`），只影响 assert 字符串。(covers: S2.2, S2.3; depends: T11)
