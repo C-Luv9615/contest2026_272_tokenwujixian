@@ -27,12 +27,16 @@ endif()
 if(CONFIG_BK7258_COMPONENT_AP)
   target_sources(arch PRIVATE wlan_ctrl_client.c)
 
-  # NSH front end.  wifi_ctrl_client.c is also meant to be compiled into
-  # the Wi-Fi UI and ai_agent when they need it; the command is just a
-  # caller.  The source with main() has to be listed first: nuttx_add_
-  # application puts the -Dmain=<name>_main alias on SRCS[0] only.
+  # NSH front end.  Named `wapi` with the same arguments as the NuttX wapi
+  # tool on CP, so switching consoles does not mean switching habits; the
+  # two are different faces of the same operations and share one job queue
+  # (wlan_ctrl_server.c), so they cannot both drive the Armino connect.
+  # wlan_ctrl_client.c is also meant to be compiled into the Wi-Fi UI and
+  # ai_agent when they need it; the command is just a caller.  The source
+  # with main() has to be listed first: nuttx_add_application puts the
+  # -Dmain=<name>_main alias on SRCS[0] only.
   nuttx_add_application(
-    NAME wifi_ctrl
+    NAME wapi
     SRCS wlan_ctrl_cli.c wlan_ctrl_client.c
     STACKSIZE 4096)
 endif()
