@@ -96,6 +96,17 @@ static uint32_t s_auth_cipher_pairwise;
 
 static bool s_scan_started;
 
+/* wext keeps scan results queryable until the next scan.  Armino's
+ * bk_wifi_scan_get_result() hands over the list once, so the packed stream
+ * is cached here and served to every later SIOCGIWSCAN; the cache is
+ * dropped when a new scan is started.
+ */
+
+#define WOPS_SCAN_CACHE_MAX  512
+
+static uint8_t s_scan_cache[WOPS_SCAN_CACHE_MAX];
+static uint16_t s_scan_cache_len;
+
 static int wops_essid(FAR struct netdev_lowerhalf_s *dev,
                       FAR struct iwreq *iwr, bool set)
 {
@@ -406,6 +417,7 @@ static int wops_scan(FAR struct netdev_lowerhalf_s *dev,
         }
 
       s_scan_started = true;
+      s_scan_cache_len = 0;
       return 0;
     }
 
@@ -418,6 +430,16 @@ static int wops_scan(FAR struct netdev_lowerhalf_s *dev,
        */
 
       iwr->u.data.length = 0;
+      return 0;
+    }
+
+  if (s_scan_cache_len > 0)
+    {
+      uint16_t take = s_scan_cache_len < iwr->u.data.length ?
+                      s_scan_cache_len : iwr->u.data.length;
+
+      memcpy(iwr->u.data.pointer, s_scan_cache, take);
+      iwr->u.data.length = take;
       return 0;
     }
 
@@ -507,9 +529,15 @@ static int wops_scan(FAR struct netdev_lowerhalf_s *dev,
       }
 
     bk_wifi_scan_free_result(&res);
-    s_scan_started = false;
-    iwr->u.data.length =
-      (uint16_t)(cursor - (FAR uint8_t *)iwr->u.data.pointer);
+    {
+      uint16_t used =
+        (uint16_t)(cursor - (FAR uint8_t *)iwr->u.data.pointer);
+
+      memcpy(s_scan_cache, iwr->u.data.pointer, used);
+      s_scan_cache_len = used;
+      iwr->u.data.length = used;
+    }
+
     return 0;
 
   overflow:
@@ -521,9 +549,15 @@ static int wops_scan(FAR struct netdev_lowerhalf_s *dev,
      */
 
     bk_wifi_scan_free_result(&res);
-    s_scan_started = false;
-    iwr->u.data.length =
-      (uint16_t)(cursor - (FAR uint8_t *)iwr->u.data.pointer);
+    {
+      uint16_t used =
+        (uint16_t)(cursor - (FAR uint8_t *)iwr->u.data.pointer);
+
+      memcpy(s_scan_cache, iwr->u.data.pointer, used);
+      s_scan_cache_len = used;
+      iwr->u.data.length = used;
+    }
+
     return 0;
   }
 }
