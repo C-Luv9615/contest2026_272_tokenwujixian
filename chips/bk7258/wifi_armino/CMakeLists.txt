@@ -282,6 +282,19 @@ if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
   target_sources(arch PRIVATE bk7258_armino_start.c
                  compat/bk7258_armino_shell.c compat/bk7258_armino_irq.c
                  compat/bk7258_freertos_nuttx.c compat/bk7258_lwip_sys.c
-                 compat/bk7258_armino_netdev.c)
+                 compat/bk7258_armino_netdev.c
+                 compat/bk7258_armino_wops.c)
+
+  # The wext control-plane adapter is the one file that has to see both
+  # worlds: it takes NuttX's iwreq and calls Armino's STA/scan entry
+  # points, so it needs modules/wifi.h for those types.  set_property
+  # with TARGET_DIRECTORY because the source goes into `arch`, whose
+  # directory scope is not this one (set_source_files_properties would
+  # not apply).  Scoped to this one file so the Armino include root does
+  # not shadow headers for the rest of arch.
+  set_property(SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/compat/bk7258_armino_wops.c"
+               TARGET_DIRECTORY arch
+               APPEND PROPERTY COMPILE_OPTIONS
+               "-I${BK7258_ARMINO_BASELINE_DIR}/cp/include")
 
 endif()
