@@ -33,6 +33,21 @@
  *
  * Registered from bk7258_armino_netdev.c, which sets lower.iw_ops to
  * g_armino_iw_ops.
+ *
+ * Cross-core transport limit.  On the AP these ioctls reach CP through
+ * usrsock-over-RPMsg, and one RPMsg buffer is RPMSG_BUFFER_SIZE = 512
+ * bytes (openamp/rpmsg_virtio.h:27).  A pointer ioctl sends the iwreq AND
+ * its pointee as one request (net/usrsock/usrsock_ioctl.c:141), so
+ * SIOCGIWSCAN with wapi's CONFIG_WIRELESS_WAPI_SCAN_MAX_DATA buffer is
+ * longer than one buffer and gets split.  The server only reassembles
+ * sendto (drivers/usrsock/usrsock_rpmsg_server.c: usrsock_rpmsg_ept_do_cb
+ * has `if (uept->remain > 0)` for that one case), so every later fragment
+ * is parsed as a fresh request -- the `psock_socket: address family
+ * unsupported: 0` and the RPMSG_ASSERT at rpmsg_virtio.c:249 on the board
+ * are that.  Until the server reassembles ioctls too (an upstream change),
+ * the scan buffer is kept under one RPMsg worth and this file truncates
+ * rather than answering E2BIG, because wapi doubles its buffer on E2BIG
+ * and the retry only pushes the request further over the limit.
  ****************************************************************************/
 
 #include <nuttx/config.h>
@@ -406,6 +421,17 @@ static int wops_scan(FAR struct netdev_lowerhalf_s *dev,
       return 0;
     }
 
+  if (iwr->u.data.length == 0)
+    {
+      /* Zero-length probe: wapi_scan_stat() sends this to ask whether
+       * results are ready.  E2BIG is the wext "data ready, no room" answer
+       * it looks for (wireless.c:1303) and it moves no payload, so it is
+       * safe across the RPMsg link.
+       */
+
+      return -E2BIG;
+    }
+
   {
     wifi_scan_result_t res;
     FAR uint8_t *cursor = iwr->u.data.pointer;
@@ -487,8 +513,18 @@ static int wops_scan(FAR struct netdev_lowerhalf_s *dev,
     return 0;
 
   overflow:
+    /* Truncate rather than answer E2BIG.  wapi_scan_coll() doubles its
+     * buffer and retries on E2BIG, and a bigger buffer only makes the
+     * next request longer than one RPMsg buffer -- which the usrsock
+     * server cannot reassemble (see the note in the file header).  A
+     * partial list is more use than a dead board.
+     */
+
     bk_wifi_scan_free_result(&res);
-    return -E2BIG;
+    s_scan_started = false;
+    iwr->u.data.length =
+      (uint16_t)(cursor - (FAR uint8_t *)iwr->u.data.pointer);
+    return 0;
   }
 }
 
