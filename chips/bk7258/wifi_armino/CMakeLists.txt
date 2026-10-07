@@ -80,7 +80,16 @@ if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
       # compat/bk7258_armino_irq.c.
       cp/middleware/driver/icu/interrupt_base.c
       cp/middleware/arch/cm33/arch_interrupt.c
-      cp/middleware/driver/bk7258/interrupt.c)
+      cp/middleware/driver/bk7258/interrupt.c
+      # TRNG belongs to the chip layer: chips/bk7258/bk7258_trng.c provides
+      # the same six symbols (bk_trng_driver_init/deinit, bk_trng_start/stop,
+      # bk_rand, bk_fill_rand) with the baseline's semantics. trng_hal.c and
+      # trng_ll.c are only used by trng_driver.c, so the whole unit goes.
+      # cli_trng.c stays: it is a caller of those symbols, not a provider.
+      cp/middleware/driver/trng/trng_driver.c
+      cp/middleware/soc/common/hal/trng_hal.c
+      cp/middleware/soc/bk7258/hal/trng_ll.c
+      cp/middleware/soc/bk7258/hal/trng_hal_debug.c)
 
   # NuttX's config.h defines CONFIG_SPI=1 and reaches Armino units through
   # the libc headers; the baseline sdkconfig leaves it undefined, so
