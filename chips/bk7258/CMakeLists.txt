@@ -8,6 +8,7 @@ set(SRCS
     bk7258_ap_boot.c
     bk7258_gpio.c
     bk7258_urandom.c
+    bk7258_trng.c
     bk7258_ca.c)
 
 if(CONFIG_ARM_MPU)
