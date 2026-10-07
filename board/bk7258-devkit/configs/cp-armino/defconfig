@@ -172,3 +172,10 @@ CONFIG_NETDEV_WIRELESS_IOCTL=y
 # split ioctl is parsed as a new request and wedges the link. Keep this
 # small; the proper fix is ioctl reassembly upstream.
 CONFIG_WIRELESS_WAPI_SCAN_MAX_DATA=384
+
+# Cross-core Wi-Fi control plane (chips/bk7258/wlan_ctrl).  rpmsg_char turns
+# an RPMsg endpoint into a local /dev/rpmsg-<name> on each core, so the AP
+# drives scan/connect without going through usrsock -- whose request buffer
+# has to fit one RPMsg message (see the note in
+# chips/bk7258/wifi_armino/compat/bk7258_armino_wops.c).
+CONFIG_RPMSG_CHAR=y
