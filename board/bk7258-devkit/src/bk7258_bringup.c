@@ -42,7 +42,6 @@
 #ifdef CONFIG_AUDIO_BK7258
 #  include <arch/chip/bk7258_audio.h>
 int bk7258_devkit_audio_pa_register(void);
-void bk7258_urandom_register(void);
 void bk7258_ca_init(void);
 #endif
 
@@ -280,13 +279,14 @@ void board_late_initialize(void)
    */
   up_putc('K');
 
-  /* /dev/urandom over the hardware TRNG. The ai_agent TLS stack opens it
-   * and refuses to fall back to anything predictable (agent_compat.h), so
-   * it has to be there before any user program runs.
+  /* The hardware TRNG.  /dev/urandom is registered by devurandom_register()
+   * (chips/bk7258/bk7258_trng.c) from nuttx's drivers_initialize(), under
+   * CONFIG_DEV_URANDOM_ARCH — earlier than this point.  What is left here is
+   * the Armino-facing half: bk_rand()/bk_fill_rand() and the bk_cli tools
+   * expect bk_trng_driver_init() to have run before they use start/stop.
    */
 
   bk_trng_driver_init();
-  bk7258_urandom_register();
 
   /* Root CA for the ai_agent's TLS: pulls in chips/bk7258/bk7258_ca.c. */
   bk7258_ca_init();

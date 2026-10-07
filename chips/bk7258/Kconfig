@@ -57,6 +57,9 @@ config ARCH_CHIP_BK7258
 	select ARCH_HAVE_FPU if BK7258_HARD_FLOAT
 	select ARCH_HAVE_TRUSTZONE
 	select ARCH_HAVE_MULTICPU
+	# Hardware TRNG at 0x458c0000; chips/bk7258/bk7258_trng.c supplies
+	# devurandom_register() for it (see CONFIG_DEV_URANDOM_ARCH).
+	select ARCH_HAVE_RNG
 	select ARMV8M_HAVE_DCACHE
 	select ARMV8M_HAVE_ICACHE
 	select ARM_SYSTICK
