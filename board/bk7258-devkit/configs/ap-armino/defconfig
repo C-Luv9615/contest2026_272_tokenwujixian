@@ -190,3 +190,14 @@ CONFIG_SYSLOG_INTBUFSIZE=1024
 # ai_agent TLS stack opens /dev/urandom and refuses a predictable fallback.
 CONFIG_DEV_URANDOM=y
 CONFIG_DEV_URANDOM_ARCH=y
+
+# Run wapi on this core too. The ioctls are proxied to CP over usrsock
+# (NET_USRSOCK_RPMSG), whose ioctl path already marshals the iwreq and its
+# pointee when NETDEV_WIRELESS_IOCTL is set -- the same route the data
+# plane takes. So connect/scan can be issued from the AP console without
+# switching to CP.
+CONFIG_NETDEV_WIRELESS_IOCTL=y
+CONFIG_DRIVERS_WIRELESS=y
+CONFIG_WIRELESS_WAPI=y
+CONFIG_WIRELESS_WAPI_CMDTOOL=y
+CONFIG_WIRELESS_WAPI_STACKSIZE=8192

@@ -489,6 +489,14 @@ void net_wlan_initial(void)
   memp_init();
 
   g_netdev.lower.ops = &g_netdev_ops;
+  /* Control plane: wext ioctls land here (see
+   * compat/bk7258_armino_wops.c).  Only meaningful once
+   * CONFIG_NETDEV_WIRELESS_HANDLER is on.
+   */
+#ifdef CONFIG_NETDEV_WIRELESS_HANDLER
+  extern const struct wireless_ops_s g_armino_iw_ops;
+  g_netdev.lower.iw_ops = &g_armino_iw_ops;
+#endif
   atomic_set(&g_netdev.lower.quota[NETPKT_TX], 1);
 
   /* RX quota 16: 4 was a7de5d2's value for ping traffic, but a TLS

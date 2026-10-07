@@ -159,3 +159,8 @@ CONFIG_SCHED_BACKTRACE=y
 # ai_agent TLS stack opens /dev/urandom and refuses a predictable fallback.
 CONFIG_DEV_URANDOM=y
 CONFIG_DEV_URANDOM_ARCH=y
+
+# wext control plane: wlan0 gets iw_ops (compat/bk7258_armino_wops.c) and
+# netdev_upper_wireless_ioctl() dispatches SIOCSIW*/SIOCGIW* to it.
+# NETDEV_WIRELESS_HANDLER follows this one (default y).
+CONFIG_NETDEV_WIRELESS_IOCTL=y
