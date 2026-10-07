@@ -45,6 +45,7 @@
 #include <string.h>
 #include <syslog.h>
 
+#include <nuttx/kthread.h>
 #include <nuttx/net/netdev_lowerhalf.h>
 #include <nuttx/wireless/wireless.h>
 
@@ -195,28 +196,107 @@ static int wops_auth(FAR struct netdev_lowerhalf_s *dev,
     }
 }
 
+/* Connect and disconnect run Armino's own STA entry, which is deep and can
+ * take seconds.  They are dispatched to a thread of their own rather than
+ * run in the caller: the caller is usrsock_rpmsg_worker() on the RPMsg
+ * work queue (net/usrsock + drivers/usrsock/usrsock_rpmsg_server.c:978),
+ * and CONFIG_SCHED_HPWORKSTACKSIZE is 2048 on CP -- a stack overflow on
+ * the board, and while it runs no other usrsock ack can be sent, so the
+ * RPMsg TX pool drains.  armino_sta never had this problem because it is
+ * an NSH command with a 4096-byte stack.
+ *
+ * The ioctls therefore report success and the association continues in the
+ * background; the address shows up on wlan0 through the usual
+ * EVENT_WIFI_STA_CONNECTED -> sta_ip_start() -> DHCP path.
+ */
+
+#define WOPS_WORKER_STACKSIZE   8192
+#define WOPS_WORKER_PRIORITY    200
+
+enum wops_job_e
+{
+  WOPS_JOB_IDLE,
+  WOPS_JOB_CONNECT,
+  WOPS_JOB_DISCONNECT,
+};
+
+/* One job at a time: the netdev upper half serialises the iw_ops calls
+ * that produce them, and a second connect while one is running would only
+ * be a wifi_v2.c:2429 "sta already started" error anyway.
+ */
+
+static struct
+{
+  enum wops_job_e what;
+  char ssid[WIFI_SSID_STR_LEN];
+  char pass[WIFI_PASSWORD_LEN];
+} s_job;
+
+static int wops_worker(int argc, FAR char *argv[])
+{
+  (void)argc;
+  (void)argv;
+
+  switch (s_job.what)
+    {
+      case WOPS_JOB_CONNECT:
+        demo_sta_app_init(s_job.ssid, s_job.pass);
+        break;
+
+      case WOPS_JOB_DISCONNECT:
+        /* Order matters: disconnect fires EVENT_WIFI_STA_DISCONNECTED
+         * (which drives sta_ip_down()), stop clears STARTED so a later
+         * connect does not hit wifi_v2.c:2429 "sta already started,
+         * ignored!".
+         */
+
+        bk_wifi_sta_disconnect();
+        bk_wifi_sta_stop();
+        break;
+
+      default:
+        break;
+    }
+
+  s_job.what = WOPS_JOB_IDLE;
+  return 0;
+}
+
+static int wops_dispatch(enum wops_job_e what)
+{
+  pid_t pid;
+
+  if (s_job.what != WOPS_JOB_IDLE)
+    {
+      return -EBUSY;
+    }
+
+  s_job.what = what;
+  pid = kthread_create("armino-wops", WOPS_WORKER_PRIORITY,
+                       WOPS_WORKER_STACKSIZE, wops_worker, NULL);
+  if (pid < 0)
+    {
+      s_job.what = WOPS_JOB_IDLE;
+      return pid;
+    }
+
+  return 0;
+}
+
 static int wops_connect(FAR struct netdev_lowerhalf_s *dev)
 {
-  int ret;
-
   (void)dev;
 
-  ret = demo_sta_app_init(s_ssid, s_pass);
-  return ret < 0 ? ret : 0;
+  strlcpy(s_job.ssid, s_ssid, sizeof(s_job.ssid));
+  strlcpy(s_job.pass, s_pass, sizeof(s_job.pass));
+  return wops_dispatch(WOPS_JOB_CONNECT);
 }
 
 static int wops_disconnect(FAR struct netdev_lowerhalf_s *dev)
 {
   (void)dev;
 
-  /* Order matters: disconnect fires EVENT_WIFI_STA_DISCONNECTED (which
-   * drives sta_ip_down()), stop clears STARTED so a later connect does not
-   * hit wifi_v2.c:2429 "sta already started, ignored!".
-   */
-
-  bk_wifi_sta_disconnect();
-  bk_wifi_sta_stop();
-  return 0;
+  return wops_dispatch(WOPS_JOB_DISCONNECT);
 }
 
 static int wops_mode(FAR struct netdev_lowerhalf_s *dev,
