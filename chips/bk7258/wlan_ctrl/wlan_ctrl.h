@@ -46,6 +46,18 @@
 #define WLAN_CTRL_NAME        "wlan-ctrl"
 #define WLAN_CTRL_PATH        "/dev/rpmsg-" WLAN_CTRL_NAME
 
+/* Explicit endpoint addresses rather than RPMSG_ADDR_ANY.  With ANY,
+ * rpmsg_char_create_eptdev() starts the "wait for bind" semaphore at 0 and
+ * every blocking write parks in rpmsg_wait() until the nameservice pairs
+ * the two ends -- which never happened here, so `wapi` hung in write()
+ * with the read timeout never reached.  Fixed addresses bind immediately
+ * and the semaphore starts at 1 (rpmsg_char.c: rpmsg_char_create_eptdev).
+ * Chosen clear of the endpoints already on the board (53, 1024..1028).
+ */
+
+#define WLAN_CTRL_ADDR_CP     0x0c10
+#define WLAN_CTRL_ADDR_AP     0x0c11
+
 #define WLAN_CTRL_SSID_LEN    33    /* WIFI_SSID_STR_LEN  */
 #define WLAN_CTRL_PASS_LEN    65    /* WIFI_PASSWORD_LEN  */
 
@@ -79,7 +91,8 @@ struct wlan_ctrl_msg_s
   int16_t  result;               /* 0 or negative errno           */
   uint8_t  more;                 /* SCAN_GET: another message follows */
   uint8_t  _pad;
-  uint16_t total;                /* SCAN_GET: APs in the whole list   */
+  uint16_t total;                /* SCAN_GET reply: APs in the list   */
+  uint16_t index;                /* SCAN_GET request: which AP wanted */
   char     ssid[WLAN_CTRL_SSID_LEN];
   char     pass[WLAN_CTRL_PASS_LEN];
   struct wifi_ap_info_s ap;      /* SCAN_GET payload                  */
@@ -101,7 +114,6 @@ int wifi_ctrl_status(FAR struct wifi_ap_info_s *ap, bool *connected);
  ****************************************************************************/
 
 int bk7258_wlan_scan_start(void);
-int bk7258_wlan_scan_get(FAR struct wifi_ap_info_s *aps, int max, int *out_n);
 int bk7258_wlan_connect(FAR const char *ssid, FAR const char *pass);
 int bk7258_wlan_disconnect(void);
 

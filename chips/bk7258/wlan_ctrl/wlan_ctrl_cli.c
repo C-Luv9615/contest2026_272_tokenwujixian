@@ -1,14 +1,22 @@
 /****************************************************************************
- * app/wifi_ctrl/wifi_ctrl_main.c
+ * chips/bk7258/wlan_ctrl/wlan_ctrl_cli.c
  *
- * NSH front end for the cross-core Wi-Fi control plane.  It only formats
- * what wifi_ctrl.c returns, so the UI can call the same functions directly
- * and get the same data.
+ * NSH front end for the cross-core Wi-Fi control plane, named `wapi` and
+ * taking the same arguments as the NuttX wapi tool on CP so that switching
+ * consoles does not mean switching habits:
  *
- *   wifi_ctrl scan                 start a scan and print the list
- *   wifi_ctrl connect <ssid> <pw>  associate (WPA2/WPA3 passphrase)
- *   wifi_ctrl disconnect           drop the link
- *   wifi_ctrl help
+ *   wapi scan [ifname]                  scan and print the list
+ *   wapi scan_results [ifname]          print the last list again
+ *   wapi psk <ifname> <pass> [alg]      set the passphrase
+ *   wapi essid <ifname> <ssid> [flag]   set the ssid; flag 1 connects
+ *   wapi connect <ssid> <pass>          both of the above in one go
+ *   wapi disconnect [ifname]            drop the link
+ *
+ * The ifname is accepted and ignored: the only station is wlan0 and it
+ * lives on CP.  This is the rpmsg face; CP's own `wapi` is the wext face
+ * of the same operations (compat/bk7258_armino_wops.c), and both end up
+ * in chips/bk7258/wlan_ctrl/wlan_ctrl_server.c, so they share one job
+ * queue and cannot race into the Armino connect twice.
  *
  * The password is never printed.
  ****************************************************************************/
@@ -17,16 +25,25 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "wlan_ctrl.h"
 
-static void wifi_ctrl_showusage(FAR const char *progname)
+static char s_ssid[WLAN_CTRL_SSID_LEN];
+static char s_pass[WLAN_CTRL_PASS_LEN];
+
+static void wifi_showusage(FAR const char *progname)
 {
   printf("Usage:\n");
-  printf("  %s scan\n", progname);
+  printf("  %s scan [ifname]\n", progname);
+  printf("  %s scan_results [ifname]\n", progname);
+  printf("  %s psk <ifname> <passphrase> [alg]\n", progname);
+  printf("  %s essid <ifname> <ssid> [flag]\n", progname);
   printf("  %s connect <ssid> <passphrase>\n", progname);
-  printf("  %s disconnect\n", progname);
-  printf("  %s help\n", progname);
+  printf("  %s disconnect [ifname]\n", progname);
+  printf("\n");
+  printf("  essid flag: 0 off, 1 on (connects), 2 delayed\n");
+  printf("  psk alg:    0 none, 1 wep, 2 tkip, 3 ccmp\n");
 }
 
 static int do_scan(void)
@@ -90,32 +107,73 @@ static int do_connect(FAR const char *ssid, FAR const char *pass)
       return 1;
     }
 
-  printf("connecting to %s (watch for the address on wlan0)\n", ssid);
+  printf("connecting to %s\n", ssid);
   return 0;
 }
+
+/* wapi psk / wapi essid arrive as two separate commands; hold the halves
+ * between them and connect when essid's flag is 1, which is what
+ * netdev_upper_wireless_ioctl() does on the wext face.
+ */
 
 int main(int argc, FAR char *argv[])
 {
   if (argc < 2)
     {
-      wifi_ctrl_showusage(argv[0]);
+      wifi_showusage(argv[0]);
       return EXIT_FAILURE;
     }
 
-  if (strcmp(argv[1], "scan") == 0)
+  if (strcmp(argv[1], "scan") == 0 || strcmp(argv[1], "scan_results") == 0)
     {
       return do_scan();
+    }
+
+  if (strcmp(argv[1], "psk") == 0)
+    {
+      FAR const char *pass = (argc >= 4) ? argv[3] : (argc >= 3 ? argv[2] : NULL);
+
+      if (pass == NULL)
+        {
+          wifi_showusage(argv[0]);
+          return EXIT_FAILURE;
+        }
+
+      strlcpy(s_pass, pass, sizeof(s_pass));
+      return 0;
+    }
+
+  if (strcmp(argv[1], "essid") == 0)
+    {
+      FAR const char *ssid = (argc >= 4) ? argv[3] : (argc >= 3 ? argv[2] : NULL);
+      int flag = (argc >= 5) ? atoi(argv[4]) : 1;
+
+      if (ssid == NULL)
+        {
+          wifi_showusage(argv[0]);
+          return EXIT_FAILURE;
+        }
+
+      strlcpy(s_ssid, ssid, sizeof(s_ssid));
+      if (flag == 1)
+        {
+          return do_connect(s_ssid, s_pass);
+        }
+
+      return 0;
     }
 
   if (strcmp(argv[1], "connect") == 0)
     {
       if (argc < 4)
         {
-          wifi_ctrl_showusage(argv[0]);
+          wifi_showusage(argv[0]);
           return EXIT_FAILURE;
         }
 
-      return do_connect(argv[2], argv[3]);
+      strlcpy(s_ssid, argv[2], sizeof(s_ssid));
+      strlcpy(s_pass, argv[3], sizeof(s_pass));
+      return do_connect(s_ssid, s_pass);
     }
 
   if (strcmp(argv[1], "disconnect") == 0)
@@ -132,6 +190,6 @@ int main(int argc, FAR char *argv[])
       return 0;
     }
 
-  wifi_ctrl_showusage(argv[0]);
+  wifi_showusage(argv[0]);
   return EXIT_FAILURE;
 }

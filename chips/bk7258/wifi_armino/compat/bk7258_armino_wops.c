@@ -64,6 +64,8 @@
 #include <nuttx/net/netdev_lowerhalf.h>
 #include <nuttx/wireless/wireless.h>
 
+#include "../../wlan_ctrl/wlan_ctrl.h"
+
 #include <modules/wifi.h>
 #include <modules/wifi_types.h>
 
@@ -236,93 +238,26 @@ static int wops_auth(FAR struct netdev_lowerhalf_s *dev,
  * EVENT_WIFI_STA_CONNECTED -> sta_ip_start() -> DHCP path.
  */
 
-#define WOPS_WORKER_STACKSIZE   8192
-#define WOPS_WORKER_PRIORITY    200
-
-enum wops_job_e
-{
-  WOPS_JOB_IDLE,
-  WOPS_JOB_CONNECT,
-  WOPS_JOB_DISCONNECT,
-};
-
-/* One job at a time: the netdev upper half serialises the iw_ops calls
- * that produce them, and a second connect while one is running would only
- * be a wifi_v2.c:2429 "sta already started" error anyway.
+/* Connect and disconnect are delegated to the one copy of the Armino
+ * call order, chips/bk7258/wlan_ctrl/wlan_ctrl_server.c, which also serves
+ * the cross-core channel AP uses.  Sharing it matters: a connect issued
+ * from CP's wapi (this file) and one from AP over rpmsg have to hit the
+ * same job queue, or they race into demo_sta_app_init() twice and the
+ * second gets wifi_v2.c:2429 "sta already started".
  */
-
-static struct
-{
-  enum wops_job_e what;
-  char ssid[WIFI_SSID_STR_LEN];
-  char pass[WIFI_PASSWORD_LEN];
-} s_job;
-
-static int wops_worker(int argc, FAR char *argv[])
-{
-  (void)argc;
-  (void)argv;
-
-  switch (s_job.what)
-    {
-      case WOPS_JOB_CONNECT:
-        demo_sta_app_init(s_job.ssid, s_job.pass);
-        break;
-
-      case WOPS_JOB_DISCONNECT:
-        /* Order matters: disconnect fires EVENT_WIFI_STA_DISCONNECTED
-         * (which drives sta_ip_down()), stop clears STARTED so a later
-         * connect does not hit wifi_v2.c:2429 "sta already started,
-         * ignored!".
-         */
-
-        bk_wifi_sta_disconnect();
-        bk_wifi_sta_stop();
-        break;
-
-      default:
-        break;
-    }
-
-  s_job.what = WOPS_JOB_IDLE;
-  return 0;
-}
-
-static int wops_dispatch(enum wops_job_e what)
-{
-  pid_t pid;
-
-  if (s_job.what != WOPS_JOB_IDLE)
-    {
-      return -EBUSY;
-    }
-
-  s_job.what = what;
-  pid = kthread_create("armino-wops", WOPS_WORKER_PRIORITY,
-                       WOPS_WORKER_STACKSIZE, wops_worker, NULL);
-  if (pid < 0)
-    {
-      s_job.what = WOPS_JOB_IDLE;
-      return pid;
-    }
-
-  return 0;
-}
 
 static int wops_connect(FAR struct netdev_lowerhalf_s *dev)
 {
   (void)dev;
 
-  strlcpy(s_job.ssid, s_ssid, sizeof(s_job.ssid));
-  strlcpy(s_job.pass, s_pass, sizeof(s_job.pass));
-  return wops_dispatch(WOPS_JOB_CONNECT);
+  return bk7258_wlan_connect(s_ssid, s_pass);
 }
 
 static int wops_disconnect(FAR struct netdev_lowerhalf_s *dev)
 {
   (void)dev;
 
-  return wops_dispatch(WOPS_JOB_DISCONNECT);
+  return bk7258_wlan_disconnect();
 }
 
 static int wops_mode(FAR struct netdev_lowerhalf_s *dev,
