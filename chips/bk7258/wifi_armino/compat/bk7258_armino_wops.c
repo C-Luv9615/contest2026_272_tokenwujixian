@@ -63,6 +63,23 @@ int demo_sta_app_init(char *oob_ssid, char *connect_key);
 static char s_ssid[WIFI_SSID_STR_LEN];
 static char s_pass[WIFI_PASSWORD_LEN];
 
+/* wapi psk <ifname> <key> [alg] sends SIOCSIWAUTH twice (IW_AUTH_WPA_VERSION,
+ * IW_AUTH_CIPHER_PAIRWISE) before SIOCSIWENCODEEXT.  demo_sta_app_init() infers
+ * the security type from the key itself, so the auth params are accepted and
+ * remembered rather than forwarded.
+ */
+
+static uint32_t s_auth_wpa_version;
+static uint32_t s_auth_cipher_pairwise;
+
+/* A scan only yields results after a scan was started here.  Without this
+ * guard a bare `wapi scan_results` polls bk_wifi_scan_get_result() for as long
+ * as wapi's loop runs, each poll an RPMsg round trip and each call an Armino
+ * error (-5151), which is what wedged the transport on the board.
+ */
+
+static bool s_scan_started;
+
 static int wops_essid(FAR struct netdev_lowerhalf_s *dev,
                       FAR struct iwreq *iwr, bool set)
 {
@@ -101,6 +118,7 @@ static int wops_passwd(FAR struct netdev_lowerhalf_s *dev,
                        FAR struct iwreq *iwr, bool set)
 {
   FAR struct iw_point *p = &iwr->u.data;
+  FAR struct iw_encode_ext *ext;
 
   (void)dev;
 
@@ -111,22 +129,70 @@ static int wops_passwd(FAR struct netdev_lowerhalf_s *dev,
       return -EACCES;
     }
 
-  if (p->pointer == NULL || p->length == 0)
+  if (p->pointer == NULL || p->length < sizeof(*ext))
     {
-      /* Open network: empty key is allowed. */
+      return -EINVAL;
+    }
 
+  /* SIOCSIWENCODEEXT carries struct iw_encode_ext followed by the key bytes
+   * (apps/wireless/wapi/src/driver_wext.c:165-180: malloc(sizeof(*ext) +
+   * key_len), key copied to ext + 1).  The plaintext is ext->key, not the
+   * whole buffer.
+   */
+
+  ext = (FAR struct iw_encode_ext *)p->pointer;
+  if (ext->key_len == 0)
+    {
       s_pass[0] = '\0';
       return 0;
     }
 
-  if (p->length > WIFI_PASSWORD_LEN - 1)
+  if (ext->key_len > WIFI_PASSWORD_LEN - 1 ||
+      p->length < sizeof(*ext) + ext->key_len)
     {
       return -E2BIG;
     }
 
   memset(s_pass, 0, sizeof(s_pass));
-  memcpy(s_pass, p->pointer, p->length);
+  memcpy(s_pass, ext->key, ext->key_len);
   return 0;
+}
+
+static int wops_auth(FAR struct netdev_lowerhalf_s *dev,
+                     FAR struct iwreq *iwr, bool set)
+{
+  FAR struct iw_param *param = &iwr->u.param;
+
+  (void)dev;
+
+  if (!set)
+    {
+      switch (param->flags & IW_AUTH_INDEX)
+        {
+          case IW_AUTH_WPA_VERSION:
+            param->value = (int32_t)s_auth_wpa_version;
+            return 0;
+          case IW_AUTH_CIPHER_PAIRWISE:
+            param->value = (int32_t)s_auth_cipher_pairwise;
+            return 0;
+          default:
+            return -ENOTTY;
+        }
+    }
+
+  switch (param->flags & IW_AUTH_INDEX)
+    {
+      case IW_AUTH_WPA_VERSION:
+        s_auth_wpa_version = (uint32_t)param->value;
+        return 0;
+      case IW_AUTH_CIPHER_PAIRWISE:
+        s_auth_cipher_pairwise = (uint32_t)param->value;
+        return 0;
+      default:
+        /* Algs, key management, etc. are inferred by demo_sta_app_init(). */
+
+        return 0;
+    }
 }
 
 static int wops_connect(FAR struct netdev_lowerhalf_s *dev)
@@ -239,7 +305,25 @@ static int wops_scan(FAR struct netdev_lowerhalf_s *dev,
 
       memset(&cfg, 0, sizeof(cfg));
       cfg.scan_type = 0;   /* active */
-      return bk_wifi_scan_start(&cfg) < 0 ? -EIO : 0;
+      if (bk_wifi_scan_start(&cfg) < 0)
+        {
+          return -EIO;
+        }
+
+      s_scan_started = true;
+      return 0;
+    }
+
+  if (!s_scan_started)
+    {
+      /* Nothing to report and nothing to poll for.  Answering "empty" is
+       * better than an EAGAIN loop over RPMsg: wapi_scan_stat() polls
+       * SIOCGIWSCAN until it sees E2BIG or data, and each poll is a full
+       * cross-core round trip.
+       */
+
+      iwr->u.data.length = 0;
+      return 0;
     }
 
   {
@@ -317,6 +401,7 @@ static int wops_scan(FAR struct netdev_lowerhalf_s *dev,
       }
 
     bk_wifi_scan_free_result(&res);
+    s_scan_started = false;
     iwr->u.data.length =
       (uint16_t)(cursor - (FAR uint8_t *)iwr->u.data.pointer);
     return 0;
@@ -341,6 +426,7 @@ const struct wireless_ops_s g_armino_iw_ops =
   .disconnect = wops_disconnect,
   .essid      = wops_essid,
   .passwd     = wops_passwd,
+  .auth       = wops_auth,
   .mode       = wops_mode,
   .scan       = wops_scan,
   .range      = wops_range,
