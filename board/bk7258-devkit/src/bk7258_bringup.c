@@ -46,6 +46,12 @@ void bk7258_urandom_register(void);
 void bk7258_ca_init(void);
 #endif
 
+/* chips/bk7258/bk7258_trng.c.  Initialised here rather than from Armino's
+ * driver_init() (which gates it on CONFIG_TRNG_SUPPORT), so the unit does
+ * not depend on the Armino registry for its own lifecycle.
+ */
+int bk_trng_driver_init(void);
+
 /* Exceptions 15 and up (SysTick and every peripheral IRQ) enter through
  * exception_direct (arm_vectors.c, bk7258_smp.c _vectors_core1), which does
  * not save the interrupted context into xcp.regs.  A panic raised there --
@@ -279,6 +285,7 @@ void board_late_initialize(void)
    * it has to be there before any user program runs.
    */
 
+  bk_trng_driver_init();
   bk7258_urandom_register();
 
   /* Root CA for the ai_agent's TLS: pulls in chips/bk7258/bk7258_ca.c. */

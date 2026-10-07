@@ -34,6 +34,16 @@
  *   - start/stop return BK_ERR_TRNG_DRIVER_NOT_INIT before init
  *     (trng_driver.c:24).
  *
+ * The unit is self-sufficient: bk_trng_driver_init() is called from
+ * board_late_initialize() (board/bk7258-devkit/src/bk7258_bringup.c), not
+ * from Armino's driver registry.  In the baseline it hung off
+ * driver_init() under #if CONFIG_TRNG_SUPPORT (driver.c:275), which would
+ * make every entry point here a no-op whenever that gate is off and leave
+ * bk_rand() working only because bk7258_urandom.c happened to have the
+ * block on.  The init/deinit contract itself is unchanged: after an
+ * explicit bk_trng_driver_deinit() the start/stop guards still fire, so
+ * the CLI's not-initialised path behaves as before.
+ *
  * One deliberate substitution: the baseline waits with bk_delay_us() from
  * bk_system/delay.c, an Armino unit.  This file uses NuttX's up_udelay(),
  * a busy-wait of the same width, so the replacement does not depend on a
