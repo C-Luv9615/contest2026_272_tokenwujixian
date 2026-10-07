@@ -201,3 +201,11 @@ CONFIG_DRIVERS_WIRELESS=y
 CONFIG_WIRELESS_WAPI=y
 CONFIG_WIRELESS_WAPI_CMDTOOL=y
 CONFIG_WIRELESS_WAPI_STACKSIZE=8192
+
+# One RPMsg buffer is 512 bytes (openamp/rpmsg_virtio.h:27) and a pointer
+# ioctl carries its pointee in the request, so the scan buffer has to stay
+# under one buffer: 16 (usrsock_request_ioctl_s) + 32 (iwreq) + payload
+# must fit. The usrsock server only reassembles sendto fragments, so a
+# split ioctl is parsed as a new request and wedges the link. Keep this
+# small; the proper fix is ioctl reassembly upstream.
+CONFIG_WIRELESS_WAPI_SCAN_MAX_DATA=384
