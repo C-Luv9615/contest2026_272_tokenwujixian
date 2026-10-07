@@ -51,16 +51,6 @@ CHIP_CSRCS += bk7258_psram.c
 endif
 endif
 
-ifeq ($(CONFIG_BK7258_WIFI),y)
-# The Wi-Fi component is CMake-only.  Its Make closure was never complete --
-# it listed no hal_port/*.c unit and none of the BK7258_WPA_STA_SOURCES the
-# VENDOR_RUNTIME link needs -- so `make` could not link the default CP
-# configuration even before the wrapper fold.  No Make build has ever run in
-# this workspace (no in-tree artifacts in the shared nuttx/ checkout), and
-# every documented flow builds through ./build.sh --cmake.  Build the Wi-Fi
-# closure from chips/bk7258/wifi/CMakeLists.txt.
-endif
-
 ifeq ($(CONFIG_AUDIO_BK7258),y)
 VPATH += :audio
 DEPPATH += --dep-path audio
