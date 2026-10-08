@@ -76,6 +76,22 @@ set(BK7258_CHIP_MODULE_INCLUDES
 
 target_include_directories(arch PRIVATE ${BK7258_CHIP_MODULE_INCLUDES})
 
+# bk7258_gpio.c implements the Armino bk_gpio_* face (see the file's
+# "Armino GPIO API face" section) and must take the signatures from the
+# baseline's own contract header so the existing callers need no change.
+# Computed locally: BK7258_ARMINO_BASELINE_DIR is a subdirectory-local
+# set() inside wifi_armino/ and is invisible here.
+#
+# CP only: the face is under #ifndef CONFIG_BK7258_COMPONENT_AP, and on AP
+# these paths shadow mb_ipc/armino_ap/include/driver/mailbox_channel.h (both
+# declare the channel enum, with CP0_MB_CHNL_IPC vs CP1_MB_CHNL_IPC).
+if(CONFIG_BK7258_COMPONENT_CP)
+  target_include_directories(arch PRIVATE
+                             ${NUTTX_CHIP_ABS_DIR}/armino_baseline/cp/include
+                             ${NUTTX_CHIP_ABS_DIR}/armino_baseline/cp/middleware/soc
+                             ${NUTTX_CHIP_ABS_DIR}/armino_baseline/build/bk7258/iperf/bk7258/config)
+endif()
+
 if(CONFIG_BK7258_MB_IPC_RPMSG)
   target_include_directories(arch PRIVATE
                              ${NUTTX_CHIP_ABS_DIR}/wifi/hal_port/include

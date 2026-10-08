@@ -89,7 +89,15 @@ if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
       cp/middleware/driver/trng/trng_driver.c
       cp/middleware/soc/common/hal/trng_hal.c
       cp/middleware/soc/bk7258/hal/trng_ll.c
-      cp/middleware/soc/bk7258/hal/trng_hal_debug.c)
+      cp/middleware/soc/bk7258/hal/trng_hal_debug.c
+      # GPIO belongs to the chip layer: chips/bk7258/bk7258_gpio.c is the
+      # single owner of the AON GPIO block (SOC_AON_GPIO_REG_BASE ==
+      # BK7258_AON_GPIO_BASE == 0x44000400).  Keeping both left two drivers
+      # writing the same registers -- uart_driver.c's bk_gpio_pull_up/down
+      # raced our own bk7258_gpio_uart0 on the same pins.  gpio_hal.c and
+      # gpio_ll.c follow in the next step: their only callers were these two.
+      cp/middleware/driver/gpio/gpio_driver_base.c
+      cp/middleware/driver/bk7258/gpio_driver.c)
 
   # NuttX's config.h defines CONFIG_SPI=1 and reaches Armino units through
   # the libc headers; the baseline sdkconfig leaves it undefined, so
