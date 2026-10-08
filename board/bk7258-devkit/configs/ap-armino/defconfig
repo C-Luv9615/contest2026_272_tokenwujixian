@@ -157,6 +157,7 @@ CONFIG_CRYPTO_MBEDTLS=y
 # usrsock_rpmsg_server holds every fragment until the request is complete.
 CONFIG_MBEDTLS_SSL_OUT_CONTENT_LEN=4096
 CONFIG_NETUTILS_CJSON=y
+CONFIG_NETUTILS_MQTTC=y
 CONFIG_EXAMPLES_AI_AGENT_VELA=y
 CONFIG_EXAMPLES_AI_AGENT_VELA_STACKSIZE=32768
 CONFIG_AI_AGENT_NET_RPMSG=y
@@ -165,7 +166,8 @@ CONFIG_MM_REGIONS=2
 CONFIG_SERIAL_NPOLLWAITERS=8
 # Agent channels/tools trimmed for this board (no media player, no wearable
 # sensors, no quickapp runtime; ws accept thread ENOMEM on post-loop heap).
-# CONFIG_AI_AGENT_MQTT is not set
+CONFIG_AI_AGENT_MQTT=y
+CONFIG_AI_AGENT_REMOTE_CTRL=y
 # CONFIG_AI_AGENT_WS_SERVER is not set
 # CONFIG_AI_AGENT_TOOLS_WEARABLE is not set
 # CONFIG_AI_AGENT_TOOLS_MEDIA is not set

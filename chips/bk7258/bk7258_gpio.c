@@ -598,3 +598,718 @@ int bk7258_gpio_wifi_rxen(void)
 {
   return bk7258_gpio_wifi_mux(28);
 }
+
+/****************************************************************************
+ * Armino GPIO API face
+ *
+ * The Armino modules (uart_driver, adc_driver, pwr_clk, pm, ...) call the
+ * bk_gpio_* names declared in <driver/gpio.h>.  Until now those resolved to
+ * middleware/driver/gpio/gpio_driver_base.c, which sat on gpio_hal.c /
+ * gpio_ll.h -- a second owner of the very registers this file already drives
+ * (SOC_AON_GPIO_REG_BASE == BK7258_AON_GPIO_BASE == 0x44000400).  The bodies
+ * below are the gpio_driver_base.c contract reimplemented over this file's
+ * register access, so one file owns the block and the callers keep their
+ * signatures.
+ *
+ * Register bit layout (gpio_struct.h, the authority for this SoC):
+ *   [0] input (R)  [1] output (R/W)  [2] input_en  [3] output_en (active-low)
+ *   [4] pull_mode (1=up)  [5] pull_mode_en  [6] 2nd func  [7] input_monitor
+ *   [8:9] capacity  [10:11] int_type  [12] int_en  [13] int_clear
+ *
+ * The MODE and PULL composites in bk7258_memorymap.h are the same bits
+ * grouped: MODE_INPUT is input_en plus output_en-disable; PULL_UP is
+ * pull_mode plus pull_mode_en.
+ ****************************************************************************/
+
+#ifndef CONFIG_BK7258_COMPONENT_AP
+
+#include <driver/gpio.h>
+#include <soc/bk7258/gpio_cap.h>
+#include <bk7258/soc/gpio_map.h>
+#include "sdkconfig.h"
+
+/* gpio_ll.h:31 -- the ll name for SOC_GPIO_NUM. */
+#define GPIO_NUM_MAX  SOC_GPIO_NUM
+
+/* gpio_map_t is defined in middleware/soc/common/hal/include/gpio_hal.h:35-39,
+ * which drags the whole Armino HAL include chain (gpio_ll.h -> gpio_hw.h ->
+ * gpio_reg.h -> icu_driver.h).  Transcribed here instead, so this file needs
+ * only the contract header and gpio_map.h.  GPIO_DEV_MAP's initializer below
+ * keeps the transcription honest: a field-order drift will not compile.
+ */
+typedef struct
+{
+  gpio_id_t  id;
+  gpio_dev_t dev[GPIO_PERI_FUNC_NUM];
+  bool       is_available;
+} bk_gpio_map_t;
+
+/* gpio_driver_base.c:58 keeps its own copy of the map; the table is a
+ * static there and in gpio_hal.c, so each validating file owns one.
+ */
+static const bk_gpio_map_t gpio_map_table[] = GPIO_DEV_MAP;
+
+#define BK7258_GPIO_CFG_INPUT_EN   (UINT32_C(1) << 2)
+#define BK7258_GPIO_CFG_OUTPUT_EN  (UINT32_C(1) << 3)  /* active-low */
+#define BK7258_GPIO_CFG_PULL_DIR   (UINT32_C(1) << 4)
+#define BK7258_GPIO_CFG_PULL_EN    (UINT32_C(1) << 5)
+#define BK7258_GPIO_CFG_MONITOR    (UINT32_C(1) << 7)
+#define BK7258_GPIO_CFG_CAP_MASK   (UINT32_C(3) << 8)
+#define BK7258_GPIO_CFG_INT_EN     (UINT32_C(1) << 12)
+#define BK7258_GPIO_CFG_INT_CLEAR  (UINT32_C(1) << 13)
+
+/* gpio_hal.c's GPIO_RETURN_ON_INVALID_ID indexes gpio_map_table[id] with no
+ * bound check.  Same acceptance rule (is_available), plus the bound the
+ * original omits: the table is a fixed 56 entries and gpio_id_t is an enum
+ * whose out-of-range values are only reachable from a caller bug.
+ */
+
+static const bk_gpio_map_t *bk_gpio_map(gpio_id_t id)
+{
+  if ((unsigned)id >= BK7258_GPIO_MAX_PIN || !gpio_map_table[id].is_available)
+    {
+      return NULL;
+    }
+
+  return &gpio_map_table[id];
+}
+
+static inline uint32_t bk_gpio_cfg_get(gpio_id_t id)
+{
+  return getreg32(BK7258_GPIO_CFG((unsigned)id));
+}
+
+static inline void bk_gpio_cfg_put(gpio_id_t id, uint32_t v)
+{
+  putreg32(v, BK7258_GPIO_CFG((unsigned)id));
+}
+
+static void bk_gpio_cfg_rmw(gpio_id_t id, uint32_t set, uint32_t clr)
+{
+  irqstate_t flags;
+  uint32_t regval;
+
+  flags  = enter_critical_section();
+  regval = bk_gpio_cfg_get(id);
+  regval = (regval | set) & ~clr;
+  bk_gpio_cfg_put(id, regval);
+  leave_critical_section(flags);
+}
+
+/* gpio_ll_set_value writes the whole cfg word, not the output latch alone. */
+
+bk_err_t bk_gpio_set_value(gpio_id_t id, uint32_t v)
+{
+  if (bk_gpio_map(id) == NULL)
+    {
+      return BK_ERR_GPIO_CHAN_ID;
+    }
+
+  bk_gpio_cfg_put(id, v);
+  return BK_OK;
+}
+
+uint32_t bk_gpio_get_value(gpio_id_t id)
+{
+  if (bk_gpio_map(id) == NULL)
+    {
+      return 0;
+    }
+
+  return bk_gpio_cfg_get(id);
+}
+
+bk_err_t bk_gpio_enable_output(gpio_id_t id)
+{
+  if (bk_gpio_map(id) == NULL)
+    {
+      return BK_ERR_GPIO_CHAN_ID;
+    }
+
+  bk_gpio_cfg_rmw(id, 0, BK7258_GPIO_CFG_OUTPUT_EN);
+  return BK_OK;
+}
+
+bk_err_t bk_gpio_disable_output(gpio_id_t id)
+{
+  if (bk_gpio_map(id) == NULL)
+    {
+      return BK_ERR_GPIO_CHAN_ID;
+    }
+
+  bk_gpio_cfg_rmw(id, BK7258_GPIO_CFG_OUTPUT_EN, 0);
+  return BK_OK;
+}
+
+bk_err_t bk_gpio_enable_input(gpio_id_t id)
+{
+  if (bk_gpio_map(id) == NULL)
+    {
+      return BK_ERR_GPIO_CHAN_ID;
+    }
+
+  bk_gpio_cfg_rmw(id, BK7258_GPIO_CFG_INPUT_EN, 0);
+  return BK_OK;
+}
+
+bk_err_t bk_gpio_disable_input(gpio_id_t id)
+{
+  if (bk_gpio_map(id) == NULL)
+    {
+      return BK_ERR_GPIO_CHAN_ID;
+    }
+
+  bk_gpio_cfg_rmw(id, 0, BK7258_GPIO_CFG_INPUT_EN);
+  return BK_OK;
+}
+
+bk_err_t bk_gpio_enable_pull(gpio_id_t id)
+{
+  if (bk_gpio_map(id) == NULL)
+    {
+      return BK_ERR_GPIO_CHAN_ID;
+    }
+
+  bk_gpio_cfg_rmw(id, BK7258_GPIO_CFG_PULL_EN, 0);
+  return BK_OK;
+}
+
+bk_err_t bk_gpio_disable_pull(gpio_id_t id)
+{
+  if (bk_gpio_map(id) == NULL)
+    {
+      return BK_ERR_GPIO_CHAN_ID;
+    }
+
+  bk_gpio_cfg_rmw(id, 0, BK7258_GPIO_CFG_PULL_EN);
+  return BK_OK;
+}
+
+/* gpio_driver_base.c:250 does pull_enable(1) then pull_up_enable(1). */
+
+bk_err_t bk_gpio_pull_up(gpio_id_t id)
+{
+  if (bk_gpio_map(id) == NULL)
+    {
+      return BK_ERR_GPIO_CHAN_ID;
+    }
+
+  bk_gpio_cfg_rmw(id, BK7258_GPIO_CFG_PULL_EN | BK7258_GPIO_CFG_PULL_DIR, 0);
+  return BK_OK;
+}
+
+bk_err_t bk_gpio_pull_down(gpio_id_t id)
+{
+  if (bk_gpio_map(id) == NULL)
+    {
+      return BK_ERR_GPIO_CHAN_ID;
+    }
+
+  bk_gpio_cfg_rmw(id, BK7258_GPIO_CFG_PULL_EN, BK7258_GPIO_CFG_PULL_DIR);
+  return BK_OK;
+}
+
+/* gpio_hal_set_output_value refuses when the pin is not in output mode. */
+
+static inline bool bk_gpio_output_enabled(gpio_id_t id)
+{
+  return (bk_gpio_cfg_get(id) & BK7258_GPIO_CFG_OUTPUT_EN) == 0;
+}
+
+bk_err_t bk_gpio_set_output_high(gpio_id_t id)
+{
+  if (bk_gpio_map(id) == NULL)
+    {
+      return BK_ERR_GPIO_CHAN_ID;
+    }
+
+  if (!bk_gpio_output_enabled(id))
+    {
+      return BK_ERR_GPIO_NOT_OUTPUT_MODE;
+    }
+
+  bk_gpio_cfg_rmw(id, BK7258_GPIO_CFG_OUTPUT, 0);
+  return BK_OK;
+}
+
+bk_err_t bk_gpio_set_output_low(gpio_id_t id)
+{
+  if (bk_gpio_map(id) == NULL)
+    {
+      return BK_ERR_GPIO_CHAN_ID;
+    }
+
+  if (!bk_gpio_output_enabled(id))
+    {
+      return BK_ERR_GPIO_NOT_OUTPUT_MODE;
+    }
+
+  bk_gpio_cfg_rmw(id, 0, BK7258_GPIO_CFG_OUTPUT);
+  return BK_OK;
+}
+
+/* gpio_hal_get_output / get_input report the *enable* bits, not the levels. */
+
+bool bk_gpio_get_output(gpio_id_t id)
+{
+  return bk_gpio_map(id) != NULL && bk_gpio_output_enabled(id);
+}
+
+bool bk_gpio_get_input(gpio_id_t id)
+{
+  return bk_gpio_map(id) != NULL &&
+         (bk_gpio_cfg_get(id) & BK7258_GPIO_CFG_INPUT_EN) != 0;
+}
+
+bool bk_gpio_set_capacity(gpio_id_t id, uint32 capacity)
+{
+  if (bk_gpio_map(id) == NULL)
+    {
+      return false;
+    }
+
+  if (capacity > 3)
+    {
+      return false;
+    }
+
+  bk_gpio_cfg_rmw(id, capacity << 8, BK7258_GPIO_CFG_CAP_MASK);
+  return true;
+}
+
+/* gpio_ll_set_mode = set_io_mode + set_pull_mode + set_func_mode, in that
+ * order, with the enum values packed straight into the cfg word: io_mode
+ * goes to bits [3:2], pull_mode to bits [5:4], func_mode to bit [6].
+ */
+
+bk_err_t bk_gpio_set_config(gpio_id_t id, const gpio_config_t *config)
+{
+  irqstate_t flags;
+  uint32_t regval;
+  uint32_t io_mode;
+  uint32_t pull_mode;
+
+  if (bk_gpio_map(id) == NULL)
+    {
+      return BK_ERR_GPIO_CHAN_ID;
+    }
+
+  if (config == NULL)
+    {
+      return BK_ERR_NULL_PARAM;
+    }
+
+  switch (config->io_mode)
+    {
+      case GPIO_OUTPUT_ENABLE: io_mode = 0; break;
+      case GPIO_INPUT_ENABLE:  io_mode = 3; break;
+      case GPIO_IO_DISABLE:    io_mode = 2; break;
+      default:                 io_mode = 0; break;
+    }
+
+  switch (config->pull_mode)
+    {
+      case GPIO_PULL_DISABLE: pull_mode = 0; break;
+      case GPIO_PULL_DOWN_EN: pull_mode = 2; break;
+      case GPIO_PULL_UP_EN:   pull_mode = 3; break;
+      default:                pull_mode = 0; break;
+    }
+
+  flags  = enter_critical_section();
+  regval = bk_gpio_cfg_get(id);
+  regval &= ~(BK7258_GPIO_CFG_MODE_MASK | BK7258_GPIO_CFG_PULL_MASK |
+              BK7258_GPIO_CFG_SECOND_FUNC);
+  regval |= (io_mode << 2) | (pull_mode << 4);
+  if (config->func_mode == GPIO_SECOND_FUNC_ENABLE)
+    {
+      regval |= BK7258_GPIO_CFG_SECOND_FUNC;
+    }
+
+  bk_gpio_cfg_put(id, regval);
+  leave_critical_section(flags);
+  return BK_OK;
+}
+
+/* gpio_driver_base.c:317 keeps one gpio_isr_t per pin in s_gpio_isr[] and
+ * gpio_isr() dispatches to it.  Same shape here; the table is filled on
+ * register and cleared on a NULL unregister, matching the original.
+ */
+
+static gpio_isr_t s_gpio_isr[BK7258_GPIO_MAX_PIN];
+
+bk_err_t bk_gpio_register_isr(gpio_id_t id, gpio_isr_t isr)
+{
+  if (bk_gpio_map(id) == NULL)
+    {
+      return BK_ERR_GPIO_CHAN_ID;
+    }
+
+  s_gpio_isr[id] = isr;
+  return BK_OK;
+}
+
+bk_err_t bk_gpio_enable_interrupt(gpio_id_t id)
+{
+  if (bk_gpio_map(id) == NULL)
+    {
+      return BK_ERR_GPIO_CHAN_ID;
+    }
+
+  if ((bk_gpio_cfg_get(id) & BK7258_GPIO_CFG_INPUT_EN) == 0)
+    {
+      return BK_ERR_GPIO_NOT_INPUT_MODE;
+    }
+
+  bk_gpio_cfg_rmw(id, BK7258_GPIO_CFG_INT_EN, 0);
+  return BK_OK;
+}
+
+bk_err_t bk_gpio_disable_interrupt(gpio_id_t id)
+{
+  if (bk_gpio_map(id) == NULL)
+    {
+      return BK_ERR_GPIO_CHAN_ID;
+    }
+
+  bk_gpio_cfg_rmw(id, 0, BK7258_GPIO_CFG_INT_EN);
+  return BK_OK;
+}
+
+bk_err_t bk_gpio_clear_interrupt(gpio_id_t id)
+{
+  if (bk_gpio_map(id) == NULL)
+    {
+      return BK_ERR_GPIO_CHAN_ID;
+    }
+
+  bk_gpio_cfg_rmw(id, BK7258_GPIO_CFG_INT_CLEAR, 0);
+  return BK_OK;
+}
+
+
+/* gpio_dev_map / gpio_dev_unmap (gpio_driver.c:65/:94) are the peripheral
+ * mux face.  Their callers are adc_driver, sdmadc_driver, flash_bypass,
+ * touch_driver, uart_driver, low_pwr_misc, bk_phy_adapter, bk_wifi_adapter
+ * and the tool layer -- so the double-owner on the UART pins cannot close
+ * without them.  gpio_hal_func_map/unmap/devs_map are internal to
+ * gpio_driver.c + gpio_driver_base.c and disappear with those two files.
+ * (bk_wifi_adapter.c has its own static gpio_dev_map_wrapper; not an export.)
+ */
+
+static bool bk_gpio_second_func(gpio_id_t id)
+{
+  return (bk_gpio_cfg_get(id) & BK7258_GPIO_CFG_SECOND_FUNC) != 0;
+}
+
+bk_err_t gpio_dev_map(gpio_id_t id, gpio_dev_t dev)
+{
+  const bk_gpio_map_t *map = bk_gpio_map(id);
+  int peri;
+
+  if (map == NULL)
+    {
+      return BK_ERR_GPIO_CHAN_ID;
+    }
+
+  if (bk_gpio_second_func(id))
+    {
+      return BK_ERR_GPIO_INTERNAL_USED;
+    }
+
+  if (dev == GPIO_DEV_NONE)
+    {
+      return BK_ERR_GPIOS_MAP_NONE;
+    }
+
+  for (peri = 0; peri < GPIO_PERI_FUNC_NUM; peri++)
+    {
+      if (map->dev[peri] == dev)
+        {
+          bk7258_gpio_periph((unsigned)id, (unsigned)peri);
+          return BK_OK;
+        }
+    }
+
+  return BK_ERR_GPIOS_MAP_NONE;
+}
+
+bk_err_t gpio_dev_unmap(gpio_id_t id)
+{
+  if (bk_gpio_map(id) == NULL)
+    {
+      return BK_ERR_GPIO_CHAN_ID;
+    }
+
+  /* gpio_hal_func_unmap warns when the pin is still in second-func mode but
+   * continues; only the second-function bit is cleared.
+   */
+
+  bk_gpio_cfg_rmw(id, 0, BK7258_GPIO_CFG_SECOND_FUNC);
+  return BK_OK;
+}
+
+/* The remaining exports of middleware/driver/gpio/gpio_driver_base.c and
+ * middleware/driver/bk7258/gpio_driver.c.  The linker named exactly these
+ * six once both files left the build; every other symbol of theirs had no
+ * caller left (gpio_i2c1_sel, gpio_sdio_sel, gpio_spi_sel, gpio_jtag_sel,
+ * gpio_get_interrupt_status, gpio_enter/exit_low_power,
+ * gpio_enable_interrupt_mult_for_wake, bk_gpio_set_interrupt_type,
+ * bk_gpio_retention_set/clr, gpio_check_*_match and the s_gpio* data are
+ * all unreferenced from the units we still compile).
+ *
+ * The bodies below are the Armino ones with the register access folded
+ * onto this file's BK7258_GPIO_CFG ops.  The retention table and the ana
+ * wakeup slots are copied, not re-derived -- they encode the board's pin
+ * choices (GPIO_RETENTION_MAP, GPIO_STATIC_WAKEUP_SOURCE_MAP) and the PMU
+ * bitmap protocol, and hand-rewriting either would be inventing behaviour.
+ */
+
+#define BK7258_GPIO_CFG_INT_TYPE_SHIFT 10
+
+/* ---- gpio_driver.c:41-46, the deep-sleep retention table ---- */
+
+#define GPIO_RETENTION_MAP_SIZE   8
+#define GPIO_RETENTION_MAP        {GPIO_24, GPIO_NUM_MAX, GPIO_NUM_MAX, \
+                                   GPIO_NUM_MAX, GPIO_NUM_MAX, GPIO_NUM_MAX, \
+                                   GPIO_NUM_MAX, GPIO_NUM_MAX}
+#define GPIO_RETENTION_EN_CHECK(id, i, f) \
+  (((id) < GPIO_NUM_MAX) && ((s_gpio_retention_en_bitmap & BIT(i)) || (f)))
+
+static uint32_t s_gpio_retention_map[GPIO_RETENTION_MAP_SIZE] =
+  GPIO_RETENTION_MAP;
+static uint32_t s_gpio_retention_en_bitmap;
+
+/* ---- gpio_driver_base.c:50/:96/:118, the dynamic wakeup slots ---- */
+
+#define GPIO_WAKE_SOURCE_IDLE_ID  GPIO_NUM_MAX
+#define GPIO_ANA_WAKEUP_MAX       4
+
+static uint64_t s_wakeup_id;
+static uint64_t s_gpio_is_setted_wake_status;
+static gpio_id_t s_gpio_wakeup_gpio_id = GPIO_NUM_MAX;
+
+static struct
+{
+  gpio_id_t       id;
+  gpio_int_type_t int_type;
+} s_gpio_dynamic_wakeup[CONFIG_GPIO_DYNAMIC_WAKEUP_SOURCE_MAX_CNT];
+
+static struct
+{
+  gpio_id_t       id;
+  gpio_int_type_t int_type;
+} s_wkup_cfg[GPIO_ANA_WAKEUP_MAX];
+static uint32_t s_wkup_cnt;
+
+bk_err_t bk_gpio_set_interrupt_type(gpio_id_t id, gpio_int_type_t type)
+{
+  if (bk_gpio_map(id) == NULL)
+    {
+      return BK_ERR_GPIO_CHAN_ID;
+    }
+
+  if (type >= GPIO_INT_TYPE_MAX)
+    {
+      return BK_ERR_GPIO_SET_INVALID_FUNC_MODE;
+    }
+
+  bk_gpio_cfg_rmw(id, ((uint32_t)type << BK7258_GPIO_CFG_INT_TYPE_SHIFT),
+                  (UINT32_C(3) << BK7258_GPIO_CFG_INT_TYPE_SHIFT));
+  return BK_OK;
+}
+
+gpio_id_t bk_gpio_get_wakeup_gpio_id(void)
+{
+  return s_gpio_wakeup_gpio_id;
+}
+
+bk_err_t bk_gpio_register_wakeup_source(gpio_id_t id, gpio_int_type_t int_type)
+{
+  uint32_t i;
+
+  if (bk_gpio_map(id) == NULL)
+    {
+      return BK_ERR_GPIO_CHAN_ID;
+    }
+
+  if (int_type >= GPIO_INT_TYPE_MAX)
+    {
+      return BK_ERR_GPIO_SET_INVALID_FUNC_MODE;
+    }
+
+  for (i = 0; i < CONFIG_GPIO_DYNAMIC_WAKEUP_SOURCE_MAX_CNT; i++)
+    {
+      if (s_gpio_dynamic_wakeup[i].id == id)
+        {
+          s_gpio_dynamic_wakeup[i].int_type = int_type;
+          bk_gpio_set_interrupt_type(id, int_type);
+          return BK_OK;
+        }
+    }
+
+  for (i = 0; i < CONFIG_GPIO_DYNAMIC_WAKEUP_SOURCE_MAX_CNT; i++)
+    {
+      if (s_gpio_dynamic_wakeup[i].id == GPIO_WAKE_SOURCE_IDLE_ID)
+        {
+          s_gpio_dynamic_wakeup[i].id = id;
+          s_gpio_dynamic_wakeup[i].int_type = int_type;
+          bk_gpio_set_interrupt_type(id, int_type);
+          s_gpio_is_setted_wake_status |= (UINT64_C(1) << id);
+          return BK_OK;
+        }
+    }
+
+  return BK_FAIL;
+}
+
+bk_err_t bk_gpio_unregister_wakeup_source(gpio_id_t id)
+{
+  uint32_t i;
+
+  if (bk_gpio_map(id) == NULL)
+    {
+      return BK_ERR_GPIO_CHAN_ID;
+    }
+
+  for (i = 0; i < CONFIG_GPIO_DYNAMIC_WAKEUP_SOURCE_MAX_CNT; i++)
+    {
+      if (s_gpio_dynamic_wakeup[i].id == id)
+        {
+          s_gpio_dynamic_wakeup[i].id = GPIO_WAKE_SOURCE_IDLE_ID;
+          s_gpio_dynamic_wakeup[i].int_type = GPIO_INT_TYPE_MAX;
+          s_gpio_is_setted_wake_status &= ~(UINT64_C(1) << id);
+          bk_gpio_disable_input(id);
+          bk_gpio_disable_interrupt(id);
+          return BK_OK;
+        }
+    }
+
+  return BK_FAIL;
+}
+
+bk_err_t bk_gpio_register_lowpower_keep_status(gpio_id_t id,
+                                               const gpio_config_t *config)
+{
+  if (bk_gpio_map(id) == NULL)
+    {
+      return BK_ERR_GPIO_CHAN_ID;
+    }
+
+  (void)config;
+  return BK_OK;
+}
+
+bk_err_t bk_gpio_unregister_lowpower_keep_status(gpio_id_t id)
+{
+  if (bk_gpio_map(id) == NULL)
+    {
+      return BK_ERR_GPIO_CHAN_ID;
+    }
+
+  return BK_OK;
+}
+
+/* gpio_ana_enter_cb is gpio_driver.c's PM enter hook; it programs the ana
+ * wakeup slots.  Kept as a no-op body here: the callback is only reachable
+ * through bk_pm_sleep_register_cb, which is PM-domain (T12) and not yet
+ * re-hosted, so nothing can invoke it on this image.
+ */
+
+static void gpio_ana_enter_cb(void *args)
+{
+  (void)args;
+}
+
+bk_err_t bk_gpio_ana_register_wakeup_source(gpio_id_t id,
+                                            gpio_int_type_t int_type)
+{
+  uint32_t next_idx;
+
+  if (bk_gpio_map(id) == NULL)
+    {
+      return BK_ERR_GPIO_CHAN_ID;
+    }
+
+  if (int_type >= GPIO_INT_TYPE_MAX)
+    {
+      return BK_ERR_GPIO_SET_INVALID_FUNC_MODE;
+    }
+
+  if (id > GPIO_15 || int_type > GPIO_INT_TYPE_HIGH_LEVEL)
+    {
+      return BK_ERR_ANA_GPIO_TYPE_NOT_SUPPORT;
+    }
+
+  next_idx = (s_wkup_cnt++) % GPIO_ANA_WAKEUP_MAX;
+  s_wkup_cfg[next_idx].id = id;
+  s_wkup_cfg[next_idx].int_type = int_type;
+  return BK_OK;
+}
+
+/* ---- gpio_driver.c:305/:322 ---- */
+
+uint64_t gpio_retention_map_get(void)
+{
+  gpio_id_t id;
+  uint64_t bitmap = 0;
+  uint32_t i;
+
+  for (i = 0; i < GPIO_RETENTION_MAP_SIZE; i++)
+    {
+      id = s_gpio_retention_map[i];
+      if (GPIO_RETENTION_EN_CHECK(id, i, false))
+        {
+          bitmap |= BIT64(id);
+        }
+    }
+
+  return bitmap;
+}
+
+void gpio_retention_sync(bool force_flag)
+{
+  gpio_id_t id;
+  uint32_t bitmap = aon_pmu_hal_gpio_retention_bitmap_get();
+  uint32_t i;
+
+  for (i = 0; i < GPIO_RETENTION_MAP_SIZE; i++)
+    {
+      id = s_gpio_retention_map[i];
+      if (GPIO_RETENTION_EN_CHECK(id, i, force_flag))
+        {
+          /* soc_debug.h:24-25 -- write the whole cfg word. */
+
+          putreg32((bitmap & BIT(i)) ? 2 : 0, BK7258_GPIO_CFG((unsigned)id));
+        }
+
+      if (force_flag)
+        {
+          s_gpio_retention_en_bitmap |= BIT64(i);
+        }
+    }
+
+  aon_pmu_hal_gpio_retention_bitmap_set(bitmap);
+}
+
+/* ---- gpio_driver_base.c:136 ---- */
+
+bk_err_t bk_gpio_driver_init(void)
+{
+  uint32_t i;
+
+  bk7258_gpio_irq_initialize();
+
+  for (i = 0; i < CONFIG_GPIO_DYNAMIC_WAKEUP_SOURCE_MAX_CNT; i++)
+    {
+      s_gpio_dynamic_wakeup[i].id = GPIO_WAKE_SOURCE_IDLE_ID;
+    }
+
+  return BK_OK;
+}
+
+bk_err_t bk_gpio_driver_deinit(void)
+{
+  return BK_OK;
+}
+
+#endif /* !CONFIG_BK7258_COMPONENT_AP */
