@@ -27,6 +27,7 @@
 #ifdef CONFIG_INPUT_BUTTONS_LOWER
 #  include <nuttx/input/buttons.h>
 int bk7258_buttons_input_initialize(void);
+int bk7258_status_led_initialize(void);
 #endif
 
 #include <arch/chip/bk7258_ap_boot.h>
@@ -433,22 +434,18 @@ static inline void bk7258_ap_gpio_write(unsigned int pin, uint32_t value)
   __asm__ volatile ("dsb" : : : "memory");
 }
 
+/* GPIO40 now belongs to bk7258_status_led.c, which drives it as the red
+ * half of the two-colour status indicator.  This heartbeat writer kept
+ * toggling the same pin once a second and its writes landed between the
+ * status writer's, which showed up as a red flicker during the green idle
+ * blink.  The liveness proof the heartbeat existed for is carried by the
+ * status LED's idle pattern, so the writer is retired; the call sites stay
+ * so the surrounding sequencing is unchanged.
+ */
+
 static void bk7258_ap_heartbeat_led_write(bool on)
 {
-  uint32_t config =
-    bk7258_ap_gpio_read(BOARD_AP_HEARTBEAT_LED_PIN);
-  bool high = BOARD_AP_HEARTBEAT_LED_ACTIVE_HIGH ? on : !on;
-
-  if (high)
-    {
-      config |= BK7258_GPIO_OUTPUT_VALUE;
-    }
-  else
-    {
-      config &= ~BK7258_GPIO_OUTPUT_VALUE;
-    }
-
-  bk7258_ap_gpio_write(BOARD_AP_HEARTBEAT_LED_PIN, config);
+  (void)on;
 }
 
 static void bk7258_ap_heartbeat_led_initialize(void)
@@ -800,6 +797,11 @@ static void bk7258_ap_initialize(void)
   ret = btn_lower_initialize("/dev/btn0");
   if (ret == 0)
     {
+      /* LED first: the key thread steps it, so the pins must be configured
+       * before that thread exists.
+       */
+
+      bk7258_status_led_initialize();
       bk7258_buttons_input_initialize();
     }
   if (ret < 0)
