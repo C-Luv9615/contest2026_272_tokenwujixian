@@ -26,6 +26,7 @@
 
 #ifdef CONFIG_INPUT_BUTTONS_LOWER
 #  include <nuttx/input/buttons.h>
+int bk7258_buttons_input_initialize(void);
 #endif
 
 #include <arch/chip/bk7258_ap_boot.h>
@@ -797,6 +798,10 @@ static void bk7258_ap_initialize(void)
 
 #ifdef CONFIG_INPUT_BUTTONS_LOWER
   ret = btn_lower_initialize("/dev/btn0");
+  if (ret == 0)
+    {
+      bk7258_buttons_input_initialize();
+    }
   if (ret < 0)
     {
       syslog(LOG_ERR, "BK7258 button init failed: %d\n", ret);

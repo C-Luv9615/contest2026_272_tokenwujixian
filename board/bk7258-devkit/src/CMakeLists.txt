@@ -25,7 +25,7 @@ if(CONFIG_AUDIO_BK7258)
 endif()
 
 if(CONFIG_ARCH_BUTTONS AND CONFIG_BK7258_COMPONENT_AP)
-  target_sources(board PRIVATE bk7258_buttons.c)
+  target_sources(board PRIVATE bk7258_buttons.c bk7258_buttons_input.c)
 endif()
 
 if(CONFIG_BK7258_WIFI)
