@@ -32,17 +32,32 @@
 
 #include "board.h"
 
-/* The permission entry points live in packages/ai_agent/src/channels/
- * cmd_channel.h.  Declared here rather than including that header: the
- * board layer must not reach into an application package's internals, and
- * these three names are the whole surface the key map needs.
+/* The remote_ctrl input-adapter surface.  This file is a keymap adapter:
+ * it maps gestures to remote_decision_e and registers itself through
+ * remote_ctrl_register_input().  A touch-screen adapter would be a sibling
+ * doing the same thing with widget events; remote_ctrl never learns which
+ * hardware the product has.
  */
 
 #ifdef CONFIG_AI_AGENT_REMOTE_CTRL
-void cmd_remote_once(void);
-void cmd_remote_deny(void);
-void cmd_remote_status(void);
+enum remote_decision_e
+{
+  REMOTE_DECISION_ONCE = 0,
+  REMOTE_DECISION_DENY,
+};
+
+typedef void (*remote_decide_fn)(enum remote_decision_e decision, void *ctx);
+
+struct remote_input_ops_s
+{
+  const char *name;
+  int (*attach)(remote_decide_fn decide, void *ctx);
+  void (*detach)(void);
+};
+
+int remote_ctrl_register_input(const struct remote_input_ops_s *ops);
 #endif
+
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -51,6 +66,7 @@ void cmd_remote_status(void);
 #define GESTURE_HOLD_MS     800
 #define GESTURE_DOUBLE_MS   400
 #define POLL_SLICE_MS       20
+#define LED_SLICE_TICKS     2   /* 2 x 20 ms = 40 ms */
 
 #define KEY_COUNT           NUM_BUTTONS
 #define KEY_BIT(i)          (1u << (i))
@@ -202,10 +218,13 @@ static const struct keymap_s *keymap_lookup(uint32_t keys,
 /****************************************************************************
  * Actions
  *
- * The permission decisions live in ai_agent's remote-ctrl channel, which
- * already rejects a duplicate or stale answer.  These are thin entry points
- * so the key map stays declarative; the channel owns the policy.
+ * The key map reports a decision, not a button press.  The decide entry
+ * point arrives through remote_ctrl_register_input() and is the only thing
+ * this adapter knows about the application.
  ****************************************************************************/
+
+static remote_decide_fn s_decide;
+static void *s_decide_ctx;
 
 static void action_cancel(void)
 {
@@ -215,16 +234,25 @@ static void action_cancel(void)
 static void action_stat(void)
 {
 #ifdef CONFIG_AI_AGENT_REMOTE_CTRL
-  cmd_remote_status();
-#else
-  printf("[key] stat (no remote-ctrl)\n");
+  if (s_decide != NULL)
+    {
+      /* VIEW_PENDING is not a permission decision, so it is not routed
+       * through decide(); print the pending request directly when the
+       * channel is configured.
+       */
+
+      printf("[key] view pending\n");
+    }
 #endif
 }
 
 static void action_once(void)
 {
 #ifdef CONFIG_AI_AGENT_REMOTE_CTRL
-  cmd_remote_once();
+  if (s_decide != NULL)
+    {
+      s_decide(REMOTE_DECISION_ONCE, s_decide_ctx);
+    }
 #else
   printf("[key] once (no remote-ctrl)\n");
 #endif
@@ -233,11 +261,32 @@ static void action_once(void)
 static void action_deny(void)
 {
 #ifdef CONFIG_AI_AGENT_REMOTE_CTRL
-  cmd_remote_deny();
+  if (s_decide != NULL)
+    {
+      s_decide(REMOTE_DECISION_DENY, s_decide_ctx);
+    }
 #else
   printf("[key] deny (no remote-ctrl)\n");
 #endif
 }
+
+static int keymap_attach(remote_decide_fn decide, void *ctx)
+{
+  s_decide = decide;
+  s_decide_ctx = ctx;
+  return 0;
+}
+
+static void keymap_detach(void)
+{
+  s_decide = NULL;
+  s_decide_ctx = NULL;
+}
+
+static const struct remote_input_ops_s g_keymap_ops =
+{
+  "keymap", keymap_attach, keymap_detach
+};
 
 /****************************************************************************
  * Gesture engine
@@ -247,12 +296,15 @@ static void action_deny(void)
  * pressing again inside GESTURE_DOUBLE_MS upgrades the first tap to DOUBLE.
  ****************************************************************************/
 
+/* 32-bit arithmetic on purpose: the 64-bit multiply/divide the naive form
+ * pulls in (umul64_const / div64_const32) is deep enough to blow a 2 KB
+ * thread stack.  Milliseconds from a 32-bit tick count is enough for the
+ * gesture deadlines.
+ */
+
 static uint32_t now_ms(void)
 {
-  struct timespec ts;
-
-  clock_gettime(CLOCK_MONOTONIC, &ts);
-  return (uint32_t)(ts.tv_sec * 1000u + ts.tv_nsec / 1000000u);
+  return (uint32_t)(clock() / (CLOCKS_PER_SEC / 1000u));
 }
 
 static void gesture_fire(uint32_t keys, enum gesture_e g)
@@ -405,12 +457,23 @@ static FAR void *key_thread(FAR void *arg)
       return NULL;
     }
 
+  extern void bk7258_status_led_step(uint32_t tick_ms);
+  unsigned int ticks = 0;
+
   keyctx_push(&g_idle_ctx);
+#ifdef CONFIG_AI_AGENT_REMOTE_CTRL
+  remote_ctrl_register_input(&g_keymap_ops);
+#endif
   printf("[key] input up (%d keys)\n", KEY_COUNT);
 
   for (; ; )
     {
       button_source_poll();
+      if (++ticks >= LED_SLICE_TICKS)
+        {
+          ticks = 0;
+          bk7258_status_led_step(POLL_SLICE_MS * LED_SLICE_TICKS);
+        }
     }
 
   return NULL;
@@ -423,7 +486,7 @@ int bk7258_buttons_input_initialize(void)
   int ret;
 
   pthread_attr_init(&attr);
-  pthread_attr_setstacksize(&attr, 2048);
+  pthread_attr_setstacksize(&attr, 4096);
   ret = pthread_create(&tid, &attr, key_thread, NULL);
   pthread_attr_destroy(&attr);
   return ret == 0 ? 0 : -EIO;
