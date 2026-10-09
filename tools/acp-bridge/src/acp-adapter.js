@@ -3,6 +3,17 @@ import readline from "node:readline";
 
 const READY_DELAY_MS = 1_000;
 
+// A turn that calls a tool and waits for a human permission decision runs
+// far past any fixed wall-clock budget.  The promise is kept alive by
+// output instead: a request times out only after this long with no
+// session/update at all, and never lives longer than TURN_HARD_CAP_MS from
+// submission.  The earlier fixed 30 s rejected every approval-gated turn
+// as `session/prompt_timeout`, which the bridge then reported to the
+// device as "Agent turn failed" after the reply had already been
+// delivered.
+const IDLE_TIMEOUT_MS = 30_000;
+const TURN_HARD_CAP_MS = 600_000;
+
 function delay(milliseconds) { return new Promise((resolve) => setTimeout(resolve, milliseconds)); }
 
 export class StdioAcpAdapter {
@@ -63,9 +74,31 @@ export class StdioAcpAdapter {
     const id = this.nextId++;
     this.send({ jsonrpc: "2.0", id, method, params });
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => { this.pending.delete(id); reject(new Error(`${method}_timeout`)); }, 30_000);
-      this.pending.set(id, { resolve, reject, timer, method, params });
+      const entry = { resolve, reject, timer: null, method, params, started: Date.now() };
+      entry.arm = () => {
+        clearTimeout(entry.timer);
+        entry.timer = setTimeout(() => {
+          this.pending.delete(id);
+          reject(new Error(`${method}_idle_timeout`));
+        }, IDLE_TIMEOUT_MS);
+      };
+      entry.arm();
+      this.pending.set(id, entry);
     });
+  }
+
+  /* Any session traffic proves the turn is alive. */
+  #touch() {
+    const now = Date.now();
+    for (const [id, entry] of this.pending) {
+      if (now - entry.started > TURN_HARD_CAP_MS) {
+        clearTimeout(entry.timer);
+        this.pending.delete(id);
+        entry.reject(new Error(`${entry.method}_hard_cap`));
+      } else {
+        entry.arm();
+      }
+    }
   }
 
   send(message) { this.child.stdin.write(`${JSON.stringify(message)}\n`); }
@@ -97,6 +130,7 @@ export class StdioAcpAdapter {
       return;
     }
     if (message.method === "session/update" || message.method === "_kiro.dev/session/update") {
+      this.#touch();
       this.#normalize(message.params?.update, message.params?.sessionId);
     }
   }
