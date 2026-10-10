@@ -178,6 +178,13 @@ CONFIG_SERIAL_NPOLLWAITERS=8
 # sensors, no quickapp runtime; ws accept thread ENOMEM on post-loop heap).
 CONFIG_AI_AGENT_MQTT=y
 CONFIG_AI_AGENT_REMOTE_CTRL=y
+# Default 16 is too small to hold two MCP servers: gerrit exposes 15 tools
+# and jira 16, and discover_server_tools() hands each server
+# (MCP_CLIENT_MAX_TOOLS - total) slots.  At 16 the second server silently
+# gets the remainder -- seen on the board as "jira: discovered 1 tools"
+# and the model answering "我没有 jira_get_issue 工具".  32 slots is
+# ~14.4 KB BSS and leaves headroom for a third server.
+CONFIG_AI_AGENT_MCP_MAX_TOOLS=32
 # CONFIG_AI_AGENT_WS_SERVER is not set
 # CONFIG_AI_AGENT_TOOLS_WEARABLE is not set
 # CONFIG_AI_AGENT_TOOLS_MEDIA is not set
