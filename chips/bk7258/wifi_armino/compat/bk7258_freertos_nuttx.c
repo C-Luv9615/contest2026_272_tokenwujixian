@@ -602,8 +602,17 @@ static void armino_queue_hiwater(QueueHandle_t q)
   if (file_mq_getattr(&q->u.mq, &attr) == OK && attr.mq_curmsgs > q->hiwater)
     {
       q->hiwater = attr.mq_curmsgs;
-      syslog(LOG_INFO, "[ARMINO] queue %u high water %ld/%lu\n", q->id,
-             q->hiwater, (unsigned long)q->depth);
+      /* Routine fill level is not news: a34-deep queue reporting 2/34 then
+       * 3/34 then 4/34 floods the console and buries what matters.  Log
+       * only when the queue actually reaches capacity -- that is the wall
+       * a caller feels.  hiwater only rises, so this fires once per queue.
+       */
+
+      if ((unsigned long)q->hiwater >= q->depth)
+        {
+          syslog(LOG_WARNING, "[ARMINO] queue %u FULL %ld/%lu\n", q->id,
+                 q->hiwater, (unsigned long)q->depth);
+        }
     }
 }
 

@@ -1374,6 +1374,7 @@ struct bk7258_capture_s
   uint32_t                 samprate;
   uint8_t                  channels;
   uint8_t                  bps;
+  uint8_t                  volume;
 };
 
 static struct bk7258_capture_s g_capture;
@@ -1439,6 +1440,19 @@ static void capture_notify_dequeue(FAR struct bk7258_capture_s *priv,
 #else
   priv->dev.upper(priv->dev.priv, AUDIO_CALLBACK_DEQUEUE, apb, result);
 #endif
+}
+
+/* Same shape as the playback half's bk7258_volume_to_gain(): the upper
+ * half speaks 0..100 and the hardware wants the 6-bit ADC gain 0..0x3F.
+ * Volume 72 rounds to 45 = 0x2d, Armino's DEFAULT_AUD_ADC_CONFIG().adc_gain.
+ */
+
+#define BK7258_ADC_VOLUME_DEFAULT  72u
+#define BK7258_ADC_GAIN_MAX        0x3Fu
+
+static uint8_t capture_volume_to_gain(uint8_t volume)
+{
+  return (uint8_t)(((uint32_t)volume * BK7258_ADC_GAIN_MAX) / 100u);
 }
 
 static void capture_notify_complete(FAR struct bk7258_capture_s *priv)
@@ -1568,6 +1582,19 @@ static int capture_getcaps(FAR struct audio_lowerhalf_s *dev, int type,
                                     | AUDIO_SAMP_RATE_48K;
           }
         break;
+
+      case AUDIO_TYPE_FEATURE:
+        /* nxplayer's volume command is an AUDIOIOC_CONFIGURE with
+         * ac_type=AUDIO_TYPE_FEATURE and ac_format.hw=AUDIO_FU_VOLUME
+         * (nxplayer.c:1316-1322), not a dedicated ioctl.  Advertising the
+         * unit here is what makes the setting reach the driver at all.
+         */
+
+        if (caps->ac_subtype == AUDIO_TYPE_QUERY)
+          {
+            caps->ac_controls.hw[0] = AUDIO_FU_VOLUME;
+          }
+        break;
     }
 
   return sizeof(struct audio_caps_s);
@@ -1578,6 +1605,26 @@ static int capture_configure(FAR struct audio_lowerhalf_s *dev,
 {
   FAR struct bk7258_capture_s *priv = (FAR struct bk7258_capture_s *)dev;
   struct bk7258_adc_cfg_s cfg;
+
+  if (caps->ac_type == AUDIO_TYPE_FEATURE)
+    {
+      if (caps->ac_format.hw != AUDIO_FU_VOLUME)
+        {
+          return -EINVAL;
+        }
+
+      {
+        uint16_t v = caps->ac_controls.hw[0];
+        if (v > 100)
+          {
+            v = 100;
+          }
+
+        priv->volume = (uint8_t)v;
+      }
+
+      return bk7258_adc_set_gain(capture_volume_to_gain(priv->volume));
+    }
 
   if (caps->ac_type != AUDIO_TYPE_INPUT)
     {
@@ -1592,11 +1639,7 @@ static int capture_configure(FAR struct audio_lowerhalf_s *dev,
   memset(&cfg, 0, sizeof(cfg));
   cfg.samp_rate = priv->samprate;
   cfg.channel   = BK7258_ADC_CHL_L;
-  /* DEFAULT_AUD_ADC_CONFIG().adc_gain in Armino's aud_adc_types.h:226.
-   * The 0x20 this first used is 13 steps below the vendor default and
-   * recorded noticeably quiet (board: "播放的声音有点小").
-   */
-  cfg.gain      = 0x2d;
+  cfg.gain      = capture_volume_to_gain(priv->volume);
   cfg.samp_edge = false;
   cfg.use_apll  = true;
 
@@ -1773,6 +1816,7 @@ int bk7258_audio_capture_initialize(void)
   g_capture.channels = 1;
   g_capture.bps      = 16;
   g_capture.samprate = 16000;
+  g_capture.volume   = BK7258_ADC_VOLUME_DEFAULT;
 
   ret = bk7258_gdma_initialize();
   if (ret < 0)
