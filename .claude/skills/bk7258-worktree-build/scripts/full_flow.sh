@@ -14,7 +14,8 @@ options:
   --slot NAME          stable incremental build/package slot name
   --fresh              rebuild this worktree's bound build slot
   --placeholder        use bundled AP recovery placeholder
-  --cp-config NAME     CP board config directory under configs/ (default: cp)
+  --cp-config NAME     CP board config directory under configs/ (default: cp-armino)
+  --ap-config NAME     AP board config directory under configs/ (default: ap-armino)
   --image FILE         flash an existing all-app.bin; skips build/package
   --tools-dir DIR      tools directory for --image (contains bk7258-flash.sh)
   --flash              flash the verified all-app.bin (destructive)
@@ -32,7 +33,8 @@ JOBS=12
 SLOT=""
 FRESH=0
 OPENVELA_AP=1
-CP_CONFIG=cp
+CP_CONFIG=cp-armino
+AP_CONFIG=ap-armino
 FLASH=0
 DEVICE=/dev/ttyUSB0
 PORT=0
@@ -49,6 +51,7 @@ while [[ $# -gt 0 ]]; do
     --fresh) FRESH=1; shift ;;
     --placeholder) OPENVELA_AP=0; shift ;;
     --cp-config) CP_CONFIG="$2"; shift 2 ;;
+    --ap-config) AP_CONFIG="$2"; shift 2 ;;
     --flash) FLASH=1; shift ;;
     --device) DEVICE="$2"; shift 2 ;;
     --port) PORT="$2"; shift 2 ;;
@@ -199,6 +202,7 @@ reset_generated_dir() {
 }
 
 [[ "$CP_CONFIG" =~ ^[a-z0-9][a-z0-9-]*$ ]] || usage
+[[ "$AP_CONFIG" =~ ^[a-z0-9][a-z0-9-]*$ ]] || usage
 CP_DEFCONFIG_SHA="$(sha256sum "$WORKTREE/board/bk7258-devkit/configs/$CP_CONFIG/defconfig" | cut -d' ' -f1)"
 CP_SHA_FILE="$SLOT_ROOT/.cp-defconfig.sha256"
 if [[ "$FRESH" -eq 1 ]] || { [[ -f "$CP_SHA_FILE" ]] && [[ "$(cat "$CP_SHA_FILE")" != "$CP_DEFCONFIG_SHA" ]]; }; then
@@ -211,7 +215,7 @@ if [[ ! -f "$CP_SHA_FILE" ]] || [[ "$(cat "$CP_SHA_FILE")" != "$CP_DEFCONFIG_SHA
 fi
 
 if [[ "$OPENVELA_AP" -eq 1 ]]; then
-  AP_DEFCONFIG_SHA="$(sha256sum "$WORKTREE/board/bk7258-devkit/configs/ap/defconfig" | cut -d' ' -f1)"
+  AP_DEFCONFIG_SHA="$(sha256sum "$WORKTREE/board/bk7258-devkit/configs/$AP_CONFIG/defconfig" | cut -d' ' -f1)"
   AP_SHA_FILE="$SLOT_ROOT/.ap-defconfig.sha256"
   if [[ "$FRESH" -eq 1 ]] || { [[ -f "$AP_SHA_FILE" ]] && [[ "$(cat "$AP_SHA_FILE")" != "$AP_DEFCONFIG_SHA" ]]; }; then
     reset_generated_dir "$AP_BUILD"
@@ -249,13 +253,21 @@ PACKAGE_ARGS=(
 if [[ "$OPENVELA_AP" -eq 1 ]]; then
   echo "== BK7258 AP build =="
   "$BUILD" --workspace "$WORKSPACE" --worktree "$WORKTREE" \
-    --component ap --jobs "$JOBS" --output "$AP_BUILD"
+    --component ap --config "$AP_CONFIG" --jobs "$JOBS" --output "$AP_BUILD"
   AP_DIR="$AP_BUILD/bk7258_ap"
   PACKAGE_ARGS+=(
     --openvela-ap
     --ap-app-bin "$AP_DIR/app1.bin"
     --ap-validation-report "$AP_DIR/l1-validation.json"
   )
+  # The packaging profile carries the memory map, so it must match the AP
+  # config: ap-armino keeps the lwip heap in SRAM and moves RPMSG_SHM.
+  AP_PROFILE="$WORKTREE/board/bk7258-devkit/packaging/profiles/bk7258-devkit-openvela-$AP_CONFIG.json"
+  [[ -f "$AP_PROFILE" ]] || {
+    echo "error: no packaging profile for AP config '$AP_CONFIG': $AP_PROFILE" >&2
+    exit 1
+  }
+  PACKAGE_ARGS+=(--profile "$AP_PROFILE")
 fi
 
 if [[ -e "$OUTPUT_DIR" ]]; then
