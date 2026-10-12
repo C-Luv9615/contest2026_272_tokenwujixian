@@ -56,6 +56,18 @@ struct remote_input_ops_s
 };
 
 int remote_ctrl_register_input(const struct remote_input_ops_s *ops);
+
+/* Push-to-talk.  The board owns no voice policy: it starts a recording,
+ * hands the recognized text to voice_channel_dispatch(), and that routes
+ * it wherever the product registered a sink -- remote_ctrl here, the chat
+ * bus elsewhere.  Declared rather than included for the same reason
+ * remote_ctrl_register_input() is: the board talks to the plug, not to the
+ * channel's internals.
+ */
+
+int  voice_channel_start(void);
+int  voice_channel_stop_with_text(char *text_out, size_t text_out_cap);
+void voice_channel_dispatch(const char *text);
 #endif
 
 
@@ -84,6 +96,8 @@ enum gesture_e
   GESTURE_HOLD,      /* held past GESTURE_HOLD_MS */
   GESTURE_DOUBLE,    /* two taps inside DOUBLE_MS */
   GESTURE_COMBO,     /* two or more keys pressed together */
+  GESTURE_PRESS,     /* key went down -- the front half of press-and-hold */
+  GESTURE_RELEASE,   /* key came up -- the back half */
 };
 
 typedef void (*key_action_t)(void);
@@ -129,6 +143,40 @@ static unsigned int s_ctx_depth;
 
 static void action_cancel(void);
 static void action_stat(void);
+/* Push-to-talk on the key the gesture engine leaves alone.  Press starts
+ * the recording, release stops it and hands the text to the dispatcher.
+ * Two captures at once cannot happen: a second press while recording is
+ * ignored rather than nested.
+ */
+
+static void action_ptt_start(void)
+{
+  int ret = voice_channel_start();
+
+  printf("[key] ptt start (%d)\n", ret);
+}
+
+static void action_ptt_stop(void)
+{
+  char text[512];
+  int ret = voice_channel_stop_with_text(text, sizeof(text));
+
+  if (ret != 0)
+    {
+      printf("[key] ptt stop failed (%d)\n", ret);
+      return;
+    }
+
+  if (text[0] == '\0')
+    {
+      printf("[key] ptt: no speech recognized\n");
+      return;
+    }
+
+  printf("[key] ptt: %s\n", text);
+  voice_channel_dispatch(text);
+}
+
 static void action_once(void);
 static void action_deny(void);
 
@@ -139,10 +187,17 @@ static const struct keymap_s g_global_map[] =
 
 static const struct keymap_s g_idle_map[] =
 {
-  { KEY_BIT(0), GESTURE_TAP,  action_once },
-  { KEY_BIT(1), GESTURE_TAP,  action_deny  },
-  { KEY_BIT(0), GESTURE_HOLD, action_stat },
-  { KEY_BIT(1), GESTURE_HOLD, action_stat },
+  { KEY_BIT(0), GESTURE_TAP,    action_once },
+  { KEY_BIT(1), GESTURE_TAP,    action_deny  },
+  { KEY_BIT(0), GESTURE_HOLD,   action_stat },
+  { KEY_BIT(1), GESTURE_HOLD,   action_stat },
+
+  /* Push-to-talk: the whole gesture is press-then-release, so it hangs off
+   * the edges and never takes part in TAP/HOLD.
+   */
+
+  { KEY_BIT(2), GESTURE_PRESS,   action_ptt_start },
+  { KEY_BIT(2), GESTURE_RELEASE, action_ptt_stop  },
 };
 
 static const struct keyctx_s g_global_ctx =
@@ -196,7 +251,11 @@ static const struct keymap_s *keymap_lookup(uint32_t keys,
         {
           if (ctx->map[j].keys == keys && ctx->map[j].gesture == g)
             {
-              *which = ctx->name;
+              if (which != NULL)
+                {
+                  *which = ctx->name;
+                }
+
               return &ctx->map[j];
             }
         }
@@ -207,7 +266,11 @@ static const struct keymap_s *keymap_lookup(uint32_t keys,
       if (g_global_ctx.map[i].keys == keys &&
           g_global_ctx.map[i].gesture == g)
         {
-          *which = g_global_ctx.name;
+          if (which != NULL)
+            {
+              *which = g_global_ctx.name;
+            }
+
           return &g_global_ctx.map[i];
         }
     }
@@ -346,6 +409,19 @@ static void gesture_update(uint32_t now)
         {
           s_down_ms[i] = now;
           s_hold_fired[i] = false;
+
+          /* Only keys that carry a press-and-hold binding emit the edge
+           * pair.  Firing it for every key made each tap of KEY1/KEY2 log
+           * "unmapped" for PRESS and RELEASE before the TAP that mattered
+           * (board: "我都是单击").  TAP/HOLD/DOUBLE/COMBO keep their
+           * unmapped diagnostic -- those are gestures a person can
+           * discover by accident, these are not.
+           */
+
+          if (keymap_lookup(bit, GESTURE_PRESS, NULL) != NULL)
+            {
+              gesture_fire(bit, GESTURE_PRESS);
+            }
         }
 
       if ((s_combo_started & bit) != 0)
@@ -365,17 +441,31 @@ static void gesture_update(uint32_t now)
           continue;
         }
 
-      if ((s_held & bit) != 0 && !s_hold_fired[i] &&
-          (uint32_t)(now - s_down_ms[i]) >= GESTURE_HOLD_MS)
+      /* A key bound to GESTURE_PRESS is a press-and-hold key: the whole
+       * gesture is the edge pair, so TAP and HOLD must not also fire or
+       * releasing the PTT key would answer a permission request.
+       */
+
+      if (keymap_lookup(bit, GESTURE_PRESS, NULL) == NULL)
         {
-          s_hold_fired[i] = true;
-          s_tap_pending[i] = false;
-          gesture_fire(bit, GESTURE_HOLD);
+          if ((s_held & bit) != 0 && !s_hold_fired[i] &&
+              (uint32_t)(now - s_down_ms[i]) >= GESTURE_HOLD_MS)
+            {
+              s_hold_fired[i] = true;
+              s_tap_pending[i] = false;
+              gesture_fire(bit, GESTURE_HOLD);
+            }
+
+          if ((released & bit) != 0 && !s_hold_fired[i])
+            {
+              gesture_fire(bit, GESTURE_TAP);
+            }
         }
 
-      if ((released & bit) != 0 && !s_hold_fired[i])
+      if ((released & bit) != 0 &&
+          keymap_lookup(bit, GESTURE_RELEASE, NULL) != NULL)
         {
-          gesture_fire(bit, GESTURE_TAP);
+          gesture_fire(bit, GESTURE_RELEASE);
         }
     }
 
