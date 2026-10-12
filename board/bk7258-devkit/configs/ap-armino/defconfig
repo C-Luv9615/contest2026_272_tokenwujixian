@@ -183,8 +183,9 @@ CONFIG_AI_AGENT_REMOTE_CTRL=y
 # (MCP_CLIENT_MAX_TOOLS - total) slots.  At 16 the second server silently
 # gets the remainder -- seen on the board as "jira: discovered 1 tools"
 # and the model answering "我没有 jira_get_issue 工具".  32 slots is
-# ~14.4 KB BSS and leaves headroom for a third server.
-CONFIG_AI_AGENT_MCP_MAX_TOOLS=32
+# ~14.4 KB BSS; 64 doubles that and leaves headroom past a third
+# server.
+CONFIG_AI_AGENT_MCP_MAX_TOOLS=64
 # CONFIG_AI_AGENT_WS_SERVER is not set
 # CONFIG_AI_AGENT_TOOLS_WEARABLE is not set
 # CONFIG_AI_AGENT_TOOLS_MEDIA is not set
