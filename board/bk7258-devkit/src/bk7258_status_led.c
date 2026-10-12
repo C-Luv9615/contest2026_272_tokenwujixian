@@ -64,13 +64,18 @@ int remote_ctrl_register_observer(const struct remote_observer_ops_s *ops);
  * Private Data
  ****************************************************************************/
 
+/* Two colours, two shapes: green is "the board is yours", red is "a human
+ * is needed".  Solid = settled, blinking = moving -- so idle is solid and
+ * working blinks, and the red pair follows the same rule: approval waits
+ * solid, an error blinks.
+ */
 enum led_phase_e
 {
-  PHASE_IDLE = 0,   /* green slow blink */
-  PHASE_WORKING,    /* green fast blink */
+  PHASE_IDLE = 0,   /* green solid */
+  PHASE_WORKING,    /* green blink */
   PHASE_APPROVAL,   /* red solid */
-  PHASE_DONE,       /* green solid for DONE_HOLD_MS, then IDLE */
-  PHASE_ERROR,      /* red slow blink */
+  PHASE_DONE,       /* green fast blink for DONE_HOLD_MS, then IDLE */
+  PHASE_ERROR,      /* red blink */
 };
 
 static volatile enum led_phase_e s_phase = PHASE_IDLE;
@@ -185,16 +190,21 @@ void bk7258_status_led_step(uint32_t tick_ms)
   switch (p)
     {
       case PHASE_IDLE:
-        green = slow != 0;
+        green = true;
         break;
       case PHASE_WORKING:
-        green = fast != 0;
+        green = slow != 0;
         break;
       case PHASE_APPROVAL:
         red = true;
         break;
       case PHASE_DONE:
-        green = true;
+        /* Blink, not solid: under the new scheme solid green means idle, so
+         * a solid DONE would vanish into it.  Fast blink for the hold, then
+         * settle back.
+         */
+
+        green = fast != 0;
         if (s_phase_left_ms > tick_ms)
           {
             s_phase_left_ms -= tick_ms;
