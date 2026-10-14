@@ -1017,7 +1017,7 @@ scheduler、Mailbox IRQ、RPMsg 和 SMP 均暂不启用。
 - [V01] OpenVela `docs/en/device_dev_guide/kernel/KernelDev.md:65-95` 与
   `security/security_configuration.md:31-40`
 - [V02] 飞书 Wiki《核间通讯框架》，node token
-  `Tq2jwu1U2iYwJlk8UQ3cUkhdnYY`，revision 4，“Rpmsg Physical Layer”与
+  `REDACTED-FEISHU-WIKI-NODE`，revision 4，“Rpmsg Physical Layer”与
   “Rpmsg Transport Layer”
 
 ## 10. A3 实现状态
