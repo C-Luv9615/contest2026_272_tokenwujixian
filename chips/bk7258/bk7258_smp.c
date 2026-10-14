@@ -172,7 +172,7 @@ static void bk7258_cpu2_boot(void)
   bk7258_mpuinit();
 #endif
 
-#ifdef CONFIG_ARMV8M_DCACHE
+#if defined(CONFIG_ARM_MPU) && defined(CONFIG_ARMV8M_DCACHE)
   up_enable_dcache();
 #endif
 
