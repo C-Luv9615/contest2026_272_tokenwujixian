@@ -34,6 +34,7 @@
 #include <nuttx/cache.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/queue.h>
+#include <nuttx/semaphore.h>
 #include <nuttx/spinlock.h>
 #include <nuttx/wqueue.h>
 
@@ -1359,11 +1360,26 @@ int bk7258_audio_playback_initialize(void)
  * with the per-buffer envelope the playback half above already uses.
  ****************************************************************************/
 
+/* read() mode.  ai_agent's NuttX backend pulls PCM with read() instead of
+ * the AUDIOIOC_ENQUEUEBUFFER/DEQUEUE message loop nxrecorder uses.  The
+ * first read() switches the device into a driver-owned ring: the same GDMA
+ * engine fills rdbuf[] in turn, a filled buffer moves to doneq, and read()
+ * copies out of it and hands it back to pendq.  The two modes are
+ * exclusive per session; stop() ends either.
+ */
+
+#define CAPTURE_READ_NBUF        3
+#define CAPTURE_READ_TIMEOUT_MS  500
+
 struct bk7258_capture_s
 {
   struct audio_lowerhalf_s dev;
   spinlock_t               lock;
   dq_queue_t               pendq;
+  dq_queue_t               doneq;    /* read() mode: filled, not yet read */
+  sem_t                    readsem;  /* posted per filled buffer and on stop */
+  bool                     readmode;
+  struct ap_buffer_s       rdbuf[CAPTURE_READ_NBUF];
   volatile bool            running;
   bool                     paused;
   bool                     stopping;
@@ -1400,6 +1416,8 @@ static int  capture_reserve(FAR struct audio_lowerhalf_s *dev);
 static int  capture_release(FAR struct audio_lowerhalf_s *dev);
 static int  capture_ioctl(FAR struct audio_lowerhalf_s *dev, int cmd,
                           unsigned long arg);
+static int  capture_read(FAR struct audio_lowerhalf_s *dev,
+                         FAR char *buffer, size_t buflen);
 static void capture_dma_cb(int ch, uint32_t event, FAR void *arg);
 static void capture_start_dma(FAR struct bk7258_capture_s *priv);
 
@@ -1426,7 +1444,7 @@ static const struct audio_ops_s g_bk7258_capture_ops =
   capture_enqueuebuffer,
   capture_cancelbuffer,
   capture_ioctl,
-  NULL,                  /* read           */
+  capture_read,
   NULL,                  /* write          */
   capture_reserve,
   capture_release
@@ -1470,8 +1488,12 @@ static void capture_start_dma(FAR struct bk7258_capture_s *priv)
   struct bk7258_dma_p2m_cfg_s cfg;
   int ret;
 
-  if (priv->paused || priv->stopping || priv->dma_active ||
-      priv->dma_ch < 0)
+  /* Buffers queued before AUDIOIOC_START wait here; capture_start() kicks
+   * the DMA once the ADC is running.
+   */
+
+  if (!priv->running || priv->paused || priv->stopping ||
+      priv->dma_active || priv->dma_ch < 0)
     {
       return;
     }
@@ -1525,8 +1547,18 @@ static void capture_dma_cb(int ch, uint32_t event, FAR void *arg)
     {
       dq_rem(&apb->dq_entry, &priv->pendq);
       apb->nbytes = apb->nmaxbytes;
-      spin_unlock_irqrestore(&priv->lock, flags);
-      capture_notify_dequeue(priv, apb, OK);
+      if (priv->readmode)
+        {
+          apb->curbyte = 0;
+          dq_addlast(&apb->dq_entry, &priv->doneq);
+          spin_unlock_irqrestore(&priv->lock, flags);
+          nxsem_post(&priv->readsem);
+        }
+      else
+        {
+          spin_unlock_irqrestore(&priv->lock, flags);
+          capture_notify_dequeue(priv, apb, OK);
+        }
     }
   else
     {
@@ -1710,6 +1742,21 @@ static int capture_stop(FAR struct audio_lowerhalf_s *dev)
 
   bk7258_adc_stop();
 
+  /* read() mode: the ring belongs to the driver, so nothing goes back to
+   * the upper half.  Drop it and wake a blocked reader, which then sees
+   * readmode cleared and returns -EAGAIN.
+   */
+
+  if (priv->readmode)
+    {
+      flags = spin_lock_irqsave(&priv->lock);
+      dq_init(&priv->pendq);
+      dq_init(&priv->doneq);
+      priv->readmode = false;
+      spin_unlock_irqrestore(&priv->lock, flags);
+      nxsem_post(&priv->readsem);
+    }
+
   /* nxrecorder's AUDIO_MSG_STOP handler stops streaming but stays in its
    * loop until AUDIO_MSG_COMPLETE arrives (nxrecorder.c:775).  Returning
    * the parked buffers alone is not enough: without COMPLETE the
@@ -1789,6 +1836,163 @@ static int capture_ioctl(FAR struct audio_lowerhalf_s *dev, int cmd,
     }
 }
 
+/* Allocate the read() ring once and keep it: 3 x 4 KB, reused by every
+ * session.  The lines are invalidated up front so a dirty line left by the
+ * heap's previous owner cannot be evicted over DMA data.
+ */
+
+static int capture_read_alloc(FAR struct bk7258_capture_s *priv)
+{
+  int i;
+
+  for (i = 0; i < CAPTURE_READ_NBUF; i++)
+    {
+      FAR struct ap_buffer_s *apb = &priv->rdbuf[i];
+
+      if (apb->samp != NULL)
+        {
+          continue;
+        }
+
+      apb->samp = kmm_memalign(32, BK7258_AUDIO_BUFFER_SIZE);
+      if (apb->samp == NULL)
+        {
+          return -ENOMEM;
+        }
+
+      apb->nmaxbytes = BK7258_AUDIO_BUFFER_SIZE;
+      up_invalidate_dcache((uintptr_t)apb->samp,
+                           (uintptr_t)apb->samp + apb->nmaxbytes);
+    }
+
+  return OK;
+}
+
+/* Blocks for at most CAPTURE_READ_TIMEOUT_MS.  Returns -EAGAIN on timeout
+ * or once stop() has ended the session, never 0: ai_agent's recording loop
+ * treats 0 as end of stream and -EAGAIN as "retry".
+ */
+
+static int capture_read(FAR struct audio_lowerhalf_s *dev,
+                        FAR char *buffer, size_t buflen)
+{
+  FAR struct bk7258_capture_s *priv = (FAR struct bk7258_capture_s *)dev;
+  FAR struct ap_buffer_s *apb;
+  irqstate_t flags;
+  bool requeue = false;
+  bool readmode;
+  size_t n;
+  int ret;
+  int i;
+
+  flags = spin_lock_irqsave(&priv->lock);
+  readmode = priv->readmode;
+  if (!readmode && !dq_empty(&priv->pendq))
+    {
+      /* nxrecorder-style buffers are queued: the session is taken. */
+
+      spin_unlock_irqrestore(&priv->lock, flags);
+      return -EBUSY;
+    }
+
+  spin_unlock_irqrestore(&priv->lock, flags);
+
+  if (!readmode)
+    {
+      ret = capture_read_alloc(priv);
+      if (ret < 0)
+        {
+          return ret;
+        }
+
+      /* Posts the last session left unconsumed must not carry over. */
+
+      nxsem_reset(&priv->readsem, 0);
+
+      flags = spin_lock_irqsave(&priv->lock);
+      dq_init(&priv->doneq);
+      for (i = 0; i < CAPTURE_READ_NBUF; i++)
+        {
+          priv->rdbuf[i].curbyte = 0;
+          dq_addlast(&priv->rdbuf[i].dq_entry, &priv->pendq);
+        }
+
+      priv->readmode = true;
+      spin_unlock_irqrestore(&priv->lock, flags);
+      capture_start_dma(priv);
+    }
+
+  for (; ; )
+    {
+      flags = spin_lock_irqsave(&priv->lock);
+      apb = (FAR struct ap_buffer_s *)dq_peek(&priv->doneq);
+      readmode = priv->readmode;
+      spin_unlock_irqrestore(&priv->lock, flags);
+
+      if (!readmode)
+        {
+          return -EAGAIN;
+        }
+
+      if (apb != NULL)
+        {
+          break;
+        }
+
+      /* Extra posts (stop, a buffer already consumed) only cost one more
+       * trip round this loop.
+       */
+
+      ret = nxsem_tickwait(&priv->readsem,
+                           MSEC2TICK(CAPTURE_READ_TIMEOUT_MS));
+      if (ret == -ETIMEDOUT)
+        {
+          return -EAGAIN;
+        }
+
+      if (ret < 0)
+        {
+          return ret;
+        }
+    }
+
+  /* The buffer sits in neither pendq nor the DMA while it is in doneq, so
+   * it is safe to copy outside the lock.
+   */
+
+  if (apb->curbyte == 0)
+    {
+      up_invalidate_dcache((uintptr_t)apb->samp,
+                           (uintptr_t)apb->samp + apb->nbytes);
+    }
+
+  n = MIN(buflen, (size_t)(apb->nbytes - apb->curbyte));
+  memcpy(buffer, apb->samp + apb->curbyte, n);
+
+  flags = spin_lock_irqsave(&priv->lock);
+  if (priv->readmode &&
+      dq_peek(&priv->doneq) == (FAR dq_entry_t *)&apb->dq_entry)
+    {
+      apb->curbyte += n;
+      if (apb->curbyte >= apb->nbytes)
+        {
+          dq_rem(&apb->dq_entry, &priv->doneq);
+          apb->curbyte = 0;
+          dq_addlast(&apb->dq_entry, &priv->pendq);
+          requeue = true;
+        }
+    }
+
+  spin_unlock_irqrestore(&priv->lock, flags);
+
+  if (requeue)
+    {
+      capture_start_dma(priv);
+    }
+
+  return (int)n;
+}
+
 static int capture_reserve(FAR struct audio_lowerhalf_s *dev)
 {
   (void)dev;
@@ -1812,6 +2016,7 @@ int bk7258_audio_capture_initialize(void)
     }
 
   spin_lock_init(&g_capture.lock);
+  nxsem_init(&g_capture.readsem, 0, 0);
   g_capture.dev.ops  = &g_bk7258_capture_ops;
   g_capture.channels = 1;
   g_capture.bps      = 16;
