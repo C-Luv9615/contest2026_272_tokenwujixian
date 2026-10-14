@@ -32,6 +32,8 @@
 
 #include <nuttx/input/buttons.h>
 
+#include <arch/chip/bk7258_memorymap.h>
+
 #include "board.h"
 
 /* The remote_ctrl input-adapter surface.  This file is a keymap adapter:
@@ -131,6 +133,10 @@ static uint32_t s_down_ms[KEY_COUNT];
 static bool s_tap_pending[KEY_COUNT];
 static bool s_hold_fired[KEY_COUNT];
 static uint32_t s_combo_started;
+static uint32_t s_irq_held;      /* state as of the last POLLIN */
+static uint32_t s_skew_ms;
+static bool s_skew;
+static bool s_skew_reported;
 
 static const struct keyctx_s *s_ctx_stack[8];
 static unsigned int s_ctx_depth;
@@ -150,11 +156,29 @@ static void action_stat(void);
  * ignored rather than nested.
  */
 
+/* ponytail: diagnostic for the lost KEY3 (GPIO8) release edge.  GPIO8 is
+ * also Armino's ADC10 pin, and Armino's gpio_dev_map()/unmap() clear the
+ * pin's int_en (bit 12) and rewrite its mux.  Dump CFG and the mux word
+ * around the voice path so the board log shows who flips them.  Remove
+ * once the writer is found.
+ */
+
+static void key3_regs(const char *tag)
+{
+  printf("[key] %s gpio%d cfg=%08lx func=%08lx\n", tag, BOARD_KEY3_PIN,
+         (unsigned long)*(volatile uint32_t *)
+           BK7258_GPIO_CFG(BOARD_KEY3_PIN),
+         (unsigned long)*(volatile uint32_t *)
+           BK7258_SYS_GPIO_FUNC(BOARD_KEY3_PIN));
+}
+
 static void ptt_do_start(void)
 {
   int ret;
 
+  key3_regs("ptt pre-start");
   ret = voice_channel_start();
+  key3_regs("ptt post-start");
   printf("[key] ptt start (%d)\n", ret);
 }
 
@@ -163,6 +187,7 @@ static void ptt_do_stop(void)
   char text[512];
   int ret;
 
+  key3_regs("ptt pre-stop");
   ret = voice_channel_stop_with_text(text, sizeof(text));
   if (ret != 0)
     {
@@ -599,6 +624,38 @@ static void button_source_poll(void)
   if (n == sizeof(set))
     {
       s_held = (uint32_t)set;
+    }
+
+  /* Report an edge the interrupt path never delivered.  The upper half
+   * debounces for 30 ms before notifying, so a short mismatch is normal;
+   * only one that outlives 200 ms without POLLIN is a lost edge.
+   */
+
+  if (ret > 0)
+    {
+      s_irq_held = s_held;
+    }
+
+  if (s_held != s_irq_held)
+    {
+      if (!s_skew)
+        {
+          s_skew = true;
+          s_skew_ms = now_ms();
+        }
+      else if (!s_skew_reported &&
+               (uint32_t)(now_ms() - s_skew_ms) >= 200)
+        {
+          s_skew_reported = true;
+          printf("[key] missed edge: irq=%lx level=%lx\n",
+                 (unsigned long)s_irq_held, (unsigned long)s_held);
+          key3_regs("missed edge");
+        }
+    }
+  else
+    {
+      s_skew = false;
+      s_skew_reported = false;
     }
 
   gesture_update(now_ms());
