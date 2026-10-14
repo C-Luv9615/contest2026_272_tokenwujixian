@@ -383,6 +383,18 @@ int board_app_initialize(uintptr_t arg)
    * NSH_DISABLE_IFCONFIG/IFUPDOWN default to y when FS_PROCFS is off -- the
    * commands are useless without it. */
 
+  /* The pseudo-fs root accepts directories but not regular files
+   * (CONFIG_PSEUDOFS_FILE is off), so /tmp has to be a real filesystem
+   * before anything can create a file in it.  Without this every
+   * open(..., O_CREAT) under /tmp fails with ENOENT and looks like the
+   * directory is missing.
+   */
+
+  if (mount("tmpfs", "/tmp", "tmpfs", 0, NULL) < 0)
+    {
+      syslog(LOG_ERR, "[BK7258] tmpfs mount failed: %d\n", get_errno());
+    }
+
   if (mount(NULL, CONFIG_NSH_PROC_MOUNTPOINT, "procfs", 0, NULL) < 0 &&
       get_errno() != EEXIST)
     {

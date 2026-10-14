@@ -415,6 +415,16 @@ uint32_t bk7258_adc_fifo_read(void)
   return getreg32(BK7258_AUD_ADC_FPORT);
 }
 
+/* AUD_FIFO_ST_ADCL_EMPTY is bit 14 of the shared FIFO status word.  Kept
+ * here rather than in the caller: the register read belongs to the HAL,
+ * and the caller is an application that has no business doing MMIO.
+ */
+
+bool bk7258_adc_fifo_empty(void)
+{
+  return (getreg32(BK7258_AUD_FIFO_STATUS) & AUD_FIFO_ST_ADCL_EMPTY) != 0;
+}
+
 void bk7258_adc_set_adcl_wr_threshold(uint32_t value)
 {
   irqstate_t flags;
@@ -433,11 +443,6 @@ void bk7258_adc_set_adcl_wr_threshold(uint32_t value)
   spin_unlock_irqrestore(&g_bk7258_adc_lock, flags);
 }
 
-bool bk7258_adc_fifo_empty(void)
-{
-  const uint32_t st = getreg32(BK7258_AUD_FIFO_STATUS);
-  return (st & AUD_FIFO_ST_ADCL_EMPTY) != 0u;
-}
 
 void bk7258_adc_loop_adc2dac(bool enable)
 {

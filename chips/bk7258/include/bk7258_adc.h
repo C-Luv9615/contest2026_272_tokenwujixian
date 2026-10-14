@@ -82,6 +82,7 @@ void bk7258_adc_stop(void);
 
 uintptr_t bk7258_adc_fifo_addr(void);
 uint32_t bk7258_adc_fifo_read(void);
+bool bk7258_adc_fifo_empty(void);
 
 /* ADC-left FIFO write watermark (near-full level), 0..0x1F. */
 
