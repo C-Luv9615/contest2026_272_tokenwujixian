@@ -178,6 +178,9 @@ CONFIG_SERIAL_NPOLLWAITERS=8
 # sensors, no quickapp runtime; ws accept thread ENOMEM on post-loop heap).
 CONFIG_AI_AGENT_MQTT=y
 CONFIG_AI_AGENT_REMOTE_CTRL=y
+# No media server here: media_recorder/player are weak stubs, so voice
+# needs the direct /dev/audio/pcm0c + pcm0p backend.
+CONFIG_AI_AGENT_AUDIO_NUTTX_DIRECT=y
 # Default 16 is too small to hold two MCP servers: gerrit exposes 15 tools
 # and jira 16, and discover_server_tools() hands each server
 # (MCP_CLIENT_MAX_TOOLS - total) slots.  At 16 the second server silently

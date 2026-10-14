@@ -24,9 +24,11 @@
 #include <fcntl.h>
 #include <poll.h>
 #include <pthread.h>
+#include <semaphore.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/ioctl.h>
 
 #include <nuttx/input/buttons.h>
 
@@ -126,7 +128,6 @@ static int s_fd = -1;
 static uint32_t s_held;          /* currently down */
 static uint32_t s_prev;          /* previous snapshot, for edges */
 static uint32_t s_down_ms[KEY_COUNT];
-static uint32_t s_last_tap_ms[KEY_COUNT];
 static bool s_tap_pending[KEY_COUNT];
 static bool s_hold_fired[KEY_COUNT];
 static uint32_t s_combo_started;
@@ -149,18 +150,20 @@ static void action_stat(void);
  * ignored rather than nested.
  */
 
-static void action_ptt_start(void)
+static void ptt_do_start(void)
 {
-  int ret = voice_channel_start();
+  int ret;
 
+  ret = voice_channel_start();
   printf("[key] ptt start (%d)\n", ret);
 }
 
-static void action_ptt_stop(void)
+static void ptt_do_stop(void)
 {
   char text[512];
-  int ret = voice_channel_stop_with_text(text, sizeof(text));
+  int ret;
 
+  ret = voice_channel_stop_with_text(text, sizeof(text));
   if (ret != 0)
     {
       printf("[key] ptt stop failed (%d)\n", ret);
@@ -175,6 +178,68 @@ static void action_ptt_stop(void)
 
   printf("[key] ptt: %s\n", text);
   voice_channel_dispatch(text);
+}
+
+/* voice_channel_start/stop run the ASR TLS handshake and the final
+ * recognition on the caller's stack, which the 4 KB key thread cannot
+ * hold, and would stall polling and the LED for up to seconds.  The key
+ * thread only posts the edge; this worker, sized like ai_agent's CLI
+ * thread, does the work.  Single producer (key thread), single consumer
+ * (worker), so press/release order is kept.
+ *
+ * Priority matches ai_agent's AGENT_VOICE_PRIO.  pthread_attr_init()
+ * inherits the caller's 240, and a CPU-bound ECDH handshake at 240
+ * starves bk7258-ap-health (80) until the CP reports the AP stalled.
+ */
+
+#define PTT_STACK  (24 * 1024)
+#define PTT_PRIO   50
+#define PTT_QLEN   4
+
+static key_action_t s_ptt_q[PTT_QLEN];
+static volatile unsigned int s_ptt_head;
+static volatile unsigned int s_ptt_tail;
+static sem_t s_ptt_sem;
+
+static void ptt_post(key_action_t fn)
+{
+  if (s_ptt_head - s_ptt_tail >= PTT_QLEN)
+    {
+      printf("[key] ptt busy, edge dropped\n");
+      return;
+    }
+
+  s_ptt_q[s_ptt_head % PTT_QLEN] = fn;
+  s_ptt_head++;
+  sem_post(&s_ptt_sem);
+}
+
+static FAR void *ptt_thread(FAR void *arg)
+{
+  (void)arg;
+
+  for (; ; )
+    {
+      if (sem_wait(&s_ptt_sem) < 0)
+        {
+          continue;
+        }
+
+      s_ptt_q[s_ptt_tail % PTT_QLEN]();
+      s_ptt_tail++;
+    }
+
+  return NULL;
+}
+
+static void action_ptt_start(void)
+{
+  ptt_post(ptt_do_start);
+}
+
+static void action_ptt_stop(void)
+{
+  ptt_post(ptt_do_stop);
 }
 
 static void action_once(void);
@@ -375,7 +440,8 @@ static void gesture_fire(uint32_t keys, enum gesture_e g)
   const char *which = "-";
   const struct keymap_s *m = keymap_lookup(keys, g, &which);
 
-  printf("[key] %s: keys=%x gesture=%d -> %s\n", which, keys, g,
+  printf("[key] %s: keys=%lx gesture=%d -> %s\n", which,
+         (unsigned long)keys, g,
          (m != NULL && m->fn != NULL) ? "hit" : "unmapped");
   if (m != NULL && m->fn != NULL)
     {
@@ -515,20 +581,24 @@ static void button_source_poll(void)
   pfd.fd = s_fd;
   pfd.events = POLLIN;
   ret = poll(&pfd, 1, POLL_SLICE_MS);
+  (void)ret;
 
   /* gesture_update must run every slice, not only when poll reports data:
    * the deferred TAP and the HOLD timer are deadlines, and skipping the
    * quiet slices pushed them to the next key event -- which is why a tap
    * printed only when something else was pressed afterwards.
+   *
+   * The level is sampled every slice for the same reason.  poll() only
+   * shortens the wait; read() returns the live GPIO level, so a lost edge
+   * heals within one slice.  Reading only on POLLIN left KEY4 "held" after
+   * a PTT whose release edge never reached us, and its RELEASE then fired
+   * on the next KEY1 tap during an approval (board log).
    */
 
-  if (ret > 0)
+  n = read(s_fd, &set, sizeof(set));
+  if (n == sizeof(set))
     {
-      n = read(s_fd, &set, sizeof(set));
-      if (n == sizeof(set))
-        {
-          s_held = (uint32_t)set;
-        }
+      s_held = (uint32_t)set;
     }
 
   gesture_update(now_ms());
@@ -574,6 +644,22 @@ int bk7258_buttons_input_initialize(void)
   pthread_t tid;
   pthread_attr_t attr;
   int ret;
+
+  struct sched_param param;
+
+  sem_init(&s_ptt_sem, 0, 0);
+  pthread_attr_init(&attr);
+  pthread_attr_setstacksize(&attr, PTT_STACK);
+  param.sched_priority = PTT_PRIO;
+  pthread_attr_setschedparam(&attr, &param);
+  ret = pthread_create(&tid, &attr, ptt_thread, NULL);
+  pthread_attr_destroy(&attr);
+  if (ret != 0)
+    {
+      return -EIO;
+    }
+
+  /* Fresh attr: the key thread keeps the inherited priority. */
 
   pthread_attr_init(&attr);
   pthread_attr_setstacksize(&attr, 4096);
