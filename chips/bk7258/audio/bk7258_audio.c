@@ -39,6 +39,7 @@
 
 #include <arch/chip/bk7258_dac.h>
 #include <arch/chip/bk7258_gdma.h>
+#include "bk7258_adc.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -1344,6 +1345,457 @@ int bk7258_audio_playback_initialize(void)
     }
 
   AUD_INFO("registered /dev/audio/pcm0p");
+  return OK;
+}
+
+/****************************************************************************
+ * Capture lower-half (/dev/audio/pcm0c)
+ *
+ * Armino records through GDMA, not FIFO polling: ap/components/audio_record/
+ * src/onboard_mic_record.c:440-506 allocates a channel with
+ * bk_dma_alloc(DMA_DEV_AUDIO), takes the FIFO port from
+ * bk_aud_adc_get_fifo_addr(), and lets DMA_WORK_MODE_REPEAT move samples
+ * into a RAM ring with a finish ISR.  The shape here is the same engine
+ * with the per-buffer envelope the playback half above already uses.
+ ****************************************************************************/
+
+struct bk7258_capture_s
+{
+  struct audio_lowerhalf_s dev;
+  spinlock_t               lock;
+  dq_queue_t               pendq;
+  volatile bool            running;
+  bool                     paused;
+  bool                     stopping;
+  bool                     dma_active;
+  bool                     complete_sent;
+  int                      dma_ch;
+  FAR struct ap_buffer_s  *dma_apb;
+  uint32_t                 samprate;
+  uint8_t                  channels;
+  uint8_t                  bps;
+};
+
+static struct bk7258_capture_s g_capture;
+
+static int  capture_getcaps(FAR struct audio_lowerhalf_s *dev, int type,
+                            FAR struct audio_caps_s *caps);
+static int  capture_configure(FAR struct audio_lowerhalf_s *dev,
+                              FAR const struct audio_caps_s *caps);
+static int  capture_start(FAR struct audio_lowerhalf_s *dev);
+#ifndef CONFIG_AUDIO_EXCLUDE_PAUSE_RESUME
+static int  capture_pause(FAR struct audio_lowerhalf_s *dev);
+static int  capture_resume(FAR struct audio_lowerhalf_s *dev);
+#endif
+#ifndef CONFIG_AUDIO_EXCLUDE_STOP
+static int  capture_stop(FAR struct audio_lowerhalf_s *dev);
+#endif
+static int  capture_shutdown(FAR struct audio_lowerhalf_s *dev);
+static int  capture_enqueuebuffer(FAR struct audio_lowerhalf_s *dev,
+                                  FAR struct ap_buffer_s *apb);
+static int  capture_cancelbuffer(FAR struct audio_lowerhalf_s *dev,
+                                 FAR struct ap_buffer_s *apb);
+static int  capture_reserve(FAR struct audio_lowerhalf_s *dev);
+static int  capture_release(FAR struct audio_lowerhalf_s *dev);
+static int  capture_ioctl(FAR struct audio_lowerhalf_s *dev, int cmd,
+                          unsigned long arg);
+static void capture_dma_cb(int ch, uint32_t event, FAR void *arg);
+static void capture_start_dma(FAR struct bk7258_capture_s *priv);
+
+static const struct audio_ops_s g_bk7258_capture_ops =
+{
+  capture_getcaps,
+  capture_configure,
+  capture_shutdown,
+  capture_start,
+#ifndef CONFIG_AUDIO_EXCLUDE_STOP
+  capture_stop,
+#else
+  NULL,
+#endif
+#ifndef CONFIG_AUDIO_EXCLUDE_PAUSE_RESUME
+  capture_pause,
+  capture_resume,
+#else
+  NULL,
+  NULL,
+#endif
+  NULL,                  /* allocbuffer    */
+  NULL,                  /* freebuffer     */
+  capture_enqueuebuffer,
+  capture_cancelbuffer,
+  capture_ioctl,
+  NULL,                  /* read           */
+  NULL,                  /* write          */
+  capture_reserve,
+  capture_release
+};
+
+static void capture_notify_dequeue(FAR struct bk7258_capture_s *priv,
+                                   FAR struct ap_buffer_s *apb, int result)
+{
+#ifdef CONFIG_AUDIO_MULTI_SESSION
+  priv->dev.upper(priv->dev.priv, AUDIO_CALLBACK_DEQUEUE, apb, result, NULL);
+#else
+  priv->dev.upper(priv->dev.priv, AUDIO_CALLBACK_DEQUEUE, apb, result);
+#endif
+}
+
+static void capture_notify_complete(FAR struct bk7258_capture_s *priv)
+{
+#ifdef CONFIG_AUDIO_MULTI_SESSION
+  priv->dev.upper(priv->dev.priv, AUDIO_CALLBACK_COMPLETE, NULL, OK, NULL);
+#else
+  priv->dev.upper(priv->dev.priv, AUDIO_CALLBACK_COMPLETE, NULL, OK);
+#endif
+}
+
+static void capture_start_dma(FAR struct bk7258_capture_s *priv)
+{
+  FAR struct ap_buffer_s *apb;
+  struct bk7258_dma_p2m_cfg_s cfg;
+  int ret;
+
+  if (priv->paused || priv->stopping || priv->dma_active ||
+      priv->dma_ch < 0)
+    {
+      return;
+    }
+
+  apb = (FAR struct ap_buffer_s *)dq_peek(&priv->pendq);
+  if (apb == NULL)
+    {
+      return;
+    }
+
+  cfg.buf         = (uintptr_t)apb->samp;
+  cfg.buf_len     = apb->nmaxbytes;
+  cfg.src         = bk7258_adc_fifo_addr();
+  cfg.src_req_mux = BK7258_DMA_REQ_AUDIO_ADC;
+  /* AUD_ADC_FPORT is a single 32-bit register; one beat is a stereo frame
+   * or two mono samples.  Both widths 32-bit, same rule as the playback
+   * path documents for AUD_DAC_FPORT.
+   */
+
+  cfg.src_width   = BK7258_DMA_WIDTH_32;
+  cfg.dst_width   = BK7258_DMA_WIDTH_32;
+  cfg.one_shot    = true;
+  cfg.callback    = capture_dma_cb;
+  cfg.arg         = priv;
+
+  ret = bk7258_gdma_start_p2m(priv->dma_ch, &cfg);
+  if (ret < 0)
+    {
+      AUD_ERR("gdma_start_p2m failed: %d", ret);
+      return;
+    }
+
+  priv->dma_active = true;
+  priv->dma_apb    = apb;
+}
+
+static void capture_dma_cb(int ch, uint32_t event, FAR void *arg)
+{
+  FAR struct bk7258_capture_s *priv = arg;
+  FAR struct ap_buffer_s *apb;
+  irqstate_t flags;
+
+  (void)ch;
+
+  flags = spin_lock_irqsave(&priv->lock);
+  apb = priv->dma_apb;
+  priv->dma_apb    = NULL;
+  priv->dma_active = false;
+
+  if (apb != NULL && (event & BK7258_DMA_EVENT_BUS_ERROR) == 0)
+    {
+      dq_rem(&apb->dq_entry, &priv->pendq);
+      apb->nbytes = apb->nmaxbytes;
+      spin_unlock_irqrestore(&priv->lock, flags);
+      capture_notify_dequeue(priv, apb, OK);
+    }
+  else
+    {
+      spin_unlock_irqrestore(&priv->lock, flags);
+    }
+
+  capture_start_dma(priv);
+}
+
+static int capture_getcaps(FAR struct audio_lowerhalf_s *dev, int type,
+                           FAR struct audio_caps_s *caps)
+{
+  (void)dev;
+  (void)type;
+
+  /* nxrecorder picks a device by asking AUDIO_TYPE_QUERY and then testing
+   * ac_controls.b[0] & AUDIO_TYPE_INPUT (nxrecorder.c:206).  Answering
+   * with ac_type = AUDIO_TYPE_INPUT instead leaves b[0] zero and the
+   * search reports "No suitable Audio Device".
+   */
+
+  caps->ac_format.hw   = 0;
+  caps->ac_controls.w  = 0;
+
+  switch (caps->ac_type)
+    {
+      case AUDIO_TYPE_QUERY:
+        caps->ac_channels = 1;
+        switch (caps->ac_subtype)
+          {
+            case AUDIO_TYPE_QUERY:
+              caps->ac_controls.b[0] = AUDIO_TYPE_INPUT | AUDIO_TYPE_FEATURE;
+              caps->ac_format.hw     = 1 << (AUDIO_FMT_PCM - 1);
+              break;
+
+            case AUDIO_FMT_PCM:
+              caps->ac_controls.b[0] = AUDIO_SUBFMT_PCM_S16_LE;
+              break;
+
+            default:
+              caps->ac_controls.b[0] = AUDIO_SUBFMT_END;
+              break;
+          }
+        break;
+
+      case AUDIO_TYPE_INPUT:
+        caps->ac_channels = 1;
+        if (caps->ac_subtype == AUDIO_TYPE_QUERY)
+          {
+            caps->ac_controls.hw[0] = AUDIO_SAMP_RATE_8K
+                                    | AUDIO_SAMP_RATE_16K
+                                    | AUDIO_SAMP_RATE_44K
+                                    | AUDIO_SAMP_RATE_48K;
+          }
+        break;
+    }
+
+  return sizeof(struct audio_caps_s);
+}
+
+static int capture_configure(FAR struct audio_lowerhalf_s *dev,
+                             FAR const struct audio_caps_s *caps)
+{
+  FAR struct bk7258_capture_s *priv = (FAR struct bk7258_capture_s *)dev;
+  struct bk7258_adc_cfg_s cfg;
+
+  if (caps->ac_type != AUDIO_TYPE_INPUT)
+    {
+      return -EINVAL;
+    }
+
+  priv->samprate = caps->ac_controls.hw[0]
+                 | ((uint32_t)caps->ac_controls.b[3] << 16);
+  priv->channels = caps->ac_channels;
+  priv->bps = caps->ac_controls.b[2];
+
+  memset(&cfg, 0, sizeof(cfg));
+  cfg.samp_rate = priv->samprate;
+  cfg.channel   = BK7258_ADC_CHL_L;
+  /* DEFAULT_AUD_ADC_CONFIG().adc_gain in Armino's aud_adc_types.h:226.
+   * The 0x20 this first used is 13 steps below the vendor default and
+   * recorded noticeably quiet (board: "播放的声音有点小").
+   */
+  cfg.gain      = 0x2d;
+  cfg.samp_edge = false;
+  cfg.use_apll  = true;
+
+  return bk7258_adc_configure(&cfg);
+}
+
+static int capture_start(FAR struct audio_lowerhalf_s *dev)
+{
+  FAR struct bk7258_capture_s *priv = (FAR struct bk7258_capture_s *)dev;
+
+  priv->running       = true;
+  priv->stopping      = false;
+  priv->paused        = false;
+  priv->complete_sent = false;
+  bk7258_adc_start();
+  capture_start_dma(priv);
+  return OK;
+}
+
+#ifndef CONFIG_AUDIO_EXCLUDE_PAUSE_RESUME
+static int capture_pause(FAR struct audio_lowerhalf_s *dev)
+{
+  FAR struct bk7258_capture_s *priv = (FAR struct bk7258_capture_s *)dev;
+
+  priv->paused = true;
+  if (priv->dma_active)
+    {
+      bk7258_gdma_stop(priv->dma_ch);
+      priv->dma_active = false;
+      priv->dma_apb    = NULL;
+    }
+
+  bk7258_adc_stop();
+  return OK;
+}
+
+static int capture_resume(FAR struct audio_lowerhalf_s *dev)
+{
+  FAR struct bk7258_capture_s *priv = (FAR struct bk7258_capture_s *)dev;
+
+  priv->paused = false;
+  if (priv->running)
+    {
+      bk7258_adc_start();
+      capture_start_dma(priv);
+    }
+
+  return OK;
+}
+#endif
+
+#ifndef CONFIG_AUDIO_EXCLUDE_STOP
+static int capture_stop(FAR struct audio_lowerhalf_s *dev)
+{
+  FAR struct bk7258_capture_s *priv = (FAR struct bk7258_capture_s *)dev;
+  FAR struct ap_buffer_s *apb;
+  irqstate_t flags;
+
+  priv->running  = false;
+  priv->stopping = true;
+
+  if (priv->dma_active)
+    {
+      bk7258_gdma_stop(priv->dma_ch);
+      priv->dma_active = false;
+      priv->dma_apb    = NULL;
+    }
+
+  bk7258_adc_stop();
+
+  /* nxrecorder's AUDIO_MSG_STOP handler stops streaming but stays in its
+   * loop until AUDIO_MSG_COMPLETE arrives (nxrecorder.c:775).  Returning
+   * the parked buffers alone is not enough: without COMPLETE the
+   * recordthread never exits and nxrecorder_stop()'s pthread_join blocks
+   * forever.  Same contract the playback half honours via
+   * bk7258_notify_complete().
+   */
+
+  for (; ; )
+    {
+      flags = spin_lock_irqsave(&priv->lock);
+      apb = (FAR struct ap_buffer_s *)dq_remfirst(&priv->pendq);
+      spin_unlock_irqrestore(&priv->lock, flags);
+      if (apb == NULL)
+        {
+          break;
+        }
+
+      capture_notify_dequeue(priv, apb, -ECANCELED);
+    }
+
+  if (!priv->complete_sent)
+    {
+      priv->complete_sent = true;
+      capture_notify_complete(priv);
+    }
+
+  return OK;
+}
+#endif
+
+static int capture_shutdown(FAR struct audio_lowerhalf_s *dev)
+{
+  return capture_stop(dev);
+}
+
+static int capture_enqueuebuffer(FAR struct audio_lowerhalf_s *dev,
+                                 FAR struct ap_buffer_s *apb)
+{
+  FAR struct bk7258_capture_s *priv = (FAR struct bk7258_capture_s *)dev;
+  irqstate_t flags;
+
+  flags = spin_lock_irqsave(&priv->lock);
+  dq_addlast(&apb->dq_entry, &priv->pendq);
+  spin_unlock_irqrestore(&priv->lock, flags);
+
+  capture_start_dma(priv);
+  return OK;
+}
+
+static int capture_cancelbuffer(FAR struct audio_lowerhalf_s *dev,
+                                FAR struct ap_buffer_s *apb)
+{
+  capture_notify_dequeue((FAR struct bk7258_capture_s *)dev, apb, -ECANCELED);
+  return OK;
+}
+
+static int capture_ioctl(FAR struct audio_lowerhalf_s *dev, int cmd,
+                         unsigned long arg)
+{
+  (void)dev;
+
+  switch (cmd)
+    {
+      case AUDIOIOC_GETBUFFERINFO:
+        {
+          FAR struct ap_buffer_info_s *info =
+              (FAR struct ap_buffer_info_s *)arg;
+
+          info->nbuffers    = BK7258_AUDIO_NUM_BUFFERS;
+          info->buffer_size = BK7258_AUDIO_BUFFER_SIZE;
+        }
+        return OK;
+
+      default:
+        return -ENOTTY;
+    }
+}
+
+static int capture_reserve(FAR struct audio_lowerhalf_s *dev)
+{
+  (void)dev;
+  return OK;
+}
+
+static int capture_release(FAR struct audio_lowerhalf_s *dev)
+{
+  (void)dev;
+  return OK;
+}
+
+int bk7258_audio_capture_initialize(void)
+{
+  static bool inited;
+  int ret;
+
+  if (inited)
+    {
+      return OK;
+    }
+
+  spin_lock_init(&g_capture.lock);
+  g_capture.dev.ops  = &g_bk7258_capture_ops;
+  g_capture.channels = 1;
+  g_capture.bps      = 16;
+  g_capture.samprate = 16000;
+
+  ret = bk7258_gdma_initialize();
+  if (ret < 0)
+    {
+      AUD_ERR("gdma_initialize failed: %d", ret);
+      return ret;
+    }
+
+  g_capture.dma_ch = bk7258_gdma_alloc();
+  if (g_capture.dma_ch < 0)
+    {
+      AUD_ERR("gdma_alloc failed: %d", g_capture.dma_ch);
+      return g_capture.dma_ch;
+    }
+
+  if (audio_register("pcm0c", &g_capture.dev) == NULL)
+    {
+      AUD_ERR("audio_register(pcm0c) failed");
+      return -EIO;
+    }
+
+  inited = true;
+  AUD_INFO("registered /dev/audio/pcm0c");
   return OK;
 }
 

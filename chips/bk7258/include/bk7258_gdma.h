@@ -125,6 +125,30 @@ void bk7258_gdma_free(bk7258_dma_ch_t ch);
 int bk7258_gdma_start_m2p(bk7258_dma_ch_t ch,
                           const struct bk7258_dma_m2p_cfg_s *cfg);
 
+/* Peripheral-to-memory mirror of start_m2p: the source is a peripheral
+ * FIFO port (e.g. the ADC data port) that is read repeatedly, and the
+ * destination is a memory buffer.  Same AVDK loop trick as the playback
+ * destination -- src_addr_inc_en=1 with end = start + 4 -- because the
+ * controller latches a non-incrementing source and then stops raising the
+ * request line after a few beats.
+ */
+
+struct bk7258_dma_p2m_cfg_s
+{
+  uintptr_t         buf;
+  size_t            buf_len;
+  uintptr_t         src;
+  uint8_t           src_req_mux;   /* BK7258_DMA_REQ_AUDIO_ADC etc. */
+  uint8_t           src_width;
+  uint8_t           dst_width;
+  bool              one_shot;
+  bk7258_dma_cb_t   callback;
+  FAR void         *arg;
+};
+
+int bk7258_gdma_start_p2m(bk7258_dma_ch_t ch,
+                          const struct bk7258_dma_p2m_cfg_s *cfg);
+
 /* Stop a running channel.  Safe to call from any context. */
 
 void bk7258_gdma_stop(bk7258_dma_ch_t ch);

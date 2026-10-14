@@ -516,6 +516,120 @@ int bk7258_gdma_start_m2p(bk7258_dma_ch_t ch,
   return OK;
 }
 
+int bk7258_gdma_start_p2m(bk7258_dma_ch_t ch,
+                          const struct bk7258_dma_p2m_cfg_s *cfg)
+{
+  uint32_t ctrl;
+  uint32_t reqmux;
+  uint32_t transfer_len;
+
+  if (ch < 0 || ch >= BK7258_GDMA_CHANNELS || cfg == NULL)
+    {
+      return -EINVAL;
+    }
+
+  if (cfg->buf == 0 || cfg->buf_len == 0 || cfg->src == 0)
+    {
+      return -EINVAL;
+    }
+
+  if (cfg->src_width > BK7258_DMA_WIDTH_32 ||
+      cfg->dst_width > BK7258_DMA_WIDTH_32)
+    {
+      return -EINVAL;
+    }
+
+  if (cfg->buf_len > 0x10000u)
+    {
+      return -EINVAL;
+    }
+
+  transfer_len = cfg->buf_len - 1u;
+
+  g_bk7258_gdma_ch[ch].cb  = cfg->callback;
+  g_bk7258_gdma_ch[ch].arg = cfg->arg;
+
+  putreg32(0, DMA_CH_CTRL(ch));
+  putreg32(DMA_STAT_FIN_INT | DMA_STAT_HALF_INT | DMA_STAT_BUS_ERR_INT,
+           DMA_CH_STATUS(ch));
+
+  /* Source: the peripheral FIFO port.  Same AVDK loop trick as the
+   * playback destination above -- advance the internal pointer across a
+   * 4-byte window so the request line re-asserts every beat.
+   */
+
+  putreg32((uint32_t)cfg->src,                DMA_CH_SRC_ADDR(ch));
+  putreg32((uint32_t)cfg->src,                DMA_CH_SRC_LOOP_START(ch));
+  putreg32((uint32_t)cfg->src + 4u,           DMA_CH_SRC_LOOP_END(ch));
+
+  /* Destination: memory buffer, auto-increment, loop when circular. */
+
+  putreg32((uint32_t)cfg->buf,                DMA_CH_DST_ADDR(ch));
+  if (!cfg->one_shot)
+    {
+      putreg32((uint32_t)cfg->buf,            DMA_CH_DST_LOOP_START(ch));
+      putreg32((uint32_t)(cfg->buf + cfg->buf_len),
+               DMA_CH_DST_LOOP_END(ch));
+    }
+  else
+    {
+      putreg32(0, DMA_CH_DST_LOOP_START(ch));
+      putreg32(0, DMA_CH_DST_LOOP_END(ch));
+    }
+
+  /* Request-mux: source from the peripheral, destination to memory. */
+
+  reqmux = ((uint32_t)cfg->src_req_mux & DMA_REQ_MUX_MASK)
+                << DMA_REQ_SRC_MUX_SHIFT;
+  reqmux |= ((uint32_t)BK7258_DMA_REQ_MEM & DMA_REQ_MUX_MASK)
+                << DMA_REQ_DST_MUX_SHIFT;
+  reqmux |= DMA_REQ_BUS_ERR_INT_EN;
+#ifdef CONFIG_ARCH_TRUSTZONE_SECURE
+  reqmux |= DMA_REQ_SRC_SEC_ATTR | DMA_REQ_DST_SEC_ATTR;
+#endif
+  putreg32(reqmux, DMA_CH_REQ_MUX(ch));
+
+  ctrl  = DMA_CTRL_FIN_INT_EN
+        | DMA_CTRL_SRC_INC_EN
+        | DMA_CTRL_DST_INC_EN
+        | DMA_CTRL_SRC_LOOP_EN;
+
+  if (!cfg->one_shot)
+    {
+      ctrl |= DMA_CTRL_MODE_REPEAT
+            | DMA_CTRL_HALF_INT_EN
+            | DMA_CTRL_DST_LOOP_EN;
+    }
+
+  ctrl |= ((uint32_t)cfg->src_width & DMA_CTRL_WIDTH_MASK)
+                << DMA_CTRL_SRC_WIDTH_SHIFT;
+  ctrl |= ((uint32_t)cfg->dst_width & DMA_CTRL_WIDTH_MASK)
+                << DMA_CTRL_DST_WIDTH_SHIFT;
+  ctrl |= (transfer_len & 0xFFFFu) << DMA_CTRL_TRANSFER_LEN_SHIFT;
+  putreg32(ctrl, DMA_CH_CTRL(ch));
+
+  /* DMA is writing into RAM: invalidate before the transfer so stale
+   * cache lines cannot overwrite the captured samples.
+   */
+
+#ifdef CONFIG_ARMV8M_DCACHE
+  up_invalidate_dcache(cfg->buf, cfg->buf + cfg->buf_len);
+#endif
+
+  ctrl = getreg32(DMA_CH_CTRL(ch));
+  ctrl |= DMA_CTRL_ENABLE;
+  putreg32(ctrl, DMA_CH_CTRL(ch));
+
+  audinfo("BK7258 GDMA ch%d p2m started: ctrl=0x%08lx src=0x%08lx dst=0x%08lx "
+          "reqmux=0x%08lx bytes=%lu\n",
+          ch, (unsigned long)ctrl, (unsigned long)cfg->src,
+          (unsigned long)cfg->buf,
+          (unsigned long)getreg32(DMA_CH_REQ_MUX(ch)),
+          (unsigned long)cfg->buf_len);
+
+  return OK;
+}
+
 void bk7258_gdma_stop(bk7258_dma_ch_t ch)
 {
   uint32_t ctrl;
