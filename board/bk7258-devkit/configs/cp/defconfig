@@ -182,3 +182,11 @@ CONFIG_RPMSG_CHAR=y
 # 16+11, the same line Armino's bk_dma_driver_init() registers as
 # INT_SRC_GDMA from driver_init() on this core, so the two drivers would
 # fight over GDMA0.  Re-enable once one of them owns the controller.
+# ARMv8-M MPU, phase one (chips/bk7258/bk7258_mpuinit.c): only flash XIP is
+# cached; SRAM, PSRAM and peripherals are not, matching Armino with
+# CACHE_ENABLE=n.  The D-cache is re-enabled only when this is set.
+CONFIG_ARM_MPU=y
+CONFIG_ARM_MPU_NREGIONS=8
+# bk7258_mpu_test: dumps and checks the region table, plus two fault probes.
+CONFIG_BK7258_MPU_TEST=y
+CONFIG_DEBUG_MEMFAULT=y

@@ -10,18 +10,28 @@
  * are attached, so any MPU setup mistake produces a MemManage fault dump
  * instead of a silent hang.
  *
- * The attribute split -- not a permission split -- is the point:
+ * The policy follows Armino's mpu_cfg.c with CONFIG_CACHE_ENABLE=n, which
+ * is how the imported baseline (and the closed Wi-Fi libraries) are built:
+ * nothing in this port does D-cache maintenance around DMA, so only memory
+ * that no DMA engine and no other core ever writes may be cached.
  *
- *   1. Flash XIP (0x02000000) and PSRAM (0x60000000) are Normal write-back,
- *      i.e. cacheable once CONFIG_ARMV8M_DCACHE is enabled.
- *   2. On-chip SRAM (0x28000000) is Normal non-cacheable.  The whole SRAM
- *      window holds RPMSG_SHM, SWAP, PWR_MNG, the AP spinlock and the Wi-Fi
- *      pbufs that the MAC/PHY DMA engine writes without CPU cache
- *      coherency.  Marking it non-cacheable is what lets D-cache actually
- *      run (the previous code had to disable D-cache globally to keep those
- *      windows coherent); it mirrors the authority (vendor) MPU config
- *      documented in wifi/BEHAVIOR_ALIGNMENT_AUDIT.md section 3.2.
- *   3. Peripheral space (0x40000000) is Device (nGnRE), never cached.
+ *   1. Flash XIP (0x02000000) is Normal write-through, read-only.  It is the
+ *      only cached window.  Flash is written through the controller and read
+ *      back through the controller (bk7258_flash_read, Armino's
+ *      flash_read_common), never through XIP, so a write cannot leave stale
+ *      lines that anyone reads.
+ *   2. On-chip SRAM (0x28000000) is Normal non-cacheable, inner shareable.
+ *      It holds RPMSG_SHM, SWAP, PWR_MNG, the AP spinlock and the CP heap
+ *      the MAC/PHY DMA writes Wi-Fi pbufs into.  The region runs up to
+ *      0x40000000 so the 0x38000000 non-secure alias is covered too, as in
+ *      Armino, instead of falling back to the cacheable default map.
+ *   3. Peripheral space (0x40000000) is Device (nGnRE), execute-never.
+ *   4. PSRAM (0x60000000) is Normal non-cacheable.  Both heaps reach it
+ *      (kumm_addregion is not type-aware), so audio DMA buffers can land
+ *      there.
+ *
+ * ponytail: phase one.  Caching the AP's private SRAM and PSRAM needs D-cache
+ * maintenance in every AP DMA user first; see the MPU notes in the T1 log.
  *
  * PRIVDEFENA keeps privileged background access to the default memory map,
  * so addresses not listed above (PPB, aliases, holes) stay accessible with
@@ -51,32 +61,22 @@ static const struct mpu_region_s g_bk7258_mpu_regions[] =
 {
   /* Flash XIP alias window (0x02000000, 32 MiB).  Both the CP image
    * (0x02010000) and the AP image (0x02160000) execute from here.  Normal
-   * write-back, read-only, privileged. */
+   * write-through (Armino: WT, read-allocate), read-only, privileged. */
 
   {
     BK7258_FLASH_BASE,              UINT32_C(0x02000000),
-    MPU_RBAR_AP_RONO,               MPU_RLAR_WRITE_BACK
+    MPU_RBAR_AP_RONO,               MPU_RLAR_WRITE_THROUGH
   },
 
-  /* On-chip SRAM (0x28000000), 256 MiB eigenspace.  The real window is
-   * 640 KiB ending at 0x280a0000 and hosts the CP/AP shared regions
-   * (RPMSG_SHM, SWAP, PWR_MNG, AP spinlock) plus every DMA-visible Wi-Fi
-   * buffer.  Normal non-cacheable, inner shareable, privileged, so D-cache
-   * can be enabled without breaking cross-core or MAC/PHY DMA traffic. */
+  /* On-chip SRAM: the 640 KiB window at 0x28000000 and its 0x38000000
+   * alias, up to the peripheral space.  Normal non-cacheable, inner
+   * shareable, privileged. */
 
   {
-    BK7258_SRAM_CAPACITY_BASE,      UINT32_C(0x10000000),
+    BK7258_SRAM_CAPACITY_BASE,
+    UINT32_C(0x40000000) - BK7258_SRAM_CAPACITY_BASE,
     MPU_RBAR_AP_RWNO | MPU_RBAR_SH_INNER,
     MPU_RLAR_NONCACHEABLE
-  },
-
-  /* External PSRAM window (0x60000000, 64 MiB).  The controller maps up to
-   * 64 MiB; the fitted-device size is discovered before any portion enters
-   * the heap.  Normal write-back, privileged. */
-
-  {
-    BK7258_PSRAM_BASE,              BK7258_PSRAM_WINDOW_SIZE,
-    MPU_RBAR_AP_RWNO,               MPU_RLAR_WRITE_BACK
   },
 
   /* Peripheral address space (0x40000000, 512 MiB): SYS, AON, UART, TIMER,
@@ -88,6 +88,15 @@ static const struct mpu_region_s g_bk7258_mpu_regions[] =
   {
     UINT32_C(0x40000000),           UINT32_C(0x20000000),
     MPU_RBAR_AP_RWNO | MPU_RBAR_XN, MPU_RLAR_DEVICE
+  },
+
+  /* External PSRAM window (0x60000000, 64 MiB).  The controller maps up to
+   * 64 MiB; the fitted-device size is discovered before any portion enters
+   * the heap.  Normal non-cacheable, privileged. */
+
+  {
+    BK7258_PSRAM_BASE,              BK7258_PSRAM_WINDOW_SIZE,
+    MPU_RBAR_AP_RWNO,               MPU_RLAR_NONCACHEABLE
   },
 };
 
@@ -151,8 +160,9 @@ static void bk7258_mpu_configure(void)
     {
       conf = &g_bk7258_mpu_regions[index];
 
-      /* Regions must be power-of-two aligned; RBAR.ADDR and RLAR.LIMIT
-       * mask to bit 5, and the indexes below are all aligned. */
+      /* ARMv8-M regions only need 32-byte granularity: RBAR.ADDR and
+       * RLAR.LIMIT mask to bit 5, and every base and size above is
+       * 32-byte aligned.  Regions must not overlap. */
 
       rbase = conf->base & MPU_RBAR_BASE_MASK;
       limit = (conf->base + conf->size - 1) & MPU_RLAR_LIMIT_MASK;
