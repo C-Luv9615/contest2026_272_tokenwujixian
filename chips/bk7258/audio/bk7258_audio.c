@@ -2037,10 +2037,11 @@ int bk7258_audio_capture_initialize(void)
       return g_capture.dma_ch;
     }
 
-  if (audio_register("pcm0c", &g_capture.dev) == NULL)
+  ret = audio_register("pcm0c", &g_capture.dev);
+  if (ret < 0)
     {
-      AUD_ERR("audio_register(pcm0c) failed");
-      return -EIO;
+      AUD_ERR("audio_register(pcm0c) failed: %d", ret);
+      return ret;
     }
 
   inited = true;
