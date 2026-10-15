@@ -209,7 +209,7 @@ def main() -> int:
         sram_limit = sram_base + config_int(config_text, "CONFIG_RAM_SIZE")
         # The SRAM split is a board decision expressed in the build config
         # (CONFIG_RAM_START/SIZE and CONFIG_BK7258_RPMSG_SHM_ADDR/SIZE), not
-        # a fixed tuple: cp-armino gives CP more SRAM than cp does. Read the
+        # a fixed tuple. Read the
         # values from the config the image was built with and check that they
         # agree with each other and with the profile this validator was run
         # against.

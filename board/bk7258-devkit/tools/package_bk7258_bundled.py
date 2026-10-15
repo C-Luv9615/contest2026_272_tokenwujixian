@@ -26,10 +26,7 @@ from bk7258_container import Section, build_image
 
 PLACEHOLDER_PROFILE = "bk7258-devkit-l0-bundled"
 OPENVELA_AP_PROFILE = "bk7258-devkit-openvela-ap"
-# The armino pair moves the SRAM split; the container contract is the
-# same, so the packer accepts it wherever it accepts the standard one.
-OPENVELA_AP_ARMINO_PROFILE = "bk7258-devkit-openvela-ap-armino"
-OPENVELA_AP_PROFILES = (OPENVELA_AP_PROFILE, OPENVELA_AP_ARMINO_PROFILE)
+OPENVELA_AP_PROFILES = (OPENVELA_AP_PROFILE,)
 
 
 def parse_args() -> argparse.Namespace:
