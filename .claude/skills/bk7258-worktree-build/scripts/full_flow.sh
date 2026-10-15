@@ -14,8 +14,8 @@ options:
   --slot NAME          stable incremental build/package slot name
   --fresh              rebuild this worktree's bound build slot
   --placeholder        use bundled AP recovery placeholder
-  --cp-config NAME     CP board config directory under configs/ (default: cp-armino)
-  --ap-config NAME     AP board config directory under configs/ (default: ap-armino)
+  --cp-config NAME     CP board config directory under configs/ (default: cp)
+  --ap-config NAME     AP board config directory under configs/ (default: ap)
   --image FILE         flash an existing all-app.bin; skips build/package
   --tools-dir DIR      tools directory for --image (contains bk7258-flash.sh)
   --flash              flash the verified all-app.bin (destructive)
@@ -33,8 +33,8 @@ JOBS=12
 SLOT=""
 FRESH=0
 OPENVELA_AP=1
-CP_CONFIG=cp-armino
-AP_CONFIG=ap-armino
+CP_CONFIG=cp
+AP_CONFIG=ap
 FLASH=0
 DEVICE=/dev/ttyUSB0
 PORT=0
@@ -261,7 +261,7 @@ if [[ "$OPENVELA_AP" -eq 1 ]]; then
     --ap-validation-report "$AP_DIR/l1-validation.json"
   )
   # The packaging profile carries the memory map, so it must match the AP
-  # config: ap-armino keeps the lwip heap in SRAM and moves RPMSG_SHM.
+  # config's SRAM split (CP RAM, RPMSG_SHM).
   AP_PROFILE="$WORKTREE/board/bk7258-devkit/packaging/profiles/bk7258-devkit-openvela-$AP_CONFIG.json"
   [[ -f "$AP_PROFILE" ]] || {
     echo "error: no packaging profile for AP config '$AP_CONFIG': $AP_PROFILE" >&2

@@ -15,7 +15,7 @@ Wi-Fi 走**阶段一**（`docs/compose/spec/bk7258-wifi-native.md` 的 S2.2）�
 | 顶层 `bk7258_*.c` | NuttX 风格芯片驱动（启动、时钟、中断、DMA、UART、PSRAM、sysctrl…） |
 | `tools/` | 迁移期工具（编译清单、接口表、源码门禁）。阶段二结束后随门禁一并退役 |
 
-构建配置用 `board/bk7258-devkit/configs/{cp-armino,ap-armino}`。
+构建配置用 `board/bk7258-devkit/configs/{cp,ap}`。
 
 ## 设计边界
 

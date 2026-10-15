@@ -154,8 +154,7 @@ def validate_profile(manifest: dict[str, object]) -> dict[str, object]:
             if component.get("raw_length_bytes", 0) > partition.get("raw_max_bytes", 0):
                 fail(f"{label} raw image exceeds the locked profile capacity")
 
-    if profile.get("profile") in ("bk7258-devkit-openvela-ap",
-                                      "bk7258-devkit-openvela-ap-armino"):
+    if profile.get("profile") == "bk7258-devkit-openvela-ap":
         if manifest.get("flashable") is not True:
             fail("OpenVela AP manifest is not backed by L1 validation")
         expected_components = {
@@ -242,8 +241,7 @@ def main() -> int:
             ap["raw_length_bytes"],
             ap["sha256"],
         )
-        if manifest.get("profile") in ("bk7258-devkit-openvela-ap",
-                                         "bk7258-devkit-openvela-ap-armino"):
+        if manifest.get("profile") == "bk7258-devkit-openvela-ap":
             contract = decoded_ap["raw"][0x200:0x210]
             expected = (
                 (0x4F564150).to_bytes(4, "little")
