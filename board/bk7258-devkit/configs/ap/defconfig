@@ -279,6 +279,17 @@ CONFIG_AI_AGENT_PET_STATUS=y
 # ai_agent f297082 rotates the idle screen between the pet and particle
 # pages; with PET_STATUS alone lvgl_ui_channel.c does not compile.
 CONFIG_AI_AGENT_PARTICLE_FLOW=y
+# Push-to-talk on KEY3 (GPIO8) through ai_agent's ptt_button.c, which also
+# drives the UI (recording/processing states, the user bubble).  Its
+# defaults (button 0 = KEY1, 4 KB stack, priority 100) are wrong here:
+# KEY1 answers permission prompts, voice_channel_start/stop run the ASR TLS
+# handshake on this thread's stack and overflowed 4 KB (sha3.c, board log),
+# and a CPU-bound ECDH handshake above bk7258-ap-health (80) starves it
+# until the CP reports the AP stalled.  50 matches ai_agent's voice task.
+CONFIG_AI_AGENT_PTT=y
+CONFIG_AI_AGENT_PTT_BUTTON_IDX=2
+CONFIG_AI_AGENT_PTT_STACKSIZE=24576
+CONFIG_AI_AGENT_PTT_PRIORITY=50
 # ai_agent nsh_commands calls system(3).
 CONFIG_SYSTEM_SYSTEM=y
 # ARMv8-M MPU, phase one (chips/bk7258/bk7258_mpuinit.c): only flash XIP is

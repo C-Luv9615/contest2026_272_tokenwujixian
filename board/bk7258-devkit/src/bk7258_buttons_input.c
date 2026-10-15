@@ -1,13 +1,14 @@
 /****************************************************************************
  * board/bk7258-devkit/src/bk7258_buttons_input.c
  *
- * Sole reader of /dev/btn0, a gesture engine on top of it, and a context
- * stack of key maps.
+ * A /dev/btn0 reader, a gesture engine on top of it, and a context stack
+ * of key maps.
  *
  * Why the shape:
- *   - /dev/btn0 may have only one reader.  Everything that wants key input
- *     (this file's action table, and later LVGL's lv_indev read callback)
- *     consumes the state snapshot this file publishes, never the fd.
+ *   - /dev/btn0 takes several readers: the upper half allocates a
+ *     btn_open_s per open() with its own pending flag and notifies every
+ *     open (drivers/input/button_upper.c).  ai_agent's ptt_button thread
+ *     opens it separately for KEY3; this file owns KEY1/KEY2.
  *   - The gesture layer reports TAP/HOLD/DOUBLE/COMBO from that snapshot.
  *     LVGL's indev wants a state not an event stream too, so the two layer
  *     cleanly once it arrives.
@@ -24,7 +25,6 @@
 #include <fcntl.h>
 #include <poll.h>
 #include <pthread.h>
-#include <semaphore.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -61,17 +61,6 @@ struct remote_input_ops_s
 
 int remote_ctrl_register_input(const struct remote_input_ops_s *ops);
 
-/* Push-to-talk.  The board owns no voice policy: it starts a recording,
- * hands the recognized text to voice_channel_dispatch(), and that routes
- * it wherever the product registered a sink -- remote_ctrl here, the chat
- * bus elsewhere.  Declared rather than included for the same reason
- * remote_ctrl_register_input() is: the board talks to the plug, not to the
- * channel's internals.
- */
-
-int  voice_channel_start(void);
-int  voice_channel_stop_with_text(char *text_out, size_t text_out_cap);
-void voice_channel_dispatch(const char *text);
 #endif
 
 
@@ -150,16 +139,10 @@ static unsigned int s_ctx_depth;
 
 static void action_cancel(void);
 static void action_stat(void);
-/* Push-to-talk on the key the gesture engine leaves alone.  Press starts
- * the recording, release stops it and hands the text to the dispatcher.
- * Two captures at once cannot happen: a second press while recording is
- * ignored rather than nested.
- */
-
 /* ponytail: diagnostic for the lost KEY3 (GPIO8) release edge.  GPIO8 is
  * also Armino's ADC10 pin, and Armino's gpio_dev_map()/unmap() clear the
  * pin's int_en (bit 12) and rewrite its mux.  Dump CFG and the mux word
- * around the voice path so the board log shows who flips them.  Remove
+ * when an edge goes missing so the board log shows who flips them.  Remove
  * once the writer is found.
  */
 
@@ -170,101 +153,6 @@ static void key3_regs(const char *tag)
            BK7258_GPIO_CFG(BOARD_KEY3_PIN),
          (unsigned long)*(volatile uint32_t *)
            BK7258_SYS_GPIO_FUNC(BOARD_KEY3_PIN));
-}
-
-static void ptt_do_start(void)
-{
-  int ret;
-
-  key3_regs("ptt pre-start");
-  ret = voice_channel_start();
-  key3_regs("ptt post-start");
-  printf("[key] ptt start (%d)\n", ret);
-}
-
-static void ptt_do_stop(void)
-{
-  char text[512];
-  int ret;
-
-  key3_regs("ptt pre-stop");
-  ret = voice_channel_stop_with_text(text, sizeof(text));
-  if (ret != 0)
-    {
-      printf("[key] ptt stop failed (%d)\n", ret);
-      return;
-    }
-
-  if (text[0] == '\0')
-    {
-      printf("[key] ptt: no speech recognized\n");
-      return;
-    }
-
-  printf("[key] ptt: %s\n", text);
-  voice_channel_dispatch(text);
-}
-
-/* voice_channel_start/stop run the ASR TLS handshake and the final
- * recognition on the caller's stack, which the 4 KB key thread cannot
- * hold, and would stall polling and the LED for up to seconds.  The key
- * thread only posts the edge; this worker, sized like ai_agent's CLI
- * thread, does the work.  Single producer (key thread), single consumer
- * (worker), so press/release order is kept.
- *
- * Priority matches ai_agent's AGENT_VOICE_PRIO.  pthread_attr_init()
- * inherits the caller's 240, and a CPU-bound ECDH handshake at 240
- * starves bk7258-ap-health (80) until the CP reports the AP stalled.
- */
-
-#define PTT_STACK  (24 * 1024)
-#define PTT_PRIO   50
-#define PTT_QLEN   4
-
-static key_action_t s_ptt_q[PTT_QLEN];
-static volatile unsigned int s_ptt_head;
-static volatile unsigned int s_ptt_tail;
-static sem_t s_ptt_sem;
-
-static void ptt_post(key_action_t fn)
-{
-  if (s_ptt_head - s_ptt_tail >= PTT_QLEN)
-    {
-      printf("[key] ptt busy, edge dropped\n");
-      return;
-    }
-
-  s_ptt_q[s_ptt_head % PTT_QLEN] = fn;
-  s_ptt_head++;
-  sem_post(&s_ptt_sem);
-}
-
-static FAR void *ptt_thread(FAR void *arg)
-{
-  (void)arg;
-
-  for (; ; )
-    {
-      if (sem_wait(&s_ptt_sem) < 0)
-        {
-          continue;
-        }
-
-      s_ptt_q[s_ptt_tail % PTT_QLEN]();
-      s_ptt_tail++;
-    }
-
-  return NULL;
-}
-
-static void action_ptt_start(void)
-{
-  ptt_post(ptt_do_start);
-}
-
-static void action_ptt_stop(void)
-{
-  ptt_post(ptt_do_stop);
 }
 
 static void action_once(void);
@@ -282,12 +170,11 @@ static const struct keymap_s g_idle_map[] =
   { KEY_BIT(0), GESTURE_HOLD,   action_stat },
   { KEY_BIT(1), GESTURE_HOLD,   action_stat },
 
-  /* Push-to-talk: the whole gesture is press-then-release, so it hangs off
-   * the edges and never takes part in TAP/HOLD.
+  /* KEY3 (GPIO8) is push-to-talk, owned by ai_agent's ptt_button thread
+   * (CONFIG_AI_AGENT_PTT_BUTTON_IDX=2) on its own /dev/btn0 open.  The
+   * upper half keeps per-open pending state, so both readers see every
+   * edge; nothing is bound to it here.
    */
-
-  { KEY_BIT(2), GESTURE_PRESS,   action_ptt_start },
-  { KEY_BIT(2), GESTURE_RELEASE, action_ptt_stop  },
 };
 
 static const struct keyctx_s g_global_ctx =
@@ -701,22 +588,6 @@ int bk7258_buttons_input_initialize(void)
   pthread_t tid;
   pthread_attr_t attr;
   int ret;
-
-  struct sched_param param;
-
-  sem_init(&s_ptt_sem, 0, 0);
-  pthread_attr_init(&attr);
-  pthread_attr_setstacksize(&attr, PTT_STACK);
-  param.sched_priority = PTT_PRIO;
-  pthread_attr_setschedparam(&attr, &param);
-  ret = pthread_create(&tid, &attr, ptt_thread, NULL);
-  pthread_attr_destroy(&attr);
-  if (ret != 0)
-    {
-      return -EIO;
-    }
-
-  /* Fresh attr: the key thread keeps the inherited priority. */
 
   pthread_attr_init(&attr);
   pthread_attr_setstacksize(&attr, 4096);
