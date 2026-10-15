@@ -837,7 +837,15 @@ static void bk7258_ap_initialize(void)
     }
 #endif
 
-  ret = kthread_create("bk7258-ap-health", 80, 2048,
+  /* The heartbeat is the only thing the CP's stall detector sees, so it
+   * must not starve behind application threads.  At 80 it sat below
+   * ai_agent's LVGL loop and lvgldemo (100), and a busy render loop alone
+   * produced "[AP] stalled".  200 stays below rpmsg (224) and AppBringUp
+   * (240); the loop only sleeps 1 s, toggles the LED and bumps a counter,
+   * so a stall now means the AP really stopped scheduling.
+   */
+
+  ret = kthread_create("bk7258-ap-health", 200, 2048,
                        bk7258_ap_health_thread, NULL);
   if (ret < 0)
     {
