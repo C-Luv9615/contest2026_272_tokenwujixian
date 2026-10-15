@@ -61,11 +61,11 @@
  * constants so it does not depend on arch-internal headers. */
 
 #define BK7258_MPU_TEST_SCS         UINT32_C(0xe000e000)
-#define BK7258_MPU_TEST_MPU_BASE    (BK7258_MPU_TEST_SCS + 0xed90)
-#define BK7258_MPU_TEST_MAIR0       (BK7258_MPU_TEST_SCS + 0xedc0)
-#define BK7258_MPU_TEST_MAIR1       (BK7258_MPU_TEST_SCS + 0xedc4)
-#define BK7258_MPU_TEST_CFSR        (BK7258_MPU_TEST_SCS + 0xed28)
-#define BK7258_MPU_TEST_MMFAR       (BK7258_MPU_TEST_SCS + 0xed34)
+#define BK7258_MPU_TEST_MPU_BASE    (BK7258_MPU_TEST_SCS + 0x0d90)
+#define BK7258_MPU_TEST_MAIR0       (BK7258_MPU_TEST_SCS + 0x0dc0)
+#define BK7258_MPU_TEST_MAIR1       (BK7258_MPU_TEST_SCS + 0x0dc4)
+#define BK7258_MPU_TEST_CFSR        (BK7258_MPU_TEST_SCS + 0x0d28)
+#define BK7258_MPU_TEST_MMFAR       (BK7258_MPU_TEST_SCS + 0x0d34)
 
 #define BK7258_MPU_TEST_RBAR_XN     (1u << 0)  /* Execute never */
 #define BK7258_MPU_TEST_RBAR_AP_RO  (2u << 1)  /* P:R, U:none */
@@ -186,7 +186,12 @@ static int bk7258_mpu_test_check_region(unsigned int index)
 
   actual_base = rbar & BK7258_MPU_TEST_RBAR_MASK;
   actual_limit = rlar & BK7258_MPU_TEST_RLAR_LIMIT;
-  region_size = actual_limit - actual_base + 1u;
+
+  /* RLAR.LIMIT holds address bits [31:5] of the last 32-byte block; the
+   * region ends at LIMIT | 0x1f, so the size is LIMIT - BASE + 32.
+   */
+
+  region_size = actual_limit - actual_base + 0x20u;
   expected_limit = (expect->base + expect->size - 1u) &
                    BK7258_MPU_TEST_RLAR_LIMIT;
   en = (rlar & BK7258_MPU_TEST_RLAR_EN) != 0;
