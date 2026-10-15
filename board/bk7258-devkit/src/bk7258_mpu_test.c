@@ -98,24 +98,25 @@ struct bk7258_mpu_test_expected_s
 static const struct bk7258_mpu_test_expected_s g_expected[] =
 {
   {
-    "flash XIP P:RO",
+    "flash XIP P:RO WT",
     BK7258_FLASH_BASE, UINT32_C(0x02000000),
-    BK7258_MPU_TEST_RBAR_AP_RO, 4u /* write-back */, 0u, 2u, false
+    BK7258_MPU_TEST_RBAR_AP_RO, 3u /* write-through */, 0u, 2u, false
   },
   {
     "on-chip SRAM NC",
-    BK7258_SRAM_CAPACITY_BASE, UINT32_C(0x10000000),
+    BK7258_SRAM_CAPACITY_BASE,
+    UINT32_C(0x40000000) - BK7258_SRAM_CAPACITY_BASE,
     BK7258_MPU_TEST_RBAR_SH_IN, 2u /* non-cacheable */, 3u, 0u, false
-  },
-  {
-    "PSRAM WBWA",
-    BK7258_PSRAM_BASE, BK7258_PSRAM_WINDOW_SIZE,
-    0u, 4u /* write-back */, 0u, 0u, false
   },
   {
     "peripherals Device XN",
     UINT32_C(0x40000000), UINT32_C(0x20000000),
     BK7258_MPU_TEST_RBAR_XN, 1u /* Device */, 0u, 0u, true
+  },
+  {
+    "PSRAM NC",
+    BK7258_PSRAM_BASE, BK7258_PSRAM_WINDOW_SIZE,
+    0u, 2u /* non-cacheable */, 0u, 0u, false
   }
 };
 
@@ -391,7 +392,7 @@ static int bk7258_mpu_test_positive(void)
 
       if (index == 8192 / 4)
         {
-          printf("[bk7258_mpu_test] PSRAM (write-back) round-trip ok at %p\n",
+          printf("[bk7258_mpu_test] PSRAM (non-cacheable) round-trip ok at %p\n",
                  (void *)psram);
           free((void *)psram);
         }

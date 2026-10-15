@@ -11,6 +11,7 @@
 
 #include "arm_internal.h"
 #include "nvic.h"
+#include "bk7258_internal.h"
 #include "include/bk7258_ap_boot.h"
 #include "include/bk7258_memorymap.h"
 

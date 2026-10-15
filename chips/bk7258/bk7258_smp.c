@@ -21,6 +21,7 @@
 
 #include "arm_internal.h"
 #include "nvic.h"
+#include "bk7258_internal.h"
 #include "ram_vectors.h"
 #include "chip.h"
 #include "sched/sched.h"

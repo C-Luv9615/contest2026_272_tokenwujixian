@@ -281,3 +281,11 @@ CONFIG_AI_AGENT_PET_STATUS=y
 CONFIG_AI_AGENT_PARTICLE_FLOW=y
 # ai_agent nsh_commands calls system(3).
 CONFIG_SYSTEM_SYSTEM=y
+# ARMv8-M MPU, phase one (chips/bk7258/bk7258_mpuinit.c): only flash XIP is
+# cached; SRAM, PSRAM and peripherals are not, matching Armino with
+# CACHE_ENABLE=n.  The D-cache is re-enabled only when this is set.
+CONFIG_ARM_MPU=y
+CONFIG_ARM_MPU_NREGIONS=8
+# bk7258_mpu_test: dumps and checks the region table, plus two fault probes.
+CONFIG_BK7258_MPU_TEST=y
+CONFIG_DEBUG_MEMFAULT=y
