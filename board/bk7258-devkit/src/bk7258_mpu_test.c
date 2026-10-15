@@ -98,9 +98,20 @@ struct bk7258_mpu_test_expected_s
 static const struct bk7258_mpu_test_expected_s g_expected[] =
 {
   {
+    "below flash NC",
+    UINT32_C(0x00000000), BK7258_FLASH_BASE,
+    0u, 2u /* non-cacheable */, 0u, 0u, false
+  },
+  {
     "flash XIP P:RO WT",
     BK7258_FLASH_BASE, UINT32_C(0x02000000),
     BK7258_MPU_TEST_RBAR_AP_RO, 3u /* write-through */, 0u, 2u, false
+  },
+  {
+    "aliases/DTCM NC",
+    BK7258_FLASH_BASE + UINT32_C(0x02000000),
+    BK7258_SRAM_CAPACITY_BASE - (BK7258_FLASH_BASE + UINT32_C(0x02000000)),
+    0u, 2u /* non-cacheable */, 0u, 0u, false
   },
   {
     "on-chip SRAM NC",
@@ -109,14 +120,24 @@ static const struct bk7258_mpu_test_expected_s g_expected[] =
     BK7258_MPU_TEST_RBAR_SH_IN, 2u /* non-cacheable */, 3u, 0u, false
   },
   {
-    "peripherals Device XN",
+    "peripherals nGnRnE XN",
     UINT32_C(0x40000000), UINT32_C(0x20000000),
-    BK7258_MPU_TEST_RBAR_XN, 1u /* Device */, 0u, 0u, true
+    BK7258_MPU_TEST_RBAR_XN, 0u /* Device nGnRnE */, 0u, 0u, true
   },
   {
     "PSRAM NC",
     BK7258_PSRAM_BASE, BK7258_PSRAM_WINDOW_SIZE,
     0u, 2u /* non-cacheable */, 0u, 0u, false
+  },
+  {
+    "QSPI windows NC XN",
+    BK7258_PSRAM_BASE + BK7258_PSRAM_WINDOW_SIZE, UINT32_C(0x08000000),
+    BK7258_MPU_TEST_RBAR_XN, 2u /* non-cacheable */, 0u, 0u, true
+  },
+  {
+    "up to PPB nGnRnE XN",
+    UINT32_C(0x6c000000), UINT32_C(0xe0000000) - UINT32_C(0x6c000000),
+    BK7258_MPU_TEST_RBAR_XN, 0u /* Device nGnRnE */, 0u, 0u, true
   }
 };
 
