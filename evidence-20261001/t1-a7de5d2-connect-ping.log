@@ -126,7 +126,7 @@ M[    0.034250] [AP] start: contract@0x2160200 magic=4f564150 abi=1 build=4f5641
 [    0.935094] [initseq] 126b coex_ictw_report leave
 [    0.939782] [wifi] wifi inited(1) ret(0)
 [    0.943688] [BK7258-WIFI] runtime: bk_wifi_init complete
-[    0.949500] [BK7258-WIFI] mac: flash c8:47:8c:2a:4b:96
+[    0.949500] [BK7258-WIFI] mac: flash <BSSID>
 [    0.954563] [BK7258-WIFI] parity: null-vs-authoritative: (none)
 [    0.960188] [BK7258-WIFI] pmq: cpu_freq vote module=41 freq=1 ret=0
 [    0.966188] [BK7258-WIFI] dvfs post-init-60m r0=0x00000037 vcore=0xb
@@ -173,13 +173,13 @@ nsh> wapi[   12.907188] [adc] release
 wlan0 Lu[   14.931938] [adc] release
 [   14.937813] [adc] release
 v 1
-[   15.652875] [BK7258-WIFI] wapi connect: ssid="Luv" psk_len=8
-[   15.657219] [BK7258-WIFI] connect: ssid="Luv" (3), psk 8 chars
+[   15.652875] [BK7258-WIFI] wapi connect: ssid="<SSID>" psk_len=8
+[   15.657219] [BK7258-WIFI] connect: ssid="<SSID>" (3), psk 8 chars
 [   15.661594] [wifi] sta configuring
-[   15.664094] [wifi] sta config, ssid=Luv password=<PSK-REDACTED> security=0
+[   15.664094] [wifi] sta config, ssid=<SSID> password=<PSK-REDACTED> security=0
 [   15.668188] [wifi] sta configured(5)
 [   15.670844] [wifi] sta starting
-[   15.673313] [wifi] sta get sta_config, ssid=Luv password=<PSK-REDACTED> security=0
+[   15.673313] [wifi] sta get sta_config, ssid=<SSID> password=<PSK-REDACTED> security=0
 [   15.678063] [initseq] osal sem-init enter max_count ret=1
 [   15.682219] [initseq] osal sem-init leave ret=0
 [   15.686782] [wifi] sta disconnecting
@@ -248,7 +248,7 @@ v 1
 [   15.910188] [wpa] Add interface wlan0 to a new radio N/A
 [   15.915875] [wpa] wpa_dInit
 [   15.918219] [wpa] create fsocket_init:34978
-[   15.922688] [wpa] Own MAC address: c8:47:8c:2a:4b:96
+[   15.922688] [wpa] Own MAC address: <BSSID>
 [   15.927219] [hitf] del hw key idx=0
 [   15.930532] [initseq] osal sem-init enter max_count ret=1
 [   15.935782] [initseq] osal sem-init leave ret=0
@@ -377,7 +377,7 @@ e[a s e 1
 [   16.316875] [(null)]  
 [   16.319188] [(null)]  
 [   16.321532] [wpa] 
-[   16.323782] [wpa] Starting AP scan for specific SSID: Luv
+[   16.323782] [wpa] Starting AP scan for specific SSID: <SSID>
 [   16.329719] [wpa] Add radio work 'scan'@0x2809f3a8
 [   16.333969] [wpa] First radio work item in the queue - schedule start immediately
 [   16.341938] [wpa] Starting radio work 'scan'@0x2809f3a8 after 0.008000 second wait
@@ -391,7 +391,7 @@ e[a s e 1
 [   16.368907] [BK7258-WIFI] pmq: phy_wakeup_reinit done
 [   16.369594] [rwnx] bmsg_ioctl_handler
 [   16.373875] [wifid] [KW:]scanu_start_req:src_id=15,vif=0,dur=0,chan_cnt=14,ssid_len=3,bssid=0xffff-ffff-ffff
-[   16.381532] [wifid] [KW:]scanu_start_req:ssid=Luv
+[   16.381532] [wifid] [KW:]scanu_start_req:ssid=<SSID>
 [   16.393657] [rwnx] bmsg_ioctl_sender
 [   16.398594] [wpa] Event SCAN_STARTED (47) received
 [   16.400594] [wpa] Own scan request started a scan in 0.003000 seconds
@@ -431,7 +431,7 @@ nsh> [   16.520094] [rwnx] chan_survey busy 31 ms time 120 ms noise -94 freq 241
 [   18.146688] [wpa] Scan completed in 1.746000 seconds
 [   18.151063] [hitf] get scan result:1
 [   18.151938] [wpa] BSS: Start scan result update 1
-[   18.156844] [wpa] BSS: Add new id 0 BSSID 2e:94:0b:03:1f:0c SSID 'Luv' freq 2437
+[   18.156844] [wpa] BSS: Add new id 0 BSSID <BSSID> SSID '<SSID>' freq 2437
 [   18.163719] [wpa] BSS: last_scan_res_used=1/32
 [   18.167969] [wpa] New scan results available (own=1 ext=0)
 [   18.173938] [wpa] Radio work 'scan'@0x2809f3a8 done in 1.832000 seconds
@@ -440,15 +440,15 @@ nsh> [   16.520094] [rwnx] chan_survey busy 31 ms time 120 ms noise -94 freq 241
 [   18.193813] [wpa] cipher2security 2 2 16 16
 [   18.197813] [BK7258-WIFI] pmq: cpu_freq vote module=25 freq=4 ret=0
 [   20.622563] [BK7258-WIFI] pmq: cpu_freq vote module=25 freq=7 ret=0
-[   20.628157] [wpa] 0: 2e:94:0b:03:1f:0c freq=2437 level=-26 snr=-26 est_throughput=1000
+[   20.628157] [wpa] 0: <BSSID> freq=2437 level=-26 snr=-26 est_throughput=1000
 [   20.630094] [wpa] Selecting BSS from priority group 0
-[   20.632719] [wpa] 0: 2e:94:0b:03:1f:0c ssid='Luv' wpa_ie_len=0 rsn_ie_len=20 caps=0x1431 level=-26 freq=2437 
+[   20.632719] [wpa] 0: <BSSID> ssid='<SSID>' wpa_ie_len=0 rsn_ie_len=20 caps=0x1431 level=-26 freq=2437 
 [   20.640532] [wpa] cipher2security 2 2 16 16
 [   20.644594] [wpa]    selected based on RSN IE
-[   20.649219] [wpa]    selected BSS 2e:94:0b:03:1f:0c ssid='Luv'
+[   20.649219] [wpa]    selected BSS <BSSID> ssid='<SSID>'
 [   20.654563] [wpa] wpa_supplicant_connect
-[   20.659875] [wpa] Considering connect request: reassociate: 1  selected: 2e:94:0b:03:1f:0c  bssid: 00:00:00:00:00:00  pending: 00:00:00:00:00:00  wpa_state: SCANNING  ssid=0x2809e490  current_ssid=0x2809e490
-[   20.677250] [wpa] Request association with 2e:94:0b:03:1f:0c
+[   20.659875] [wpa] Considering connect request: reassociate: 1  selected: <BSSID>  bssid: 00:00:00:00:00:00  pending: 00:00:00:00:00:00  wpa_state: SCANNING  ssid=0x2809e490  current_ssid=0x2809e490
+[   20.677250] [wpa] Request association with <BSSID>
 [   20.682719] [wpa] No ongoing scan/p2p-scan found to abort
 [   20.688125] [wpa] Add radio work 'connect'@0x2809f648
 [   20.693094] [wpa] First radio work item in the queue - schedule start immediately
@@ -526,12 +526,12 @@ nsh> [   16.520094] [rwnx] chan_survey busy 31 ms time 120 ms noise -94 freq 241
 [   20.941532] [wpa]  [REMOVED]
 [   20.944407] [wpa] 
 [   20.946625] [wpa] Automatic auth_alg selection: 0x1
-[   20.952094] [wpa] Trying to associate with 2e:94:0b:03:1f:0c (SSID='Luv' freq=2437 MHz)
+[   20.952094] [wpa] Trying to associate with <BSSID> (SSID='<SSID>' freq=2437 MHz)
 [   20.959313] [wpa] cancell scan request timer
 [   20.963688] [wpa] State: SCANNING -> ASSOCIATING
-[   20.968875] [wpa] Limit connection to BSSID 2e:94:0b:03:1f:0c freq=2437 MHz based on scan results (bssid_set=0 wps=0)
+[   20.968875] [wpa] Limit connection to BSSID <BSSID> freq=2437 MHz based on scan results (bssid_set=0 wps=0)
 [   20.978782] [wpa] wpa_driver_associate: auth_alg 0x1
-[   20.983969] [rwnx] lmac_connect_req seq=0 vif=0 band=0 freq=2437 txpwr=127 flags=00000089 auth=0 ctrl=8e88 ie_len=35 bcn_len=210 bssid=2e:94:0b:03:1f:0c
+[   20.983969] [rwnx] lmac_connect_req seq=0 vif=0 band=0 freq=2437 txpwr=127 flags=00000089 auth=0 ctrl=8e88 ie_len=35 bcn_len=210 bssid=<BSSID>
 [   20.997157] [initseq] osal sem-init enter max_count ret=1
 [   21.002532] [initseq] osal sem-init leave ret=0
 [   21.007500] [BK7258-WIFI] pmq: phy_wakeup_reinit(is_wifi=1) enter
@@ -539,7 +539,7 @@ nsh> [   16.520094] [rwnx] chan_survey busy 31 ms time 120 ms noise -94 freq 241
 [   21.008250] [BK7258-WIFI] pmq: vote_cpu_freq(module=26 freq=1) ret=0
 [   21.008625] [BK7258-WIFI] pmq: phy_wakeup_reinit done
 [   21.009532] [rwnx] bmsg_ioctl_handler
-[   21.013125] [wifid] [KW:]conn vif0-0,auth_type:0,bssid:942e-30b-c1f,ssid:Luv,is encryp:8.
+[   21.013125] [wifid] [KW:]conn vif0-0,auth_type:0,bssid:942e-30b-c1f,ssid:<SSID>,is encryp:8.
 [   21.019657] [BK7258-WIFI] dvfs: high-tier VDDDIG/clock vote freq=6
 [   21.020938] [BK7258-WIFI] pmq: cpu_freq vote module=26 freq=6 ret=0
 [   21.026844] [BK7258-WIFI] pmq: vote_cpu_freq(module=26 freq=6) ret=0
@@ -854,7 +854,7 @@ nsh> [   16.520094] [rwnx] chan_survey busy 31 ms time 120 ms noise -94 freq 241
 [   21.924375] [rwnx] bmsg_hardware_ioctl_handler
 [   21.929375] [rwnx] bmsg_hardware_ioctl_sender
 [   21.933344] [wpa] State: ASSOCIATING -> ASSOCIATED
-[   21.937907] [wpa] Associated to a new BSS: BSSID=2e:94:0b:03:1f:0c
+[   21.937907] [wpa] Associated to a new BSS: BSSID=<BSSID>
 [   21.944094] [initseq] osal sem-init enter max_count ret=1
 [   21.949157] [initseq] osal sem-init leave ret=0
 [   21.953750] [rwnx] bmsg_hardware_ioctl_handler
@@ -961,14 +961,14 @@ nsh> [   16.520094] [rwnx] chan_survey busy 31 ms time 120 ms noise -94 freq 241
 [   22.246594] [wpa] WPA: AP mgmt_group_cipher 0x20 network mgmt_group_cipher 0x0; available mgmt_group_cipher 0x20
 [   22.256625] [wpa] WPA: STA/AP is not MFP capable; AP RSNE caps 0xc
 [   22.262750] [wpa] WPA: not using MGMT group cipher
-[   22.267688] [wpa] Associated with 2e:94:0b:03:1f:0c
+[   22.267688] [wpa] Associated with <BSSID>
 [   22.272563] [wpa] WPA: Association event - clear replay counter
 [   22.278844] [wpa] WPA: Clear old PTK
 [   22.281875] [wpa] Setting authentication timeout: 10 sec 0 usec
 [   22.291657] [wpa] cancell scan request timer
 [   22.294813] [wpa] CTRL-EVENT-SUBNET-STATUS-UPDATE status=0
 [   22.297719] [wpa] hapd_rx:34978,buf:0x2809bcd8, len:512
-[   22.302782] [wpa] RX EAPOL from 2e:94:0b:03:1f:0c
+[   22.302782] [wpa] RX EAPOL from <BSSID>
 [   22.307313] [wpa] Setting authentication timeout: 10 sec 0 usec
 [   22.313375] [wpa] IEEE 802.1X RX: version=2 type=3 length=95
 [   22.318782] [wpa]   EAPOL-Key type=2
@@ -1083,7 +1083,7 @@ nsh> [   16.520094] [rwnx] chan_survey busy 31 ms time 120 ms noise -94 freq 241
 [   22.622688] [rwnx] bmsg_hardware_ioctl_handler
 [   22.627719] [rwnx] bmsg_hardware_ioctl_sender
 [   22.631813] [wpa] State: ASSOCIATED -> 4WAY_HANDSHAKE
-[   22.636719] [wpa] WPA: RX message 1 of 4-Way Handshake from 2e:94:0b:03:1f:0c (ver=2)
+[   22.636719] [wpa] WPA: RX message 1 of 4-Way Handshake from <BSSID> (ver=2)
 [   22.644188] [wpa] RSN: msg 1/4 key data - hexdump(len=0):
 [   22.649532] [wpa] 
 [   22.651719] [wpa] WPA: Renewed SNonce - hexdump(len=32):
@@ -1121,7 +1121,7 @@ nsh> [   16.520094] [rwnx] chan_survey busy 31 ms time 120 ms noise -94 freq 241
 [   22.734594] [(null)]  70
 [   22.737094] [wpa] 
 [   22.739500] [wpa] WPA: PTK derivation using PRF(SHA1)
-[   22.746438] [wpa] WPA: PTK derivation - A1=c8:47:8c:2a:4b:96 A2=2e:94:0b:03:1f:0c
+[   22.746438] [wpa] WPA: PTK derivation - A1=<BSSID> A2=<BSSID>
 [   22.751657] [wpa] WPA: Nonce1 - hexdump(len=32):
 [   22.756157] [(null)]  36
 [   22.758657] [(null)]  3e
@@ -1241,7 +1241,7 @@ nsh> [   16.520094] [rwnx] chan_survey busy 31 ms time 120 ms noise -94 freq 241
 [   23.067125] [(null)]  01
 [   23.069657] [wpa] 
 [   23.071782] [wpa] WPA: Sending EAPOL-Key 2/4
-[   23.076250] [wpa] WPA: Send EAPOL-Key frame to 2e:94:0b:03:1f:0c ver=2 mic_len=16 key_mgmt=0x2
+[   23.076250] [wpa] WPA: Send EAPOL-Key frame to <BSSID> ver=2 mic_len=16 key_mgmt=0x2
 [   23.084563] [wpa] WPA: EAPOL-Key MIC using HMAC-SHA1
 [   23.090188] [wpa] WPA: KCK - hexdump(len=16):
 [   23.093719] [wpa]  [REMOVED]
@@ -1272,12 +1272,12 @@ nsh> [   16.520094] [rwnx] chan_survey busy 31 ms time 120 ms noise -94 freq 241
 [   23.169907] [wpa] r1:34978,buf:0x2809c1b4, len:135
 [   23.177875] [BK7258-M2] id=0 cfm=00000009 q=0/3 tid=7 vif=0 sta=0 fl=00000000
 [   23.183063] [rwnx] eapol cfm st=00000009 q=3 tid=7 sta=0 d31=0 d33=1 d34=1 d35=0 d36=0
-[   23.189657] [rwnx] txcfm seq=0 kind=data q=3 st=00000009 ack=1 done=1 tid=7 vif=0 sta=0 fl=00000000 addr=2809c1c2 len=121 saddr=00000000 eth=8e88 dst=2e:94:0b:03:1f:0c src=c8:47:8c:2a:4b:96
+[   23.189657] [rwnx] txcfm seq=0 kind=data q=3 st=00000009 ack=1 done=1 tid=7 vif=0 sta=0 fl=00000000 addr=2809c1c2 len=121 saddr=00000000 eth=8e88 dst=<BSSID> src=<BSSID>
 [   23.212907] [rwnx] bmsg_rx_handler
 [   23.215657] [wpa] ke_tx:34978,buf:0x2809c274, len:113
 [   23.219407] [wpa] ke_tx:34978,buf:0x2809c684, len:177
 [   23.223844] [wpa] hapd_rx:34978,buf:0x2809bcd8, len:512
-[   23.227750] [wpa] RX EAPOL from 2e:94:0b:03:1f:0c
+[   23.227750] [wpa] RX EAPOL from <BSSID>
 [   23.229907] [wpa] IEEE 802.1X RX: version=2 type=3 length=95
 [   23.235563] [wpa]   EAPOL-Key type=2
 [   23.239282] [wpa]   key_info 0x8a (ver=2 keyidx=0 rsvd=0 Pairwise Ack)
@@ -1391,11 +1391,11 @@ nsh> [   16.520094] [rwnx] chan_survey busy 31 ms time 120 ms noise -94 freq 241
 [   23.539500] [rwnx] bmsg_hardware_ioctl_handler
 [   23.544407] [rwnx] bmsg_hardware_ioctl_sender
 [   23.548625] [wpa] State: 4WAY_HANDSHAKE -> 4WAY_HANDSHAKE
-[   23.553657] [wpa] WPA: RX message 1 of 4-Way Handshake from 2e:94:0b:03:1f:0c (ver=2)
+[   23.553657] [wpa] WPA: RX message 1 of 4-Way Handshake from <BSSID> (ver=2)
 [   23.561219] [wpa] RSN: msg 1/4 key data - hexdump(len=0):
 [   23.566532] [wpa] 
 [   23.568750] [wpa] WPA: PTK derivation using PRF(SHA1)
-[   23.575688] [wpa] WPA: PTK derivation - A1=c8:47:8c:2a:4b:96 A2=2e:94:0b:03:1f:0c
+[   23.575688] [wpa] WPA: PTK derivation - A1=<BSSID> A2=<BSSID>
 [   23.581125] [wpa] WPA: Nonce1 - hexdump(len=32):
 [   23.585594] [(null)]  36
 [   23.588094] [(null)]  3e
@@ -1513,7 +1513,7 @@ nsh> [   16.520094] [rwnx] chan_survey busy 31 ms time 120 ms noise -94 freq 241
 [   23.889813] [(null)]  02
 [   23.892407] [wpa] 
 [   23.894594] [wpa] WPA: Sending EAPOL-Key 2/4
-[   23.898875] [wpa] WPA: Send EAPOL-Key frame to 2e:94:0b:03:1f:0c ver=2 mic_len=16 key_mgmt=0x2
+[   23.898875] [wpa] WPA: Send EAPOL-Key frame to <BSSID> ver=2 mic_len=16 key_mgmt=0x2
 [   23.907250] [wpa] WPA: EAPOL-Key MIC using HMAC-SHA1
 [   23.912844] [wpa] WPA: KCK - hexdump(len=16):
 [   23.917625] [wpa]  [REMOVED]
@@ -1544,9 +1544,9 @@ nsh> [   16.520094] [rwnx] chan_survey busy 31 ms time 120 ms noise -94 freq 241
 [   23.992594] [wpa] r1:34978,buf:0x2809c2fc, len:135
 [   24.000219] [BK7258-M2] id=1 cfm=00000009 q=0/3 tid=7 vif=0 sta=0 fl=00000000
 [   24.005250] [rwnx] eapol cfm st=00000009 q=3 tid=7 sta=0 d31=0 d33=0 d34=1 d35=0 d36=0
-[   24.012375] [rwnx] txcfm seq=1 kind=data q=3 st=00000009 ack=1 done=1 tid=7 vif=0 sta=0 fl=00000000 addr=2809c30a len=121 saddr=00000000 eth=8e88 dst=2e:94:0b:03:1f:0c src=c8:47:8c:2a:4b:96
+[   24.012375] [rwnx] txcfm seq=1 kind=data q=3 st=00000009 ack=1 done=1 tid=7 vif=0 sta=0 fl=00000000 addr=2809c30a len=121 saddr=00000000 eth=8e88 dst=<BSSID> src=<BSSID>
 [   24.034250] [wpa] hapd_rx:34978,buf:0x2809bcd8, len:512
-[   24.038219] [wpa] RX EAPOL from 2e:94:0b:03:1f:0c
+[   24.038219] [wpa] RX EAPOL from <BSSID>
 [   24.039844] [wpa] IEEE 802.1X RX: version=2 type=3 length=95
 [   24.044719] [wpa]   EAPOL-Key type=2
 [   24.048657] [wpa]   key_info 0x8a (ver=2 keyidx=0 rsvd=0 Pairwise Ack)
@@ -1662,11 +1662,11 @@ nsh> [   16.520094] [rwnx] chan_survey busy 31 ms time 120 ms noise -94 freq 241
 [   24.357094] [rwnx] bmsg_hardware_ioctl_handler
 [   24.361969] [rwnx] bmsg_hardware_ioctl_sender
 [   24.366125] [wpa] State: 4WAY_HANDSHAKE -> 4WAY_HANDSHAKE
-[   24.371532] [wpa] WPA: RX message 1 of 4-Way Handshake from 2e:94:0b:03:1f:0c (ver=2)
+[   24.371532] [wpa] WPA: RX message 1 of 4-Way Handshake from <BSSID> (ver=2)
 [   24.378907] [wpa] RSN: msg 1/4 key data - hexdump(len=0):
 [   24.384219] [wpa] 
 [   24.386594] [wpa] WPA: PTK derivation using PRF(SHA1)
-[   24.393407] [wpa] WPA: PTK derivation - A1=c8:47:8c:2a:4b:96 A2=2e:94:0b:03:1f:0c
+[   24.393407] [wpa] WPA: PTK derivation - A1=<BSSID> A2=<BSSID>
 [   24.398750] [wpa] WPA: Nonce1 - hexdump(len=32):
 [   24.403250] [(null)]  36
 [   24.405750] [(null)]  3e
@@ -1784,7 +1784,7 @@ nsh> [   16.520094] [rwnx] chan_survey busy 31 ms time 120 ms noise -94 freq 241
 [   24.707469] [(null)]  03
 [   24.709969] [wpa] 
 [   24.712157] [wpa] WPA: Sending EAPOL-Key 2/4
-[   24.716688] [wpa] WPA: Send EAPOL-Key frame to 2e:94:0b:03:1f:0c ver=2 mic_len=16 key_mgmt=0x2
+[   24.716688] [wpa] WPA: Send EAPOL-Key frame to <BSSID> ver=2 mic_len=16 key_mgmt=0x2
 [   24.724875] [wpa] WPA: EAPOL-Key MIC using HMAC-SHA1
 [   24.730625] [wpa] WPA: KCK - hexdump(len=16):
 [   24.734094] [wpa]  [REMOVED]
@@ -1815,9 +1815,9 @@ nsh> [   16.520094] [rwnx] chan_survey busy 31 ms time 120 ms noise -94 freq 241
 [   24.810219] [wpa] r1:34978,buf:0x2809c2fc, len:135
 [   24.817782] [BK7258-M2] id=2 cfm=00000009 q=0/3 tid=7 vif=0 sta=0 fl=00000000
 [   24.822875] [rwnx] eapol cfm st=00000009 q=3 tid=7 sta=0 d31=0 d33=0 d34=1 d35=0 d36=0
-[   24.829969] [rwnx] txcfm seq=2 kind=data q=3 st=00000009 ack=1 done=1 tid=7 vif=0 sta=0 fl=00000000 addr=2809c30a len=121 saddr=00000000 eth=8e88 dst=2e:94:0b:03:1f:0c src=c8:47:8c:2a:4b:96
+[   24.829969] [rwnx] txcfm seq=2 kind=data q=3 st=00000009 ack=1 done=1 tid=7 vif=0 sta=0 fl=00000000 addr=2809c30a len=121 saddr=00000000 eth=8e88 dst=<BSSID> src=<BSSID>
 [   24.851782] [wpa] hapd_rx:34978,buf:0x2809bcd8, len:512
-[   24.855750] [wpa] RX EAPOL from 2e:94:0b:03:1f:0c
+[   24.855750] [wpa] RX EAPOL from <BSSID>
 [   24.857313] [wpa] IEEE 802.1X RX: version=2 type=3 length=159
 [   24.862563] [wpa]   EAPOL-Key type=2
 [   24.866250] [wpa]   key_info 0x13ca (ver=2 keyidx=0 rsvd=0 Pairwise Install Ack MIC Secure Encr)
@@ -1997,7 +1997,7 @@ nsh> [   16.520094] [rwnx] chan_survey busy 31 ms time 120 ms noise -94 freq 241
 [   25.373438] [wpa]  [REMOVED]
 [   25.375250] [wpa] 
 [   25.376844] [wpa] State: 4WAY_HANDSHAKE -> 4WAY_HANDSHAKE
-[   25.378657] [wpa] WPA: RX message 3 of 4-Way Handshake from 2e:94:0b:03:1f:0c (ver=2)
+[   25.378657] [wpa] WPA: RX message 3 of 4-Way Handshake from <BSSID> (ver=2)
 [   25.383688] [wpa] WPA: IE KeyData - hexdump(len=56):
 [   25.388563] [(null)]  30
 [   25.391094] [(null)]  14
@@ -2090,7 +2090,7 @@ nsh> [   16.520094] [rwnx] chan_survey busy 31 ms time 120 ms noise -94 freq 241
 [   25.617094] [wpa]  [REMOVED]
 [   25.619907] [wpa] 
 [   25.622250] [wpa] WPA: Sending EAPOL-Key 4/4
-[   25.626625] [wpa] WPA: Send EAPOL-Key frame to 2e:94:0b:03:1f:0c ver=2 mic_len=16 key_mgmt=0x2
+[   25.626625] [wpa] WPA: Send EAPOL-Key frame to <BSSID> ver=2 mic_len=16 key_mgmt=0x2
 [   25.634813] [wpa] WPA: EAPOL-Key MIC using HMAC-SHA1
 [   25.640469] [wpa] WPA: KCK - hexdump(len=16):
 [   25.643969] [wpa]  [REMOVED]
@@ -2121,7 +2121,7 @@ nsh> [   16.520094] [rwnx] chan_survey busy 31 ms time 120 ms noise -94 freq 241
 [   25.720157] [wpa] r1:34978,buf:0x2809c2a4, len:113
 [   25.728844] [BK7258-M2] id=3 cfm=00000009 q=0/3 tid=7 vif=0 sta=0 fl=00000000
 [   25.733875] [rwnx] eapol cfm st=00000009 q=3 tid=7 sta=0 d31=0 d33=0 d34=1 d35=0 d36=0
-[   25.739875] [rwnx] txcfm seq=3 kind=data q=3 st=00000009 ack=1 done=1 tid=7 vif=0 sta=0 fl=00000000 addr=2809c2b2 len=99 saddr=00000000 eth=8e88 dst=2e:94:0b:03:1f:0c src=c8:47:8c:2a:4b:96
+[   25.739875] [rwnx] txcfm seq=3 kind=data q=3 st=00000009 ack=1 done=1 tid=7 vif=0 sta=0 fl=00000000 addr=2809c2b2 len=99 saddr=00000000 eth=8e88 dst=<BSSID> src=<BSSID>
 [   25.757563] [wpa] WPA: Installing PTK to the driver
 [   25.761813] [hitf] add CCMP
 [   25.764188] [hitf] add sta_mgmt_get_sta
@@ -2156,7 +2156,7 @@ nsh> [   16.520094] [rwnx] chan_survey busy 31 ms time 120 ms noise -94 freq 241
 [   25.876938] [rwnx] bmsg_ioctl_handler
 [   25.880719] [rwnx] bmsg_ioctl_sender
 [   25.883219] [hitf] add hw key idx=1
-[   25.886125] [wpa] WPA: Key negotiation completed with 2e:94:0b:03:1f:0c [PTK=CCMP GTK=CCMP]
+[   25.886125] [wpa] WPA: Key negotiation completed with <BSSID> [PTK=CCMP GTK=CCMP]
 [   25.892657] [wpa] Cancelling authentication timeout
 [   25.897657] [wpa] State: GROUP_HANDSHAKE -> COMPLETED
 [   25.902688] [wpa] Radio work 'connect'@0x2809f648 done in 5.202000 seconds
@@ -2165,10 +2165,10 @@ nsh> [   16.520094] [rwnx] chan_survey busy 31 ms time 120 ms noise -94 freq 241
 [   25.921907] [initseq] osal sem-init leave ret=0
 [   25.926563] [rwnx] bmsg_ioctl_handler
 [   25.930969] [rwnx] bmsg_ioctl_sender
-[   25.934032] [wpa] CTRL-EVENT-CONNECTED - Connection to 2e:94:0b:03:1f:0c completed [id=0 id_str=]
+[   25.934032] [wpa] CTRL-EVENT-CONNECTED - Connection to <BSSID> completed [id=0 id_str=]
 [   25.942688] [BK7258-WIFI] connected: carrier on, vif=0
 [   25.948500] [wpa] hapd_rx:34978,buf:0x2809bcd8, len:512
-[   25.953032] [wpa] RX EAPOL from 2e:94:0b:03:1f:0c
+[   25.953032] [wpa] RX EAPOL from <BSSID>
 [   25.957625] [wpa] IEEE 802.1X RX: version=2 type=3 length=159
 [   25.963219] [wpa]   EAPOL-Key type=2
 [   25.967094] [wpa]   key_info 0x13ca (ver=2 keyidx=0 rsvd=0 Pairwise Install Ack MIC Secure Encr)
@@ -2345,7 +2345,7 @@ nsh> [   16.520094] [rwnx] chan_survey busy 31 ms time 120 ms noise -94 freq 241
 [   26.456782] [wpa]  [REMOVED]
 [   26.458688] [wpa] 
 [   26.460125] [wpa] State: COMPLETED -> 4WAY_HANDSHAKE
-[   26.461875] [wpa] WPA: RX message 3 of 4-Way Handshake from 2e:94:0b:03:1f:0c (ver=2)
+[   26.461875] [wpa] WPA: RX message 3 of 4-Way Handshake from <BSSID> (ver=2)
 [   26.466719] [wpa] WPA: IE KeyData - hexdump(len=56):
 [   26.471594] [(null)]  30
 [   26.474125] [(null)]  14
@@ -2438,7 +2438,7 @@ nsh> [   16.520094] [rwnx] chan_survey busy 31 ms time 120 ms noise -94 freq 241
 [   26.700094] [wpa]  [REMOVED]
 [   26.702938] [wpa] 
 [   26.705250] [wpa] WPA: Sending EAPOL-Key 4/4
-[   26.709688] [wpa] WPA: Send EAPOL-Key frame to 2e:94:0b:03:1f:0c ver=2 mic_len=16 key_mgmt=0x2
+[   26.709688] [wpa] WPA: Send EAPOL-Key frame to <BSSID> ver=2 mic_len=16 key_mgmt=0x2
 [   26.717875] [wpa] WPA: EAPOL-Key MIC using HMAC-SHA1
 [   26.723469] [wpa] WPA: KCK - hexdump(len=16):
 [   26.727063] [wpa]  [REMOVED]
@@ -2469,7 +2469,7 @@ nsh> [   16.520094] [rwnx] chan_survey busy 31 ms time 120 ms noise -94 freq 241
 [   26.805594] [wpa] r1:34978,buf:0x2809c314, len:113
 [   26.813844] [BK7258-M2] id=4 cfm=00000009 q=0/3 tid=7 vif=0 sta=0 fl=00000000
 [   26.819094] [rwnx] eapol cfm st=00000009 q=3 tid=7 sta=0 d31=0 d33=0 d34=1 d35=0 d36=0
-[   26.824438] [rwnx] txcfm seq=4 kind=data q=3 st=00000009 ack=1 done=1 tid=7 vif=0 sta=0 fl=00000000 addr=2809c322 len=99 saddr=00000000 eth=8e88 dst=2e:94:0b:03:1f:0c src=c8:47:8c:2a:4b:96
+[   26.824438] [rwnx] txcfm seq=4 kind=data q=3 st=00000009 ack=1 done=1 tid=7 vif=0 sta=0 fl=00000000 addr=2809c322 len=99 saddr=00000000 eth=8e88 dst=<BSSID> src=<BSSID>
 [   26.840594] [wpa] WPA: Do not re-install same PTK to the driver
 [   26.845719] [wpa] State: 4WAY_HANDSHAKE -> GROUP_HANDSHAKE
 [   26.851094] [wpa] RSN: received GTK in pairwise handshake - hexdump(len=18):
@@ -2477,13 +2477,13 @@ nsh> [   16.520094] [rwnx] chan_survey busy 31 ms time 120 ms noise -94 freq 241
 [   26.860813] [wpa] 
 [   26.862844] [wpa] WPA: GTK 0x2809f30db
 [   26.866688] [wpa] WPA: Not reinstalling already in-use GTK to the driver (keyidx=1 tx=0 len=16)
-[   26.875750] [wpa] WPA: Key negotiation completed with 2e:94:0b:03:1f:0c [PTK=CCMP GTK=CCMP]
+[   26.875750] [wpa] WPA: Key negotiation completed with <BSSID> [PTK=CCMP GTK=CCMP]
 [   26.883657] [wpa] Cancelling authentication timeout
 [   26.888625] [wpa] State: GROUP_HANDSHAKE -> COMPLETED
 [   26.893532] [hitf] STA 2e:94:0b:03:1f:[   26.903688] [rwnx] bmsg_rx_handler
 0calready opened
 [   26.908594] [wpa] hapd_rx:34978,buf:0x2809bcd8, len:512
-[   26.912500] [wpa] RX EAPOL from 2e:94:0b:03:1f:0c
+[   26.912500] [wpa] RX EAPOL from <BSSID>
 [   26.914063] [wpa] IEEE 802.1X RX: version=2 type=3 length=159
 [   26.917563] [wpa]   EAPOL-Key type=2
 [   26.921563] [wpa]   key_info 0x13ca (ver=2 keyidx=0 rsvd=0 Pairwise Install Ack MIC Secure Encr)
@@ -2661,7 +2661,7 @@ nsh> [   16.520094] [rwnx] chan_survey busy 31 ms time 120 ms noise -94 freq 241
 [   27.419813] [wpa]  [REMOVED]
 [   27.421688] [wpa] 
 [   27.423219] [wpa] State: COMPLETED -> 4WAY_HANDSHAKE
-[   27.424938] [wpa] WPA: RX message 3 of 4-Way Handshake from 2e:94:0b:03:1f:0c (ver=2)
+[   27.424938] [wpa] WPA: RX message 3 of 4-Way Handshake from <BSSID> (ver=2)
 [   27.429688] [wpa] WPA: IE KeyData - hexdump(len=56):
 [   27.434594] [(null)]  30
 [   27.437094] [(null)]  14
@@ -2754,7 +2754,7 @@ nsh> [   16.520094] [rwnx] chan_survey busy 31 ms time 120 ms noise -94 freq 241
 [   27.663094] [wpa]  [REMOVED]
 [   27.665938] [wpa] 
 [   27.668282] [wpa] WPA: Sending EAPOL-Key 4/4
-[   27.672688] [wpa] WPA: Send EAPOL-Key frame to 2e:94:0b:03:1f:0c ver=2 mic_len=16 key_mgmt=0x2
+[   27.672688] [wpa] WPA: Send EAPOL-Key frame to <BSSID> ver=2 mic_len=16 key_mgmt=0x2
 [   27.680844] [wpa] WPA: EAPOL-Key MIC using HMAC-SHA1
 [   27.686469] [wpa] WPA: KCK - hexdump(len=16):
 [   27.690063] [wpa]  [REMOVED]
@@ -2785,7 +2785,7 @@ nsh> [   16.520094] [rwnx] chan_survey busy 31 ms time 120 ms noise -94 freq 241
 [   27.766188] [wpa] r1:34978,buf:0x2809c314, len:113
 [   27.775750] [BK7258-M2] id=5 cfm=00000009 q=0/3 tid=7 vif=0 sta=0 fl=00000000
 [   27.780813] [rwnx] eapol cfm st=00000009 q=3 tid=7 sta=0 d31=0 d33=0 d34=1 d35=0 d36=0
-[   27.786125] [rwnx] txcfm seq=5 kind=data q=3 st=00000009 ack=1 done=1 tid=7 vif=0 sta=0 fl=00002000 addr=2809c322 len=99 saddr=00000000 eth=8e88 dst=2e:94:0b:03:1f:0c src=c8:47:8c:2a:4b:96
+[   27.786125] [rwnx] txcfm seq=5 kind=data q=3 st=00000009 ack=1 done=1 tid=7 vif=0 sta=0 fl=00002000 addr=2809c322 len=99 saddr=00000000 eth=8e88 dst=<BSSID> src=<BSSID>
 [   27.803657] [wpa] WPA: Do not re-install same PTK to the driver
 [   27.809657] [wpa] State: 4WAY_HANDSHAKE -> GROUP_HANDSHAKE
 [   27.814094] [wpa] RSN: received GTK in pairwise handshake - hexdump(len=18):
@@ -2793,10 +2793,10 @@ nsh> [   16.520094] [rwnx] chan_survey busy 31 ms time 120 ms noise -94 freq 241
 [   27.825313] [wpa] 
 [   27.826688] [wpa] WPA: GTK 0x2809091db
 [   27.829750] [wpa] WPA: Not reinstalling already in-use GTK to the driver (keyidx=1 tx=0 len=16)
-[   27.838844] [wpa] WPA: Key negotiation completed with 2e:94:0b:03:1f:0c [PTK=CCMP GTK=CCMP]
+[   27.838844] [wpa] WPA: Key negotiation completed with <BSSID> [PTK=CCMP GTK=CCMP]
 [   27.846625] [wpa] Cancelling authentication timeout
 [   27.851657] [wpa] State: GROUP_HANDSHAKE -> COMPLETED
-[   27.856532] [hitf] STA 2e:94:0b:03:1f:0calready opened
+[   27.856532] [hitf] STA <BSSID>already opened
 [   27.862219] [adc] release
 [   27.864625] [cal] temp_code:44 - adc_code:480 - adc_trend:[16]:500->[17]:477
 [   27.875125] [adc] release
@@ -2816,10 +2816,10 @@ renew wl[   32.932938] [adc] release
 [   32.944094] [adc] release
 an0
 [   33.647157] [rwnx] bmsg_tx_handler
-[   33.659344] [rwnx] txcfm seq=6 kind=data q=1 st=00000009 ack=1 done=1 tid=0 vif=0 sta=0 fl=00000000 addr=2809d8ca len=293 saddr=00000000 eth=0008 dst=ff:ff:ff:ff:ff:ff src=c8:47:8c:2a:4b:96
+[   33.659344] [rwnx] txcfm seq=6 kind=data q=1 st=00000009 ack=1 done=1 tid=0 vif=0 sta=0 fl=00000000 addr=2809d8ca len=293 saddr=00000000 eth=0008 dst=ff:ff:ff:ff:ff:ff src=<BSSID>
 [   33.673500] [rwnx] bmsg_rx_handler
 [   33.679782] [rwnx] bmsg_tx_handler
-[   33.687219] [rwnx] txcfm seq=7 kind=data q=1 st=00000009 ack=1 done=1 tid=0 vif=0 sta=0 fl=00000000 addr=2809d8ca len=300 saddr=00000000 eth=0008 dst=ff:ff:ff:ff:ff:ff src=c8:47:8c:2a:4b:96
+[   33.687219] [rwnx] txcfm seq=7 kind=data q=1 st=00000009 ack=1 done=1 tid=0 vif=0 sta=0 fl=00000000 addr=2809d8ca len=300 saddr=00000000 eth=0008 dst=ff:ff:ff:ff:ff:ff src=<BSSID>
 [   33.700469] [rwnx] bmsg_rx_handler
 [   33.705219] [rwnx] bmsg_rx_handler
 nsh> [   33.951250] [adc] release
@@ -2834,8 +2834,8 @@ nsh> [   35.196125] [rwnx] bmsg_rx_handler
 ifconf[   35.977219] [adc] release
 [   35.982844] [adc] release
 ig
-wlan0	Link encap:Ethernet HWaddr c8:47:8c:2a:4b:96 at RUNNING mtu 576
-	inet addr:10.153.235.167 DRaddr:10.153.235.208 Mask:255.255.255.0
+wlan0	Link encap:Ethernet HWaddr <BSSID> at RUNNING mtu 576
+	inet addr:<LAN-IP> DRaddr:<LAN-IP> Mask:255.255.255.0
 
 	RX: Received Fragment Errors   Bytes   
 	    00000004 00000000 00000000 52d             
@@ -2871,54 +2871,54 @@ www.baidu[   43.793563] [rwnx] bmsg_rx_handler
 [   43.896063] [rwnx] bmsg_rx_handler
 .com
 [   44.697250] [rwnx] bmsg_tx_handler
-[   44.703094] [rwnx] txcfm seq=8 kind=data q=1 st=00000009 ack=1 done=1 tid=0 vif=0 sta=0 fl=00000000 addr=2809d192 len=59 saddr=00000000 eth=0008 dst=2e:94:0b:03:1f:0c src=c8:47:8c:2a:4b:96
+[   44.703094] [rwnx] txcfm seq=8 kind=data q=1 st=00000009 ack=1 done=1 tid=0 vif=0 sta=0 fl=00000000 addr=2809d192 len=59 saddr=00000000 eth=0008 dst=<BSSID> src=<BSSID>
 [   44.737688] [rwnx] bmsg_rx_handler
 PING 220.181.111.232 56 bytes of data
 [   44.747563] [rwnx] bmsg_tx_handler
-[   44.752719] [rwnx] txcfm seq=9 kind=data q=1 st=00000009 ack=1 done=1 tid=0 vif=0 sta=0 fl=00000000 addr=2809ce72 len=84 saddr=00000000 eth=0008 dst=2e:94:0b:03:1f:0c src=c8:47:8c:2a:4b:96
+[   44.752719] [rwnx] txcfm seq=9 kind=data q=1 st=00000009 ack=1 done=1 tid=0 vif=0 sta=0 fl=00000000 addr=2809ce72 len=84 saddr=00000000 eth=0008 dst=<BSSID> src=<BSSID>
 [   44.768688] [rwnx] bmsg_rx_handler
 56 bytes from 220.181.111.232: icmp_seq=0 time=28.0 ms
 [   45.748063] [rwnx] bmsg_tx_handler
-[   45.753094] [rwnx] txcfm seq=10 kind=data q=1 st=00000009 ack=1 done=1 tid=0 vif=0 sta=0 fl=00000000 addr=2809ce72 len=84 saddr=00000000 eth=0008 dst=2e:94:0b:03:1f:0c src=c8:47:8c:2a:4b:96
+[   45.753094] [rwnx] txcfm seq=10 kind=data q=1 st=00000009 ack=1 done=1 tid=0 vif=0 sta=0 fl=00000000 addr=2809ce72 len=84 saddr=00000000 eth=0008 dst=<BSSID> src=<BSSID>
 [   45.768469] [rwnx] bmsg_rx_handler
 56 bytes from 220.181.111.232: icmp_seq=1 time=27.0 ms
 [   46.748969] [rwnx] bmsg_tx_handler
-[   46.763563] [rwnx] txcfm seq=11 kind=data q=1 st=00000009 ack=1 done=1 tid=0 vif=0 sta=0 fl=00000000 addr=2809ce72 len=84 saddr=00000000 eth=0008 dst=2e:94:0b:03:1f:0c src=c8:47:8c:2a:4b:96
+[   46.763563] [rwnx] txcfm seq=11 kind=data q=1 st=00000009 ack=1 done=1 tid=0 vif=0 sta=0 fl=00000000 addr=2809ce72 len=84 saddr=00000000 eth=0008 dst=<BSSID> src=<BSSID>
 [   46.776938] [rwnx] bmsg_rx_handler
 56 bytes from 220.181.111.232: icmp_seq=2 time=34.0 ms
 [   47.750563] [rwnx] bmsg_tx_handler
-[   47.755844] [rwnx] txcfm seq=12 kind=data q=1 st=00000009 ack=1 done=1 tid=0 vif=0 sta=0 fl=00000000 addr=2809ce72 len=84 saddr=00000000 eth=0008 dst=2e:94:0b:03:1f:0c src=c8:47:8c:2a:4b:96
+[   47.755844] [rwnx] txcfm seq=12 kind=data q=1 st=00000009 ack=1 done=1 tid=0 vif=0 sta=0 fl=00000000 addr=2809ce72 len=84 saddr=00000000 eth=0008 dst=<BSSID> src=<BSSID>
 [   47.769157] [rwnx] bmsg_rx_handler
 56 bytes from 220.181.111.232: icmp_seq=3 time=26.0 ms
 [   47.888250] [rwnx] bmsg_rx_handler
 [   47.990125] [rwnx] bmsg_rx_handler
 [   48.751094] [rwnx] bmsg_tx_handler
-[   48.758969] [rwnx] txcfm seq=13 kind=data q=1 st=00000009 ack=1 done=1 tid=0 vif=0 sta=0 fl=00000000 addr=2809ce72 len=84 saddr=00000000 eth=0008 dst=2e:94:0b:03:1f:0c src=c8:47:8c:2a:4b:96
+[   48.758969] [rwnx] txcfm seq=13 kind=data q=1 st=00000009 ack=1 done=1 tid=0 vif=0 sta=0 fl=00000000 addr=2809ce72 len=84 saddr=00000000 eth=0008 dst=<BSSID> src=<BSSID>
 [   48.772469] [rwnx] bmsg_rx_handler
 56 bytes from 220.181.111.232: icmp_seq=4 time=28.0 ms
 [   49.752125] [rwnx] bmsg_tx_handler
-[   49.758907] [rwnx] txcfm seq=14 kind=data q=1 st=00000009 ack=1 done=1 tid=0 vif=0 sta=0 fl=00000000 addr=2809ce72 len=84 saddr=00000000 eth=0008 dst=2e:94:0b:03:1f:0c src=c8:47:8c:2a:4b:96
+[   49.758907] [rwnx] txcfm seq=14 kind=data q=1 st=00000009 ack=1 done=1 tid=0 vif=0 sta=0 fl=00000000 addr=2809ce72 len=84 saddr=00000000 eth=0008 dst=<BSSID> src=<BSSID>
 [   49.795094] [rwnx] bmsg_rx_handler
 56 bytes from 220.181.111.232: icmp_seq=5 time=49.0 ms
 [   49.924094] [rwnx] bmsg_rx_handler
 [   49.928657] [rwnx] bmsg_tx_handler
-[   49.938125] [rwnx] txcfm seq=15 kind=data q=1 st=00000009 ack=1 done=1 tid=0 vif=0 sta=0 fl=00000000 addr=2809d23a len=28 saddr=00000000 eth=0608 dst=2e:94:0b:03:1f:0c src=c8:47:8c:2a:4b:96
+[   49.938125] [rwnx] txcfm seq=15 kind=data q=1 st=00000009 ack=1 done=1 tid=0 vif=0 sta=0 fl=00000000 addr=2809d23a len=28 saddr=00000000 eth=0608 dst=<BSSID> src=<BSSID>
 [   50.753875] [rwnx] bmsg_tx_handler
-[   50.760969] [rwnx] txcfm seq=16 kind=data q=1 st=00000009 ack=1 done=1 tid=0 vif=0 sta=0 fl=00002000 addr=2809ce72 len=84 saddr=00000000 eth=0008 dst=2e:94:0b:03:1f:0c src=c8:47:8c:2a:4b:96
+[   50.760969] [rwnx] txcfm seq=16 kind=data q=1 st=00000009 ack=1 done=1 tid=0 vif=0 sta=0 fl=00002000 addr=2809ce72 len=84 saddr=00000000 eth=0008 dst=<BSSID> src=<BSSID>
 [   50.775844] [rwnx] bmsg_rx_handler
 56 bytes from 220.181.111.232: icmp_seq=6 time=30.0 ms
 [   51.754094] [rwnx] bmsg_tx_handler
-[   51.759688] [rwnx] txcfm seq=17 kind=data q=1 st=00000009 ack=1 done=1 tid=0 vif=0 sta=0 fl=00002000 addr=2809ce72 len=84 saddr=00000000 eth=0008 dst=2e:94:0b:03:1f:0c src=c8:47:8c:2a:4b:96
+[   51.759688] [rwnx] txcfm seq=17 kind=data q=1 st=00000009 ack=1 done=1 tid=0 vif=0 sta=0 fl=00002000 addr=2809ce72 len=84 saddr=00000000 eth=0008 dst=<BSSID> src=<BSSID>
 [   51.785938] [rwnx] bmsg_rx_handler
 56 bytes from 220.181.111.232: icmp_seq=7 time=38.0 ms
 [   51.982500] [rwnx] bmsg_rx_handler
 [   52.084344] [rwnx] bmsg_rx_handler
 [   52.755063] [rwnx] bmsg_tx_handler
-[   52.761125] [rwnx] txcfm seq=18 kind=data q=1 st=00000009 ack=1 done=1 tid=0 vif=0 sta=0 fl=00000000 addr=2809ce72 len=84 saddr=00000000 eth=0008 dst=2e:94:0b:03:1f:0c src=c8:47:8c:2a:4b:96
+[   52.761125] [rwnx] txcfm seq=18 kind=data q=1 st=00000009 ack=1 done=1 tid=0 vif=0 sta=0 fl=00000000 addr=2809ce72 len=84 saddr=00000000 eth=0008 dst=<BSSID> src=<BSSID>
 [   52.774532] [rwnx] bmsg_rx_handler
 56 bytes from 220.181.111.232: icmp_seq=8 time=26.0 ms
 [   53.755938] [rwnx] bmsg_tx_handler
-[   53.761125] [rwnx] txcfm seq=19 kind=data q=1 st=00000009 ack=1 done=1 tid=0 vif=0 sta=0 fl=00000000 addr=2809ce72 len=84 saddr=00000000 eth=0008 dst=2e:94:0b:03:1f:0c src=c8:47:8c:2a:4b:96
+[   53.761125] [rwnx] txcfm seq=19 kind=data q=1 st=00000009 ack=1 done=1 tid=0 vif=0 sta=0 fl=00000000 addr=2809ce72 len=84 saddr=00000000 eth=0008 dst=<BSSID> src=<BSSID>
 [   53.780094] [rwnx] bmsg_rx_handler
 56 bytes from 220.181.111.232: icmp_seq=9 time=30.0 ms
 [   54.027719] [adc] release

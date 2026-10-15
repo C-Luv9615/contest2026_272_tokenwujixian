@@ -562,16 +562,16 @@ xtal_cali:45
 [BK7258] power gate mask=0x00000010 enable=0 ret=0 reg=0x70002418
 [adc] release
 [BK7258-WIFI] pmq: vote_sleep(module=5 state=1) slept=0x220
-bk7258_wifi_runtime connect Luv <PSK-REDACTED>
-[bk7258_wifi_runtime] connect: ssid="Luv", psk 8 chars
+bk7258_wifi_runtime connect <SSID> <PSK-REDACTED>
+[bk7258_wifi_runtime] connect: ssid="<SSID>", psk 8 chars
   state=IDLE(0) reason=SUCCESS(262)
-[BK7258-WIFI] connect: ssid="Luv" (3), psk 8 chars
+[BK7258-WIFI] connect: ssid="<SSID>" (3), psk 8 chars
 [wifi] sta configuring
-[wifi] sta config, ssid=Luv password=<PSK-REDACTED> security=0
+[wifi] sta config, ssid=<SSID> password=<PSK-REDACTED> security=0
 [wifi] sta configured(5)
 [wifi] sta starting
-[BK7258-WIFI] mac: flash c8:47:8c:46:02:15
-[wifi] sta get sta_config, ssid=Luv password=<PSK-REDACTED> security=0
+[BK7258-WIFI] mac: flash <BSSID>
+[wifi] sta get sta_config, ssid=<SSID> password=<PSK-REDACTED> security=0
 [initseq] osal sem-init enter max_count ret=1
 [initseq] osal sem-init leave ret=0
 [wifi] sta disconnecting
@@ -685,7 +685,7 @@ bk7258_wifi_runtime connect Luv <PSK-REDACTED>
 [wpa] Add interface wlan0 to a new radio N/A
 [wpa] wpa_dInit
 [wpa] create fsocket_init:34978
-[wpa] Own MAC address: c8:47:8c:46:02:15
+[wpa] Own MAC address: <BSSID>
 [hitf] del hw key idx=0
 [initseq] osal sem-init enter max_count ret=1
 [initseq] osal sem-init leave ret=0
@@ -836,7 +836,7 @@ bk7258_wifi_runtime connect Luv <PSK-REDACTED>
 [(null)]  
 [(null)]  
 [wpa] 
-[wpa] Starting AP scan for specific SSID: Luv
+[wpa] Starting AP scan for specific SSID: <SSID>
 [wpa] Add radio work 'scan'@0x28099fa8
 [wpa] First radio work item in the queue - schedule start immediately
 [wpa] Starting radio work 'scan'@0x28099fa8 after 0.003000 second wait
@@ -852,7 +852,7 @@ bk7258_wifi_runtime connect Luv <PSK-REDACTED>
 [BK7258-WIFI] pmq: vote_sleep(module=9 state=0) slept=0x20
 [rwnx] bmsg_ioctl_handler
 [wifid] [KW:]scanu_start_req:src_id=15,vif=0,dur=0,chan_cnt=14,ssid_len=3,bssid=0xffff-ffff-ffff
-[wifid] [KW:]scanu_start_req:ssid=Luv
+[wifid] [KW:]scanu_start_req:ssid=<SSID>
 [rwnx] bmsg_ioctl_sender
 [wpa] evtq SCAN_STARTED(201) ret=0
 [wpa] Event SCAN_STARTED (47) received
@@ -926,7 +926,7 @@ bk7258_wifi_runtime connect Luv <PSK-REDACTED>
 [(null)]  
 [(null)]  
 [wpa] 
-[wpa] Starting AP scan for specific SSID: Luv
+[wpa] Starting AP scan for specific SSID: <SSID>
 [wpa] Add radio work 'scan'@0x28092e88
 [wpa] First radio work item in the queue - schedule start immediately
 [wpa] Starting radio work 'scan'@0x28092e88 after 0.003000 second wait
@@ -1004,7 +1004,7 @@ bk7258_wifi_runtime connect Luv <PSK-REDACTED>
 [(null)]  
 [(null)]  
 [wpa] 
-[wpa] Starting AP scan for specific SSID: Luv
+[wpa] Starting AP scan for specific SSID: <SSID>
 [wpa] Add radio work 'scan'@0x28092e88
 [wpa] First radio work item in the queue - schedule start immediately
 [wpa] Starting radio work 'scan'@0x28092e88 after 0.003000 second wait
@@ -1082,7 +1082,7 @@ nsh> [K[BK7258] power gate mask=0x00000010 enable=1 ret=0 reg=0x70000008
 [(null)]  
 [(null)]  
 [wpa] 
-[wpa] Starting AP scan for specific SSID: Luv
+[wpa] Starting AP scan for specific SSID: <SSID>
 [wpa] Add radio work 'scan'@0x28092e60
 [wpa] First radio work item in the queue - schedule start immediately
 [wpa] Starting radio work 'scan'@0x28092e60 after 0.004000 second wait
@@ -1145,7 +1145,7 @@ nsh> [K[BK7258] power gate mask=0x00000010 enable=1 ret=0 reg=0x70000008
 [(null)]  
 [(null)]  
 [wpa] 
-[wpa] Starting AP scan for specific SSID: Luv
+[wpa] Starting AP scan for specific SSID: <SSID>
 [wpa] Add radio work 'scan'@0x28099f80
 [wpa] First radio work item in the queue - schedule start immediately
 [wpa] Starting radio work 'scan'@0x28099f80 after 0.003000 second wait
@@ -1224,7 +1224,7 @@ nsh> [K[wpa] nl80211: Scan timeout - try to abort it
 [(null)]  
 [(null)]  
 [wpa] 
-[wpa] Starting AP scan for specific SSID: Luv
+[wpa] Starting AP scan for specific SSID: <SSID>
 [wpa] Add radio work 'scan'@0x28099f80
 [wpa] First radio work item in the queue - schedule start immediately
 [wpa] Starting radio work 'scan'@0x28099f80 after 0.003000 second wait
@@ -1301,7 +1301,7 @@ nsh> [K[wpa] nl80211: Scan timeout - try to abort it
 [(null)]  
 [(null)]  
 [wpa] 
-[wpa] Starting AP scan for specific SSID: Luv
+[wpa] Starting AP scan for specific SSID: <SSID>
 [wpa] Add radio work 'scan'@0x28099f80
 [wpa] First radio work item in the queue - schedule start immediately
 [wpa] Starting radio work 'scan'@0x28099f80 after 0.003000 second wait
@@ -1378,7 +1378,7 @@ nsh> [K[wpa] nl80211: Scan timeout - try to abort it
 [(null)]  
 [(null)]  
 [wpa] 
-[wpa] Starting AP scan for specific SSID: Luv
+[wpa] Starting AP scan for specific SSID: <SSID>
 [wpa] Add radio work 'scan'@0x28099f80
 [wpa] First radio work item in the queue - schedule start immediately
 [wpa] Starting radio work 'scan'@0x28099f80 after 0.004000 second wait
@@ -1455,7 +1455,7 @@ nsh> [K[wpa] nl80211: Scan timeout - try to abort it
 [(null)]  
 [(null)]  
 [wpa] 
-[wpa] Starting AP scan for specific SSID: Luv
+[wpa] Starting AP scan for specific SSID: <SSID>
 [wpa] Add radio work 'scan'@0x28099f80
 [wpa] First radio work item in the queue - schedule start immediately
 [wpa] Starting radio work 'scan'@0x28099f80 after 0.003000 second wait
@@ -1518,7 +1518,7 @@ nsh> [K[wpa] nl80211: Scan timeout - try to abort it
 [(null)]  
 [(null)]  
 [wpa] 
-[wpa] Starting AP scan for specific SSID: Luv
+[wpa] Starting AP scan for specific SSID: <SSID>
 [wpa] Add radio work 'scan'@0x28099f80
 [wpa] First radio work item in the queue - schedule start immediately
 [wpa] Starting radio work 'scan'@0x28099f80 after 0.003000 second wait
@@ -1595,7 +1595,7 @@ nsh> [K[wpa] nl80211: Scan timeout - try to abort it
 [(null)]  
 [(null)]  
 [wpa] 
-[wpa] Starting AP scan for specific SSID: Luv
+[wpa] Starting AP scan for specific SSID: <SSID>
 [wpa] Add radio work 'scan'@0x28099f80
 [wpa] First radio work item in the queue - schedule start immediately
 [wpa] Starting radio work 'scan'@0x28099f80 after 0.003000 second wait
@@ -1672,7 +1672,7 @@ nsh> [K[wpa] nl80211: Scan timeout - try to abort it
 [(null)]  
 [(null)]  
 [wpa] 
-[wpa] Starting AP scan for specific SSID: Luv
+[wpa] Starting AP scan for specific SSID: <SSID>
 [wpa] Add radio work 'scan'@0x28099f80
 [wpa] First radio work item in the queue - schedule start immediately
 [wpa] Starting radio work 'scan'@0x28099f80 after 0.003000 second wait
@@ -1749,7 +1749,7 @@ nsh> [K[wpa] nl80211: Scan timeout - try to abort it
 [(null)]  
 [(null)]  
 [wpa] 
-[wpa] Starting AP scan for specific SSID: Luv
+[wpa] Starting AP scan for specific SSID: <SSID>
 [wpa] Add radio work 'scan'@0x28099f80
 [wpa] First radio work item in the queue - schedule start immediately
 [wpa] Starting radio work 'scan'@0x28099f80 after 0.003000 second wait

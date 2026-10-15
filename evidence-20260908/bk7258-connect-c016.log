@@ -562,16 +562,16 @@ xtal_cali:45
 [BK7258] power gate mask=0x00000010 enable=0 ret=0 reg=0x70002418
 [adc] release
 [BK7258-WIFI] pmq: vote_sleep(module=5 state=1) slept=0x220
-bk7258_wifi_runtime connect Luv <PSK-REDACTED>
-[bk7258_wifi_runtime] connect: ssid="Luv", psk 8 chars
+bk7258_wifi_runtime connect <SSID> <PSK-REDACTED>
+[bk7258_wifi_runtime] connect: ssid="<SSID>", psk 8 chars
   state=IDLE(0) reason=SUCCESS(262)
-[BK7258-WIFI] connect: ssid="Luv" (3), psk 8 chars
+[BK7258-WIFI] connect: ssid="<SSID>" (3), psk 8 chars
 [wifi] sta configuring
-[wifi] sta config, ssid=Luv password=<PSK-REDACTED> security=0
+[wifi] sta config, ssid=<SSID> password=<PSK-REDACTED> security=0
 [wifi] sta configured(5)
 [wifi] sta starting
-[BK7258-WIFI] mac: flash c8:47:8c:46:02:15
-[wifi] sta get sta_config, ssid=Luv password=<PSK-REDACTED> security=0
+[BK7258-WIFI] mac: flash <BSSID>
+[wifi] sta get sta_config, ssid=<SSID> password=<PSK-REDACTED> security=0
 [initseq] osal sem-init enter max_count ret=1
 [initseq] osal sem-init leave ret=0
 [wifi] sta disconnecting
@@ -685,7 +685,7 @@ bk7258_wifi_runtime connect Luv <PSK-REDACTED>
 [wpa] Add interface wlan0 to a new radio N/A
 [wpa] wpa_dInit
 [wpa] create fsocket_init:34978
-[wpa] Own MAC address: c8:47:8c:46:02:15
+[wpa] Own MAC address: <BSSID>
 [hitf] del hw key idx=0
 [initseq] osal sem-init enter max_count ret=1
 [initseq] osal sem-init leave ret=0
@@ -836,7 +836,7 @@ bk7258_wifi_runtime connect Luv <PSK-REDACTED>
 [(null)]  
 [(null)]  
 [wpa] 
-[wpa] Starting AP scan for specific SSID: Luv
+[wpa] Starting AP scan for specific SSID: <SSID>
 [wpa] Add radio work 'scan'@0x28098db8
 [wpa] First radio work item in the queue - schedule start immediately
 [wpa] Starting radio work 'scan'@0x28098db8 after 0.003000 second wait
@@ -852,7 +852,7 @@ bk7258_wifi_runtime connect Luv <PSK-REDACTED>
 [BK7258-WIFI] pmq: vote_sleep(module=9 state=0) slept=0x20
 [rwnx] bmsg_ioctl_handler
 [wifid] [KW:]scanu_start_req:src_id=15,vif=0,dur=0,chan_cnt=14,ssid_len=3,bssid=0xffff-ffff-ffff
-[wifid] [KW:]scanu_start_req:ssid=Luv
+[wifid] [KW:]scanu_start_req:ssid=<SSID>
 [rwnx] bmsg_ioctl_sender
 [wpa] evtq SCAN_STARTED(201) ret=0
 [wpa] Event SCAN_STARTED (47) received
@@ -896,7 +896,7 @@ bk7258_wifi_runtime connect Luv <PSK-REDACTED>
 [wpa] Scan completed in 1.698000 seconds
 [hitf] get scan result:1
 [wpa] BSS: Start scan result update 1
-[wpa] BSS: Add new id 0 BSSID 6e:26:dd:7f:cc:cc SSID 'Luv' freq 2462
+[wpa] BSS: Add new id 0 BSSID <BSSID> SSID '<SSID>' freq 2462
 [wpa] BSS: last_scan_res_used=1/32
 [wpa] New scan results available (own=1 ext=0)
 [wpa] Radio work 'scan'@0x28098db8 done in 1.786000 seconds
@@ -905,20 +905,20 @@ bk7258_wifi_runtime connect Luv <PSK-REDACTED>
 [wpa] cipher2security 2 2 16 16
 [BK7258-WIFI] pmq: cpu_freq vote module=25 freq=4 ret=0
 [BK7258-WIFI] pmq: cpu_freq vote module=25 freq=7 ret=0
-[wpa] 0: 6e:26:dd:7f:cc:cc freq=2462 level=-27 snr=-27 est_throughput=1000
+[wpa] 0: <BSSID> freq=2462 level=-27 snr=-27 est_throughput=1000
 [wpa] Selecting BSS from priority group 0
-[wpa] 0: 6e:26:dd:7f:cc:cc ssid='Luv' wpa_ie_len=0 rsn_ie_len=20 caps=0x1431 level=-27 freq=2462 
+[wpa] 0: <BSSID> ssid='<SSID>' wpa_ie_len=0 rsn_ie_len=20 caps=0x1431 level=-27 freq=2462 
 [wpa] cipher2security 2 2 16 16
 [wpa]    selected based on RSN IE
-[wpa]    selected BSS 6e:26:dd:7f:cc:cc ssid='Luv'
+[wpa]    selected BSS <BSSID> ssid='<SSID>'
 [wpa] wpa_supplicant_connect
-[wpa] Considering connect request: reassociate: 1  selected: 6e:26:dd:7f:cc:cc  bssid: 00:00:00:00:00:00  pending: 00:00:00:00:00:00  wpa_state: SCANNING  ssid=0x280924d8  current_ssid=0x280924d8
-[wpa] Request association with 6e:26:dd:7f:cc:cc
+[wpa] Considering connect request: reassociate: 1  selected: <BSSID>  bssid: 00:00:00:00:00:00  pending: 00:00:00:00:00:00  wpa_state: SCANNING  ssid=0x280924d8  current_ssid=0x280924d8
+[wpa] Request association with <BSSID>
 [wpa] No ongoing scan/p2p-scan found to abort
 [wpa] Add radio work 'connect'@0x28091cc8
 [wpa] First radio work item in the queue - schedule start immediately
 [wpa] Update BSS pointer for the pending connect radio work
-[wpa] BSS: Remove id 0 BSSID 6e:26:dd:7f:cc:cc SSID 'Luv' due to wpa_bss_flush_by_age
+[wpa] BSS: Remove id 0 BSSID <BSSID> SSID '<SSID>' due to wpa_bss_flush_by_age
 [wpa] Starting radio work 'connect'@0x28091cc8 after 0.018000 second wait
 [wpa] BSS/SSID entry for association not valid anymore - drop connection attempt
 [wpa] Radio work 'connect'@0x28091cc8 done in 0.013000 seconds

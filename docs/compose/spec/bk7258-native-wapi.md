@@ -12,7 +12,7 @@ commits: 075a3703405e3f9206db22be87595ed374ad64d0..dcc3507
 
 **What was built** — BK7258 Wi-Fi 的生命周期和 STA 控制面从自定义 `bk7258_wifi_runtime` app 迁移到 board bringup + 标准 WAPI/WEXT 路径。board late bringup 创建 8 KiB kthread 自动完成 vendor 初始化并在进入 NSH 前注册 `wlan0`；`wireless_ops_s` 的 mode/auth/passwd/essid/connect/disconnect handler 接收标准 WEXT ioctl，用户态通过 `wapi` CLI 完成扫描、WPA2-PSK 关联、DHCP 和 ping。runtime app 已删除。
 
-**Verification** — CP/AP fresh build + L1 + package/decode 通过（T1-T4 各一次）。真机验收：冷启动后 `wlan0 ready before userspace`（0.85 s），全程未执行任何 runtime 命令，WAPI 完成 scan → WPA2-PSK/CCMP 关联 → 四次握手 → DHCP（192.168.190.248）→ 网关 ping 4/4（34-39 ms）→ DNS 解析 → 外部 ping 10/10（26-67 ms）。T4 删除 runtime 后重新回归通过（三次尝试，符合 ~30% 扫描空结果基线）。
+**Verification** — CP/AP fresh build + L1 + package/decode 通过（T1-T4 各一次）。真机验收：冷启动后 `wlan0 ready before userspace`（0.85 s），全程未执行任何 runtime 命令，WAPI 完成 scan → WPA2-PSK/CCMP 关联 → 四次握手 → DHCP（<LAN-IP>）→ 网关 ping 4/4（34-39 ms）→ DNS 解析 → 外部 ping 10/10（26-67 ms）。T4 删除 runtime 后重新回归通过（三次尝试，符合 ~30% 扫描空结果基线）。
 
 **Journey log** —
 1. `wapi` CLI 的 mode/alg/wpa_ver 参数只接受数字索引或完整字符串名（如 `2`、`3`、`WPA_ALG_CCMP`），不接受缩写（`managed`、`ccmp`、`wpa2`）。`wapi_str2ndx` 对未匹配字符串调用 `exit(EXIT_FAILURE)`，进程静默退出。
