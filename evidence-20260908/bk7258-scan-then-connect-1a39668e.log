@@ -569,7 +569,7 @@ xtal_cali:45
 [BK7258-WIFI] pmq: vote_sleep(module=5 state=1) slept=0x220
 bk7258_wifi_runtime scan
 [wifi] scaning
-[BK7258-WIFI] mac: flash c8:47:8c:46:02:15
+[BK7258-WIFI] mac: flash <BSSID>
 [wifi] init 1st vif
 [initseq] osal sem-init enter max_count ret=1
 [initseq] osal sem-init leave ret=0
@@ -677,7 +677,7 @@ bk7258_wifi_runtime scan
 [wpa] Add interface wlan0 to a new radio N/A
 [wpa] wpa_dInit
 [wpa] create fsocket_init:34978
-[wpa] Own MAC address: c8:47:8c:46:02:15
+[wpa] Own MAC address: <BSSID>
 [hitf] del hw key idx=0
 [initseq] osal sem-init enter max_count ret=1
 [initseq] osal sem-init leave ret=0
@@ -824,32 +824,32 @@ bk7258_wifi_runtime scan
 [wpa] Scan completed in 10.005000 seconds
 [hitf] get scan result:12
 [wpa] BSS: Start scan result update 1
-[wpa] BSS: Add new id 0 BSSID bc:5a:34:07:df:51 SSID 'MIOT' freq 2412
-[wpa] BSS: Add new id 1 BSSID bc:5a:34:00:8a:b1 SSID 'MIOT' freq 2412
-[wpa] BSS: Add new id 2 BSSID bc:5a:34:00:8a:b2 SSID 'MILAB' freq 2412
-[wpa] BSS: Add new id 3 BSSID bc:5a:34:00:9a:d2 SSID 'MILAB' freq 2412
-[wpa] BSS: Add new id 4 BSSID bc:5a:34:00:9a:d1 SSID 'MIOT' freq 2412
-[wpa] BSS: Add new id 5 BSSID ea:17:2f:b8:ab:18 SSID '\xe4\xba\x94\xe4\xba\x94\xe5\x85\xad\xe5\x85\xad\xe4\xb8\x83\xe4\xb8\x83' freq 2412
-[wpa] BSS: Add new id 6 BSSID 88:40:3b:83:86:0c SSID 'FoggySpot' freq 2412
-[wpa] BSS: Add new id 7 BSSID ec:17:2f:b8:ab:18 SSID '12345' freq 2412
-[wpa] BSS: Add new id 8 BSSID bc:5a:34:00:8a:b0 SSID 'MIPublic' freq 2412
-[wpa] BSS: Add new id 9 BSSID bc:5a:34:07:df:50 SSID 'MIPublic' freq 2412
-[wpa] BSS: Add new id 10 BSSID bc:5a:34:00:9a:d0 SSID 'MIPublic' freq 2412
-[wpa] BSS: Add new id 11 BSSID 42:cd:57:f8:79:1e SSID '' freq 2412
+[wpa] BSS: Add new id 0 BSSID <BSSID> SSID '<SSID>' freq 2412
+[wpa] BSS: Add new id 1 BSSID <BSSID> SSID '<SSID>' freq 2412
+[wpa] BSS: Add new id 2 BSSID <BSSID> SSID '<SSID>' freq 2412
+[wpa] BSS: Add new id 3 BSSID <BSSID> SSID '<SSID>' freq 2412
+[wpa] BSS: Add new id 4 BSSID <BSSID> SSID '<SSID>' freq 2412
+[wpa] BSS: Add new id 5 BSSID <BSSID> SSID '\xe4\xba\x94\xe4\xba\x94\xe5\x85\xad\xe5\x85\xad\xe4\xb8\x83\xe4\xb8\x83' freq 2412
+[wpa] BSS: Add new id 6 BSSID <BSSID> SSID '<SSID>' freq 2412
+[wpa] BSS: Add new id 7 BSSID <BSSID> SSID '12345' freq 2412
+[wpa] BSS: Add new id 8 BSSID <BSSID> SSID '<SSID>' freq 2412
+[wpa] BSS: Add new id 9 BSSID <BSSID> SSID '<SSID>' freq 2412
+[wpa] BSS: Add new id 10 BSSID <BSSID> SSID '<SSID>' freq 2412
+[wpa] BSS: Add new id 11 BSSID <BSSID> SSID '' freq 2412
 [wpa] BSS: last_scan_res_used=12/32
 [wpa] Scan-only results received
-[wpa] BSS: Remove id 0 BSSID bc:5a:34:07:df:51 SSID 'MIOT' due to wpa_bss_flush
-[wpa] BSS: Remove id 1 BSSID bc:5a:34:00:8a:b1 SSID 'MIOT' due to wpa_bss_flush
-[wpa] BSS: Remove id 2 BSSID bc:5a:34:00:8a:b2 SSID 'MILAB' due to wpa_bss_flush
-[wpa] BSS: Remove id 3 BSSID bc:5a:34:00:9a:d2 SSID 'MILAB' due to wpa_bss_flush
-[wpa] BSS: Remove id 4 BSSID bc:5a:34:00:9a:d1 SSID 'MIOT' due to wpa_bss_flush
-[wpa] BSS: Remove id 5 BSSID ea:17:2f:b8:ab:18 SSID '\xe4\xba\x94\xe4\xba\x94\xe5\x85\xad\xe5\x85\xad\xe4\xb8\x83\xe4\xb8\x83' due to wpa_bss_flush
-[wpa] BSS: Remove id 6 BSSID 88:40:3b:83:86:0c SSID 'FoggySpot' due to wpa_bss_flush
-[wpa] BSS: Remove id 7 BSSID ec:17:2f:b8:ab:18 SSID '12345' due to wpa_bss_flush
-[wpa] BSS: Remove id 8 BSSID bc:5a:34:00:8a:b0 SSID 'MIPublic' due to wpa_bss_flush
-[wpa] BSS: Remove id 9 BSSID bc:5a:34:07:df:50 SSID 'MIPublic' due to wpa_bss_flush
-[wpa] BSS: Remove id 10 BSSID bc:5a:34:00:9a:d0 SSID 'MIPublic' due to wpa_bss_flush
-[wpa] BSS: Remove id 11 BSSID 42:cd:57:f8:79:1e SSID '' due to wpa_bss_flush
+[wpa] BSS: Remove id 0 BSSID <BSSID> SSID '<SSID>' due to wpa_bss_flush
+[wpa] BSS: Remove id 1 BSSID <BSSID> SSID '<SSID>' due to wpa_bss_flush
+[wpa] BSS: Remove id 2 BSSID <BSSID> SSID '<SSID>' due to wpa_bss_flush
+[wpa] BSS: Remove id 3 BSSID <BSSID> SSID '<SSID>' due to wpa_bss_flush
+[wpa] BSS: Remove id 4 BSSID <BSSID> SSID '<SSID>' due to wpa_bss_flush
+[wpa] BSS: Remove id 5 BSSID <BSSID> SSID '\xe4\xba\x94\xe4\xba\x94\xe5\x85\xad\xe5\x85\xad\xe4\xb8\x83\xe4\xb8\x83' due to wpa_bss_flush
+[wpa] BSS: Remove id 6 BSSID <BSSID> SSID '<SSID>' due to wpa_bss_flush
+[wpa] BSS: Remove id 7 BSSID <BSSID> SSID '12345' due to wpa_bss_flush
+[wpa] BSS: Remove id 8 BSSID <BSSID> SSID '<SSID>' due to wpa_bss_flush
+[wpa] BSS: Remove id 9 BSSID <BSSID> SSID '<SSID>' due to wpa_bss_flush
+[wpa] BSS: Remove id 10 BSSID <BSSID> SSID '<SSID>' due to wpa_bss_flush
+[wpa] BSS: Remove id 11 BSSID <BSSID> SSID '' due to wpa_bss_flush
 [BK7258-WIFI] d2b chan=2807c688 txhalt=0000
 [BK7258-WIFI] d3a ofdm=0 pwak=70000018
 [BK7258-WIFI] isr 29=0 30=0 31=0 32=0
@@ -896,15 +896,15 @@ nsh> [K[BK7258] power gate mask=0x00000010 enable=1 ret=0 reg=0x70000008
 [BK7258] power gate mask=0x00000010 enable=0 ret=0 reg=0x70000018
 [adc] release
 [BK7258-WIFI] pmq: vote_sleep(module=5 state=1) slept=0x20
-bk7258_wifi_runtime connect Luv <PSK-REDACTED>
-[bk7258_wifi_runtime] connect: ssid="Luv", psk 8 chars
+bk7258_wifi_runtime connect <SSID> <PSK-REDACTED>
+[bk7258_wifi_runtime] connect: ssid="<SSID>", psk 8 chars
   state=IDLE(0) reason=SUCCESS(262)
-[BK7258-WIFI] connect: ssid="Luv" (3), psk 8 chars
+[BK7258-WIFI] connect: ssid="<SSID>" (3), psk 8 chars
 [wifi] sta configuring
-[wifi] sta config, ssid=Luv password=<PSK-REDACTED> security=0
+[wifi] sta config, ssid=<SSID> password=<PSK-REDACTED> security=0
 [wifi] sta configured(85)
 [wifi] sta starting
-[wifi] sta get sta_config, ssid=Luv password=<PSK-REDACTED> security=0
+[wifi] sta get sta_config, ssid=<SSID> password=<PSK-REDACTED> security=0
 [initseq] osal sem-init enter max_count ret=1
 [initseq] osal sem-init leave ret=0
 [wifi] sta disconnecting
@@ -980,7 +980,7 @@ bk7258_wifi_runtime connect Luv <PSK-REDACTED>
 [(null)]  
 [(null)]  
 [wpa] 
-[wpa] Starting AP scan for specific SSID: Luv
+[wpa] Starting AP scan for specific SSID: <SSID>
 [wpa] Add radio work 'scan'@0x28098110
 [wpa] First radio work item in the queue - schedule start immediately
 [wpa] Starting radio work 'scan'@0x28098110 after 0.005000 second wait
@@ -1054,7 +1054,7 @@ bk7258_wifi_runtime connect Luv <PSK-REDACTED>
 [(null)]  
 [(null)]  
 [wpa] 
-[wpa] Starting AP scan for specific SSID: Luv
+[wpa] Starting AP scan for specific SSID: <SSID>
 [wpa] Add radio work 'scan'@0x28098100
 [wpa] First radio work item in the queue - schedule start immediately
 [wpa] Starting radio work 'scan'@0x28098100 after 0.003000 second wait
@@ -1125,7 +1125,7 @@ _sleep(module=5 state=0) slept=0x0
 [(null)]  
 [(null)]  
 [wpa] 
-[wpa] Starting AP scan for specific SSID: Luv
+[wpa] Starting AP scan for specific SSID: <SSID>
 [wpa] Add radio work 'scan'@0x28098008
 [wpa] First radio work item in the queue - schedule start immediately
 [wpa] Starting radio work 'scan'@0x28098008 after 0.004000 second wait
@@ -1203,7 +1203,7 @@ nsh> [K[wpa] nl80211: Scan timeout - try to abort it
 [(null)]  
 [(null)]  
 [wpa] 
-[wpa] Starting AP scan for specific SSID: Luv
+[wpa] Starting AP scan for specific SSID: <SSID>
 [wpa] Add radio work 'scan'@0x28098538
 [wpa] First radio work item in the queue - schedule start immediately
 [wpa] Starting radio work 'scan'@0x28098538 after 0.003000 second wait
@@ -1280,7 +1280,7 @@ nsh> [K[wpa] nl80211: Scan timeout - try to abort it
 [(null)]  
 [(null)]  
 [wpa] 
-[wpa] Starting AP scan for specific SSID: Luv
+[wpa] Starting AP scan for specific SSID: <SSID>
 [wpa] Add radio work 'scan'@0x28098538
 [wpa] First radio work item in the queue - schedule start immediately
 [wpa] Starting radio work 'scan'@0x28098538 after 0.003000 second wait
@@ -1359,7 +1359,7 @@ nsh> [K[BK7258] power gate mask=0x00000010 enable=1 ret=0 reg=0x70000008
 [(null)]  
 [(null)]  
 [wpa] 
-[wpa] Starting AP scan for specific SSID: Luv
+[wpa] Starting AP scan for specific SSID: <SSID>
 [wpa] Add radio work 'scan'@0x28098538
 [wpa] First radio work item in the queue - schedule start immediately
 [wpa] Starting radio work 'scan'@0x28098538 after 0.003000 second wait
@@ -1436,7 +1436,7 @@ nsh> [K[BK7258] power gate mask=0x00000010 enable=1 ret=0 reg=0x70000008
 [(null)]  
 [(null)]  
 [wpa] 
-[wpa] Starting AP scan for specific SSID: Luv
+[wpa] Starting AP scan for specific SSID: <SSID>
 [wpa] Add radio work 'scan'@0x28098538
 [wpa] First radio work item in the queue - schedule start immediately
 [wpa] Starting radio work 'scan'@0x28098538 after 0.003000 second wait
@@ -1499,7 +1499,7 @@ nsh> [K[BK7258] power gate mask=0x00000010 enable=1 ret=0 reg=0x70000008
 [(null)]  
 [(null)]  
 [wpa] 
-[wpa] Starting AP scan for specific SSID: Luv
+[wpa] Starting AP scan for specific SSID: <SSID>
 [wpa] Add radio work 'scan'@0x28098538
 [wpa] First radio work item in the queue - schedule start immediately
 [wpa] Starting radio work 'scan'@0x28098538 after 0.003000 second wait
@@ -1576,7 +1576,7 @@ nsh> [K[BK7258] power gate mask=0x00000010 enable=1 ret=0 reg=0x70000008
 [(null)]  
 [(null)]  
 [wpa] 
-[wpa] Starting AP scan for specific SSID: Luv
+[wpa] Starting AP scan for specific SSID: <SSID>
 [wpa] Add radio work 'scan'@0x28098538
 [wpa] First radio work item in the queue - schedule start immediately
 [wpa] Starting radio work 'scan'@0x28098538 after 0.003000 second wait

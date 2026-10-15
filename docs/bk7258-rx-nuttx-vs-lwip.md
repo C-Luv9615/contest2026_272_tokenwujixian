@@ -86,7 +86,7 @@ void ethernetif_input(int iface, struct pbuf *p, uint8_t dst_idx);
 `ethernetif_input()` 入口打印的 24 帧显示 vendor 侧完全正常:
 
 ```
-rx#1   len=113/113  dst=c8:47:8c:46:02:15  et=888e  tail=02 03 00 5f   EAPOL
+rx#1   len=113/113  dst=<BSSID>  et=888e  tail=02 03 00 5f   EAPOL
 rx#6   len=81/81    dst=01:00:5e:00:00:fb  et=0800  tail=45 00 00 43   IPv4
 rx#13  len=42/42    dst=ff:ff:ff:ff:ff:ff  et=0806  tail=00 01 08 00 06 04   ARP
 ```
@@ -104,7 +104,7 @@ RX: Received=0x0b  Fragment=0  Errors=0  Bytes=0x5aa
 
 ```
 arp_in:        ERROR: Invalid hardware type or protocol type
-arp_send:      ERROR: arp_wait failed: -110, ipaddr: 192.168.190.80
+arp_send:      ERROR: arp_wait failed: -110, ipaddr: <LAN-IP>
 icmp_sendmsg:  ERROR: Not reachable
 ping:          sendto failed at seqno 0: 101      (ENETUNREACH)
 ```
@@ -118,11 +118,11 @@ ping:          sendto failed at seqno 0: 101      (ENETUNREACH)
 同一块板,重启后连同一个 AP,ping 网关四发四收:
 
 ```
-nsh> ping -c 4 192.168.190.241
-56 bytes from 192.168.190.241: icmp_seq=0 time=330.0 ms
-56 bytes from 192.168.190.241: icmp_seq=1 time=161.0 ms
-56 bytes from 192.168.190.241: icmp_seq=2 time=79.0 ms
-56 bytes from 192.168.190.241: icmp_seq=3 time=46.0 ms
+nsh> ping -c 4 <LAN-IP>
+56 bytes from <LAN-IP>: icmp_seq=0 time=330.0 ms
+56 bytes from <LAN-IP>: icmp_seq=1 time=161.0 ms
+56 bytes from <LAN-IP>: icmp_seq=2 time=79.0 ms
+56 bytes from <LAN-IP>: icmp_seq=3 time=46.0 ms
 4 packets transmitted, 4 received, 0% packet loss, time 4006 ms
 ```
 
@@ -166,11 +166,11 @@ ping 通之后 DHCP 仍然拿不到地址。三次 DISCOVER 发出去,每次 3.0
 线上帧是好的。驱动入口打印 DHCP 头,两个方向都对得上:
 
 ```
-dhcp#1 dport=67 op=1 xid=e195c2e8 yiaddr=0.0.0.0         chaddr=c8:47:8c:46:02:15
-dhcp#2 dport=68 op=2 xid=e195c2e8 yiaddr=192.168.190.248 chaddr=c8:47:8c:46:02:15
+dhcp#1 dport=67 op=1 xid=e195c2e8 yiaddr=0.0.0.0         chaddr=<BSSID>
+dhcp#2 dport=68 op=2 xid=e195c2e8 yiaddr=<LAN-IP> chaddr=<BSSID>
 ```
 
-`op=2` 是 REPLY,xid 逐字节相同,chaddr 相同,路由器已经把 `192.168.190.248` 分好了。在帧上原地跑一遍 `dhcpc_parseoptions()` 的遍历,`msgtype=2`,cookie `63825363`,11 个 option 正常走完。
+`op=2` 是 REPLY,xid 逐字节相同,chaddr 相同,路由器已经把 `<LAN-IP>` 分好了。在帧上原地跑一遍 `dhcpc_parseoptions()` 的遍历,`msgtype=2`,cookie `63825363`,11 个 option 正常走完。
 
 于是 `dhcpc_parsemsg()`(`dhcpc.c:450-453`)那三个门全部通过。它返回的是 `parseoptions()` 的结果,而那个函数解不出东西时返回 0,任何 debug level 都打不出一行。
 
@@ -210,13 +210,13 @@ dhcpc_request: Broadcast DISCOVER
 dhcpc_request: Received OFFER from c0a8bef1
 dhcpc_request: Send REQUEST
 dhcpc_request: Received ACK
-dhcpc_request: Got IP address 192.168.190.248
+dhcpc_request: Got IP address <LAN-IP>
                   netmask 255.255.255.0
-                  DNS / router 192.168.190.241
+                  DNS / router <LAN-IP>
                   Lease expires in 3599 seconds
 ```
 
-`ifconfig` 落地 `inet addr:192.168.190.248 DRaddr:192.168.190.241 Mask:255.255.255.0`。
+`ifconfig` 落地 `inet addr:<LAN-IP> DRaddr:<LAN-IP> Mask:255.255.255.0`。
 
 代价是 IOB 池从 24×196 涨到 24×640,多占约 10.4 KB 堆。
 
@@ -224,7 +224,7 @@ dhcpc_request: Got IP address 192.168.190.248
 
 同一轮排查里把 `CONFIG_NETUTILS_DHCPC_BOOTP_FLAGS` 从 `0x0000` 改成 `0x8000`。
 
-默认值下 broadcast 位是 0,按 RFC 2131 §4.1 服务器单播回 yiaddr,而 yiaddr 此刻还没生效。这一步是为了消掉"单播能不能收到"这个变量,`dhcpc.c:270-276` 的注释本身就建议在这种情形下置位。改完 OFFER 的目的 MAC 从 `c8:47:8c:46:02:15` 变成 `ff:ff:ff:ff:ff:ff`,但 DHCP 仍然失败,所以它不是这个问题的原因。保留,因为接口没有地址时广播回复更稳。
+默认值下 broadcast 位是 0,按 RFC 2131 §4.1 服务器单播回 yiaddr,而 yiaddr 此刻还没生效。这一步是为了消掉"单播能不能收到"这个变量,`dhcpc.c:270-276` 的注释本身就建议在这种情形下置位。改完 OFFER 的目的 MAC 从 `<BSSID>` 变成 `ff:ff:ff:ff:ff:ff`,但 DHCP 仍然失败,所以它不是这个问题的原因。保留,因为接口没有地址时广播回复更稳。
 
 ## 尚未解决
 

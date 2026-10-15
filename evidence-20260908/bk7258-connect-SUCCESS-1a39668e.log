@@ -562,16 +562,16 @@ g_idx:40, shift_b:0, shift_g:1
 [BK7258] power gate mask=0x00000010 enable=0 ret=0 reg=0x70002418
 [adc] release
 [BK7258-WIFI] pmq: vote_sleep(module=5 state=1) slept=0x220
-bk7258_wifi_runtime connect Luv <PSK-REDACTED>
-[bk7258_wifi_runtime] connect: ssid="Luv", psk 8 chars
+bk7258_wifi_runtime connect <SSID> <PSK-REDACTED>
+[bk7258_wifi_runtime] connect: ssid="<SSID>", psk 8 chars
   state=IDLE(0) reason=SUCCESS(262)
-[BK7258-WIFI] connect: ssid="Luv" (3), psk 8 chars
+[BK7258-WIFI] connect: ssid="<SSID>" (3), psk 8 chars
 [wifi] sta configuring
-[wifi] sta config, ssid=Luv password=<PSK-REDACTED> security=0
+[wifi] sta config, ssid=<SSID> password=<PSK-REDACTED> security=0
 [wifi] sta configured(5)
 [wifi] sta starting
-[BK7258-WIFI] mac: flash c8:47:8c:46:02:15
-[wifi] sta get sta_config, ssid=Luv password=<PSK-REDACTED> security=0
+[BK7258-WIFI] mac: flash <BSSID>
+[wifi] sta get sta_config, ssid=<SSID> password=<PSK-REDACTED> security=0
 [initseq] osal sem-init enter max_count ret=1
 [initseq] osal sem-init leave ret=0
 [wifi] sta disconnecting
@@ -684,7 +684,7 @@ bk7258_wifi_runtime connect Luv <PSK-REDACTED>
 [wpa] Add interface wlan0 to a new radio N/A
 [wpa] wpa_dInit
 [wpa] create fsocket_init:34978
-[wpa] Own MAC address: c8:47:8c:46:02:15
+[wpa] Own MAC address: <BSSID>
 [hitf] del hw key idx=0
 [initseq] osal sem-init enter max_count ret=1
 [initseq] osal sem-init leave ret=0
@@ -835,7 +835,7 @@ bk7258_wifi_runtime connect Luv <PSK-REDACTED>
 [(null)]  
 [(null)]  
 [wpa] 
-[wpa] Starting AP scan for specific SSID: Luv
+[wpa] Starting AP scan for specific SSID: <SSID>
 [wpa] Add radio work 'scan'@0x28099f98
 [wpa] First radio work item in the queue - schedule start immediately
 [wpa] Starting radio work 'scan'@0x28099f98 after 0.007000 second wait
@@ -852,7 +852,7 @@ bk7258_wifi_runtime connect Luv <PSK-REDACTED>
 [rwnx] bmsg_ioctl_handler
 0, status=0
 [wifid] [KW:]scanu_start_req:src_id=15,vif=0,dur=0,chan_cnt=14,ssid_len=3,bssid=0xffff-ffff-ffff
-[wifid] [KW:]scanu_start_req:ssid=Luv
+[wifid] [KW:]scanu_start_req:ssid=<SSID>
 [rwnx] bmsg_ioctl_sender
 [wpa] evtq SCAN_STARTED(201) ret=0
 [wpa] Event SCAN_STARTED (47) received
@@ -896,7 +896,7 @@ reason=SUCCESS(262)
 [wpa] Scan completed in 1.671000 seconds
 [hitf] get scan result:1
 [wpa] BSS: Start scan result update 1
-[wpa] BSS: Add new id 0 BSSID 6e:26:dd:7f:cc:cc SSID 'Luv' freq 2462
+[wpa] BSS: Add new id 0 BSSID <BSSID> SSID '<SSID>' freq 2462
 [wpa] BSS: last_scan_res_used=1/32
 [wpa] New scan results available (own=1 ext=0)
 [wpa] Radio work 'scan'@0x28099f98 done in 1.740000 seconds
@@ -905,15 +905,15 @@ reason=SUCCESS(262)
 [wpa] cipher2security 2 2 16 16
 [BK7258-WIFI] pmq: cpu_freq vote module=25 freq=4 ret=0
 [BK7258-WIFI] pmq: cpu_freq vote module=25 freq=7 ret=0
-[wpa] 0: 6e:26:dd:7f:cc:cc freq=2462 level=-29 snr=-29 est_throughput=1000
+[wpa] 0: <BSSID> freq=2462 level=-29 snr=-29 est_throughput=1000
 [wpa] Selecting BSS from priority group 0
-[wpa] 0: 6e:26:dd:7f:cc:cc ssid='Luv' wpa_ie_len=0 rsn_ie_len=20 caps=0x1431 level=-29 freq=2462 
+[wpa] 0: <BSSID> ssid='<SSID>' wpa_ie_len=0 rsn_ie_len=20 caps=0x1431 level=-29 freq=2462 
 [wpa] cipher2security 2 2 16 16
 [wpa]    selected based on RSN IE
-[wpa]    selected BSS 6e:26:dd:7f:cc:cc ssid='Luv'
+[wpa]    selected BSS <BSSID> ssid='<SSID>'
 [wpa] wpa_supplicant_connect
-[wpa] Considering connect request: reassociate: 1  selected: 6e:26:dd:7f:cc:cc  bssid: 00:00:00:00:00:00  pending: 00:00:00:00:00:00  wpa_state: SCANNING  ssid=0x280936b0  current_ssid=0x280936b0
-[wpa] Request association with 6e:26:dd:7f:cc:cc
+[wpa] Considering connect request: reassociate: 1  selected: <BSSID>  bssid: 00:00:00:00:00:00  pending: 00:00:00:00:00:00  wpa_state: SCANNING  ssid=0x280936b0  current_ssid=0x280936b0
+[wpa] Request association with <BSSID>
 [wpa] No ongoing scan/p2p-scan found to abort
 [wpa] Add radio work 'connect'@0x28092ea0
 [wpa] First radio work item in the queue - schedule start immediately
@@ -986,12 +986,12 @@ reason=SUCCESS(262)
 [wpa]  [REMOVED]
 [wpa] 
 [wpa] Automatic auth_alg selection: 0x1
-[wpa] Trying to associate with 6e:26:dd:7f:cc:cc (SSID='Luv' freq=2462 MHz)
+[wpa] Trying to associate with <BSSID> (SSID='<SSID>' freq=2462 MHz)
 [wpa] cancell scan request timer
 [wpa] State: SCANNING -> ASSOCIATING
-[wpa] Limit connection to BSSID 6e:26:dd:7f:cc:cc freq=2462 MHz based on scan results (bssid_set=0 wps=0)
+[wpa] Limit connection to BSSID <BSSID> freq=2462 MHz based on scan results (bssid_set=0 wps=0)
 [wpa] wpa_driver_associate: auth_alg 0x1
-[rwnx] lmac_connect_req seq=0 vif=0 band=0 freq=2462 txpwr=127 flags=00000089 auth=0 ctrl=8e88 ie_len=35 bcn_len=177 bssid=6e:26:dd:7f:cc:cc
+[rwnx] lmac_connect_req seq=0 vif=0 band=0 freq=2462 txpwr=127 flags=00000089 auth=0 ctrl=8e88 ie_len=35 bcn_len=177 bssid=<BSSID>
 [initseq] osal sem-init enter max_count ret=1
 [initseq] osal sem-init leave ret=0
 [BK7258] power gate mask=0x00000400 enable=1 ret=0 reg=0x70002018
@@ -1004,7 +1004,7 @@ reason=SUCCESS(262)
 [wifid] [KW:]conn vif0-0,auth_type:0,bssid:2[BK7258-WIFI] dvfs: high-tier VDDDIG/clock vote freq=6
 [BK7258-WIFI] pmq: cpu_freq vote module=26 freq=6 ret=0
 [BK7258-WIFI] pmq: vote_cpu_freq(module=26 freq=6) ret=0
-66e-7fdd-cccc,ssid:Luv,is encryp:8.
+66e-7fdd-cccc,ssid:<SSID>,is encryp:8.
 [wifid] chan_ctxt_add: CTXT0,freq2462MHz,bw20MHz,pwr127dBm
 [wifid] chan_reg_fix:VIF0,CTXT0,type3,ctxt_s0,nb_vif0
 [wifid] mm_sta_add:vif 0,sta 0,status 0
@@ -1316,7 +1316,7 @@ se
 [rwnx] bmsg_hardware_ioctl_handler
 [rwnx] bmsg_hardware_ioctl_sender
 [wpa] State: ASSOCIATING -> ASSOCIATED
-[wpa] Associated to a new BSS: BSSID=6e:26:dd:7f:cc:cc[rwnx] rwnx_get_wifi_rlk_start start 0
+[wpa] Associated to a new BSS: BSSID=<BSSID>[rwnx] rwnx_get_wifi_rlk_start start 0
 
 [initseq] osal sem-init enter max_count ret=1
 [initseq] osal sem-init leave ret=0
@@ -1423,7 +1423,7 @@ se
 [wpa] WPA: AP mgmt_group_cipher 0x20 network mgmt_group_cipher 0x0; available mgmt_group_cipher 0x20
 [wpa] WPA: STA/AP is not MFP capable; AP RSNE caps 0xc
 [wpa] WPA: not using MGMT group cipher
-[wpa] Associated with 6e:26:dd:7f:cc:cc
+[wpa] Associated with <BSSID>
 [wpa] WPA: Association event - clear replay counter
 [wpa] WPA: Clear old PTK
 [wpa] Setting authentication timeout: 10 sec 0 usec
@@ -1431,7 +1431,7 @@ se
 t timer
 [wpa] CTRL-EVENT-SUBNET-STATUS-UPDATE status=0
 [wpa] hapd_rx:34978,buf:0x28097638, len:512
-[wpa] RX EAPOL from 6e:26:dd:7f:cc:cc
+[wpa] RX EAPOL from <BSSID>
 [wpa] Setting authentication timeout: 10 sec 0 usec
 [wpa] IEEE 802.1X RX: version=2 type=3 length=95
 [wpa]   EAPOL-Key type=2
@@ -1547,7 +1547,7 @@ t timer
 [rwnx] bmsg_hardware_ioctl_handler
 [rwnx] bmsg_hardware_ioctl_sender
 [wpa] State: ASSOCIATED -> 4WAY_HANDSHAKE
-[wpa] WPA: RX message 1 of 4-Way Handshake from 6e:26:dd:7f:cc:cc (ver=2)
+[wpa] WPA: RX message 1 of 4-Way Handshake from <BSSID> (ver=2)
 [wpa] RSN: msg 1/4 key data - hexdump(len=0):
 [wpa] 
 [wpa] WPA: Renewed SNonce - hexdump(len=32):
@@ -1586,7 +1586,7 @@ t timer
 [(null)]  3e
 [wpa] 
 [wpa] WPA: PTK derivation using PRF(SHA1)
-[wpa] WPA: PTK derivation - A1=c8:47:8c:46:02:15 A2=6e:26:dd:7f:cc:cc
+[wpa] WPA: PTK derivation - A1=<BSSID> A2=<BSSID>
 [wpa] WPA: Nonce1 - hexdump(len=32):
 [(null)]  00
 [(null)]  00
@@ -1710,7 +1710,7 @@ t timer
 [(null)]  01
 [wpa] 
 [wpa] WPA: Sending EAPOL-Key 2/4
-[wpa] WPA: Send EAPOL-Key frame to 6e:26:dd:7f:cc:cc ver=2 mic_len=16 key_mgmt=0x2
+[wpa] WPA: Send EAPOL-Key frame to <BSSID> ver=2 mic_len=16 key_mgmt=0x2
 [wpa] WPA: EAPOL-Key MIC using HMAC-SHA1
 [wpa] WPA: KCK - hexdump(len=16):
 [wpa]  [REMOVED]
@@ -1741,13 +1741,13 @@ t timer
 [wpa] r1:34978,buf:0x28097f9c, len:135
 [BK7258-M2] id=0 cfm=00000009 q=0/3 tid=7 vif=0 sta=0 fl=00000000
 [rwnx] eapol cfm st=00000009 q=3 tid=7 sta=0 d31=0 d33=1 d34=1 d35=0 d36=1
-[rwnx] txcfm seq=0 kind=data q=3 st=00000009 ack=1 done=1 tid=7 vif=0 sta=0 fl=00000000 addr=28097faa len=121 saddr=00000000 eth=8e88 dst=6e:26:dd:7f:cc:cc src=c8:47:8c:46:02:15
+[rwnx] txcfm seq=0 kind=data q=3 st=00000009 ack=1 done=1 tid=7 vif=0 sta=0 fl=00000000 addr=28097faa len=121 saddr=00000000 eth=8e88 dst=<BSSID> src=<BSSID>
 [rwnx] l2tx cfm seq=0 status=00000009 acked=1 done=1 retry=0 swretry=0
 [rwnx] rwnx_get_wifi_rlk_start start 0
 [rwnx] bmsg_rx_handler
 [wpa] ke_tx:34978,buf:0x2809805c, len:169
 [wpa] hapd_rx:34978,buf:0x280979c0, len:512
-[wpa] RX EAPOL from 6e:26:dd:7f:cc:cc
+[wpa] RX EAPOL from <BSSID>
 [wpa] IEEE 802.1X RX: version=2 type=3 length=95
 [wpa]   EAPOL-Key type=2
 [wpa]   key_info 0x8a (ver=2 keyidx=0 rsvd=0 Pairwise Ack)
@@ -1863,11 +1863,11 @@ t timer
 [rwnx] bmsg_hardware_ioctl_handler
 [rwnx] bmsg_hardware_ioctl_sender
 [wpa] State: 4WAY_HANDSHAKE -> 4WAY_HANDSHAKE
-[wpa] WPA: RX message 1 of 4-Way Handshake from 6e:26:dd:7f:cc:cc (ver=2)
+[wpa] WPA: RX message 1 of 4-Way Handshake from <BSSID> (ver=2)
 [wpa] RSN: msg 1/4 key data - hexdump(len=0):
 [wpa] 
 [wpa] WPA: PTK derivation using PRF(SHA1)
-[wpa] WPA: PTK derivation - A1=c8:47:8c:46:02:15 A2=6e:26:dd:7f:cc:cc
+[wpa] WPA: PTK derivation - A1=<BSSID> A2=<BSSID>
 [wpa] WPA: Nonce1 - hexdump(len=32):
 [(null)]  00
 [(null)]  00
@@ -1989,7 +1989,7 @@ t timer
 [(null)]  02
 [wpa] 
 [wpa] WPA: Sending EAPOL-Key 2/4
-[wpa] WPA: Send EAPOL-Key frame to 6e:26:dd:7f:cc:cc ver=2 mic_len=16 key_mgmt=0x2
+[wpa] WPA: Send EAPOL-Key frame to <BSSID> ver=2 mic_len=16 key_mgmt=0x2
 [wpa] WPA: EAPOL-Key MIC using HMAC-SHA1
 [wpa] WPA: KCK - hexdump(len=16):
 [wpa]  [REMOVED]
@@ -2020,11 +2020,11 @@ t timer
 [wpa] r1:34978,buf:0x28097e9c, len:135
 [BK7258-M2] id=1 cfm=00000009 q=0/3 tid=7 vif=0 sta=0 fl=00000000
 [rwnx] eapol cfm st=00000009 q=3 tid=7 sta=0 d31=0 d33=0 d34=1 d35=0 d36=0
-[rwnx] txcfm seq=1 kind=data q=3 st=00000009 ack=1 done=1 tid=7 vif=0 sta=0 fl=00000000 addr=28097eaa len=121 saddr=00000000 eth=8e88 dst=6e:26:dd:7f:cc:cc src=c8:47:8c:46:02:15
+[rwnx] txcfm seq=1 kind=data q=3 st=00000009 ack=1 done=1 tid=7 vif=0 sta=0 fl=00000000 addr=28097eaa len=121 saddr=00000000 eth=8e88 dst=<BSSID> src=<BSSID>
 [rwnx] l2tx cfm seq=1 status=00000009 acked=1 done=1 retry=0 swretry=0
 [rwnx] rwnx_get_wifi_rlk_start start 0
 [wpa] hapd_rx:34978,buf:0x28097638, len:512
-[wpa] RX EAPOL from 6e:26:dd:7f:cc:cc
+[wpa] RX EAPOL from <BSSID>
 [wpa] IEEE 802.1X RX: version=2 type=3 length=151
 [wpa]   EAPOL-Key type=2
 [wpa]   key_info 0x13ca (ver=2 keyidx=0 rsvd=0 Pairwise Install Ack MIC Secure Encr)
@@ -2195,7 +2195,7 @@ t timer
 [wpa]  [REMOVED]
 [wpa] 
 [wpa] State: 4WAY_HANDSHAKE -> 4WAY_HANDSHAKE
-[wpa] WPA: RX message 3 of 4-Way Handshake from 6e:26:dd:7f:cc:cc (ver=2)
+[wpa] WPA: RX message 3 of 4-Way Handshake from <BSSID> (ver=2)
 [wpa] WPA: IE KeyData - hexdump(len=48):
 [(null)]  30
 [(null)]  14
@@ -2275,7 +2275,7 @@ c
 [wpa]  [REMOVED]
 [wpa] 
 [wpa] WPA: Sending EAPOL-Key 4/4
-[wpa] WPA: Send EAPOL-Key frame to 6e:26:dd:7f:cc:cc ver=2 mic_len=16 key_mgmt=0x2
+[wpa] WPA: Send EAPOL-Key frame to <BSSID> ver=2 mic_len=16 key_mgmt=0x2
 [wpa] WPA: EAPOL-Key MIC using HMAC-SHA1
 [rwnx] rwnx_get_wifi_rlk_start start 0
 [wpa] WPA: KCK - hexdump(len=16):
@@ -2307,7 +2307,7 @@ c
 [wpa] r1:34978,buf:0x28097c1c, len:113
 [BK7258-M2] id=2 cfm=00000009 q=0/3 tid=7 vif=0 sta=0 fl=00000000
 [rwnx] eapol cfm st=00000009 q=3 tid=7 sta=0 d31=0 d33=0 d34=1 d35=0 d36=0
-[rwnx] txcfm seq=2 kind=data q=3 st=00000009 ack=1 done=1 tid=7 vif=0 sta=0 fl=00000000 addr=28097c2a len=99 saddr=00000000 eth=8e88 dst=6e:26:dd:7f:cc:cc src=c8:47:8c:46:02:15
+[rwnx] txcfm seq=2 kind=data q=3 st=00000009 ack=1 done=1 tid=7 vif=0 sta=0 fl=00000000 addr=28097c2a len=99 saddr=00000000 eth=8e88 dst=<BSSID> src=<BSSID>
 [rwnx] l2tx cfm seq=2 status=00000009 acked=1 done=1 retry=0 swretry=0
 [wpa] WPA: Installing PTK to the driver
 [hitf] add CCMP
@@ -2344,7 +2344,7 @@ ount ret=1
 [rwnx] bmsg_ioctl_handler
 [rwnx] bmsg_ioctl_sender
 [hitf] add hw key idx=1
-[wpa] WPA: Key negotiation completed with 6e:26:dd:7f:cc:cc [PTK=CCMP GTK=CCMP]
+[wpa] WPA: Key negotiation completed with <BSSID> [PTK=CCMP GTK=CCMP]
 [wpa] Cancelling authentication timeout
 [wpa] State: GROUP_HANDSHAKE -> COMPLETED
 [wpa] Radio work 'connect'@0x28092ea0 done in 2.473000 seconds
@@ -2354,7 +2354,7 @@ ount ret=1
 sem-init leave ret=0
 [rwnx] bmsg_ioctl_handler
 [rwnx] bmsg_ioctl_sender
-[wpa] CTRL-EVENT-CONNECTED - Connection to 6e:26:dd:7f:cc:cc completed [id=0 id_str=]
+[wpa] CTRL-EVENT-CONNECTED - Connection to <BSSID> completed [id=0 id_str=]
   state=CONNECTED(3) reason=SUCCESS(262)
 [bk7258_wifi_runtime] connect: CONNECTED
 nsh> [K[rwnx] rwnx_get_wifi_rlk_start start 0

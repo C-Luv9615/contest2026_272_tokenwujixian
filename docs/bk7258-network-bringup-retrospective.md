@@ -9,7 +9,7 @@
 | 日志 | 内容 |
 |---|---|
 | `evidence-20260915/bk7258-dhcp-ping-clean.log` | 干净固件(无探针、无 `DEBUG_NET_INFO`)ping 网关 `4 packets transmitted, 4 received, 0% packet loss` |
-| `evidence-20260915/bk7258-dns-public-ping.log` | `inet addr:192.168.1.8 DRaddr:192.168.1.1`,域名解析后 ping 百度 `10 packets transmitted, 10 received`,RTT 29 到 56 ms |
+| `evidence-20260915/bk7258-dns-public-ping.log` | `inet addr:<LAN-IP> DRaddr:<LAN-IP>`,域名解析后 ping 百度 `10 packets transmitted, 10 received`,RTT 29 到 56 ms |
 
 `dhcpc_request: Got IP address` 那行只在 0915-3 出现过,当时开着 `DEBUG_NET_INFO`。删掉那个配置之后它不再打印,所以现在 DHCP 成功看 `ifconfig` 的 `inet addr`。
 
@@ -218,7 +218,7 @@ nsh> ping www.baidu.com
 ERROR: ping_gethostip(www.baidu.com) failed
 ```
 
-根因:`CONFIG_NETDB_DNSCLIENT` 没开,于是 `netlib_obtainipv4addr.c:81-91` 整段被编掉,DHCP 已经拿回来的 nameserver 被静默丢弃。租约里本来就带着它,0915-3 那轮打过 `Got DNS server 192.168.190.241`。
+根因:`CONFIG_NETDB_DNSCLIENT` 没开,于是 `netlib_obtainipv4addr.c:81-91` 整段被编掉,DHCP 已经拿回来的 nameserver 被静默丢弃。租约里本来就带着它,0915-3 那轮打过 `Got DNS server <LAN-IP>`。
 
 修法一行。`NETDB_DNSCLIENT` 自己会 select `LIBC_NETDB` 和 `NET_SOCKOPTS`,依赖的 `NET` 和 `NET_UDP` 都已经在了。`DEFAULT_SMALL` 是关的,解析缓存保持默认 8 条。
 
@@ -293,7 +293,7 @@ ping -c 4 www.baidu.com
 
 `ifconfig` 要单独敲一次:`Got IP address` 那行是 ninfo,`DEBUG_NET_INFO` 删掉之后不再打印,现在判断 DHCP 成功只能看 `inet addr`。
 
-先确认 AP 自己能上网。`Xiaomi_6C87` 那台路由器连续两轮 DHCP 失败,后来发现它本身就不通网,DHCP 服务大概一起坏着。三个 DISCOVER 都拿到了 802.11 ACK,失败在 3 次重试用尽。已经验证过的 AP 是两个手机热点,`Luv` 给 192.168.190.x,`FoggySpot` 给 192.168.1.x。
+先确认 AP 自己能上网。`<SSID>` 那台路由器连续两轮 DHCP 失败,后来发现它本身就不通网,DHCP 服务大概一起坏着。三个 DISCOVER 都拿到了 802.11 ACK,失败在 3 次重试用尽。已经验证过的 AP 是两个手机热点,`<SSID>` 给 192.168.190.x,`<SSID>` 给 192.168.1.x。
 
 构建与烧录走 `.claude/skills/bk7258-worktree-build`:
 
