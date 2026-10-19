@@ -153,26 +153,41 @@ void arm_addregion(void)
       return;
     }
 
-  /* The PSRAM is a single 8/16MB device shared by both cores; neither core
-   * has an MPU partition (CONFIG_ARM_MPU unset), so the only thing keeping
-   * the two kernels' allocators apart is this software split.  Each core
-   * adds only its half: the CP owns the lower half, the AP the upper one.
+  /* PSRAM is partitioned the way the authority CSV does it, only sized for
+   * the 16 MiB APS128XXO on this board: fixed display/audio/encode slabs and a
+   * .psram section, then one bounded heap per core (bk7258_memorymap.h).  Each
+   * core adds only its own slab, so the two kernels never allocate from the
+   * same bytes and os_check_heap_range() can enforce it.
+   *
    * The CP brings the device up first (it boots first).  The AP must not
    * re-run the bring-up: bk7258_psram_probe() pattern-writes the first
-   * CONFIG_BK7258_PSRAM_PROBE_SIZE bytes at the device base -- CP-owned
-   * heap by then -- and the configure/clock sequence is already settled.
-   * The AP trusts the CP's bring-up, checks that the device answers, and
-   * adds only its own half. */
+   * CONFIG_BK7258_PSRAM_PROBE_SIZE bytes at the device base -- inside the
+   * display slab by then -- and the configure/clock sequence is settled.  The
+   * AP trusts the CP's bring-up, checks that the device answers, and adds only
+   * its own heap slab. */
 
 #if defined(CONFIG_BK7258_COMPONENT_CP)
-  region_base = BK7258_PSRAM_BASE;
-  region_size = psram_size / 2;
+  region_base = BK7258_CP_PSRAM_HEAP_BASE;
+  region_size = BK7258_CP_PSRAM_HEAP_SIZE;
 #elif defined(CONFIG_BK7258_COMPONENT_AP)
-  region_base = BK7258_PSRAM_BASE + (psram_size / 2);
-  region_size = psram_size - (psram_size / 2);
+  region_base = BK7258_AP_PSRAM_HEAP_BASE;
+  region_size = BK7258_AP_PSRAM_HEAP_SIZE;
 #else
-#error "PSRAM split requires a BK7258 component selection (CP or AP)"
+#error "PSRAM layout requires a BK7258 component selection (CP or AP)"
 #endif
+
+  /* A layout larger than the fitted device would hand out addresses the part
+   * does not decode, so refuse it loudly and fall back to the SRAM heap. */
+
+  if (region_base + region_size > BK7258_PSRAM_BASE + psram_size)
+    {
+      syslog(LOG_ERR,
+             "[BK7258] PSRAM layout ends at %08lx, device ends at %08lx; "
+             "heap left on SRAM\n",
+             (unsigned long)(region_base + region_size),
+             (unsigned long)(BK7258_PSRAM_BASE + psram_size));
+      return;
+    }
 
   kumm_addregion((void *)region_base, region_size);
   syslog(LOG_INFO, "[BK7258] PSRAM id=0x%04x size=%lu split: core region "

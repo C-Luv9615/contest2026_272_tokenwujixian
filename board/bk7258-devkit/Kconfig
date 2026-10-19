@@ -282,3 +282,40 @@ config LCD_GC9D01_INVERT
 		polarity.
 
 endif # LCD_GC9D01
+
+menu "BK7258 PSRAM layout"
+
+config BK7258_PSRAM_DISPLAY_SIZE
+	hex "Display slab (LVGL buffers)"
+	default 0x400000
+	help
+		Fixed slab handed to the AP UI.  Sized for 320x240x16bpp triple
+		buffering with headroom; nothing else may claim it.
+
+config BK7258_PSRAM_AUDIO_SIZE
+	hex "Audio slab (GDMA capture/playback rings)"
+	default 0x80000
+
+config BK7258_PSRAM_ENCODE_SIZE
+	hex "Encode slab (JPEG/H264, reserved)"
+	default 0x100000
+
+config BK7258_PSRAM_SECTION_SIZE
+	hex "PSRAM static-section slab (.psram)"
+	default 0x80000
+	help
+		Holds arrays attributed with __attribute__((section(".psram"))).
+		Reserved so the linker section can never collide with a heap.
+
+config BK7258_PSRAM_CP_HEAP_SIZE
+	hex "CP PSRAM heap"
+	default 0x500000
+	help
+		The only PSRAM region the CP kernel and the imported Armino code
+		may allocate from.  os_check_heap_range() asserts outside it.
+
+config BK7258_PSRAM_AP_HEAP_SIZE
+	hex "AP PSRAM heap"
+	default 0x500000
+
+endmenu

@@ -63,21 +63,38 @@
 #define BK7258_AP_XIP_SIZE        UINT32_C(0x002a0000)
 #define BK7258_AP_RAM_BASE        UINT32_C(0x28010000)
 
-/* Authority CSV PSRAM partitioning (projects/wifi/iperf/partitions/bk7258/
- * ram_regions.csv -> build/.../partitions/ram_regions.h). Our port gives the
- * whole PSRAM to the NuttX heap, but imported Armino code still checks
- * pointers against these sub-ranges: mem_arch.c os_check_heap_range() and
- * heap_4.c use the CP heap, trap_base.c the AP heap, psram_driver.c the
- * capacity. Restated here so pm/nuttx_port/include/ram_regions.h can
- * re-export them to the Armino units, whose baseline copy of that header
- * names the baseline SRAM split instead.
+/* PSRAM layout, following the authority CSV shape (projects/wifi/iperf/
+ * partitions/bk7258/ram_regions.csv -> partitions/ram_regions.h) but sized for
+ * the 16 MiB APS128XXO this board carries instead of the baseline's 8 MiB.
+ *
+ * The point of the slabs is ownership, not address aesthetics: a bulk consumer
+ * (display, audio, encoder) gets a fixed region nobody else may allocate from,
+ * and each kernel's heap is a bounded region of its own, so
+ * os_check_heap_range() in mem_arch.c can actually reject a stray pointer
+ * instead of accepting everything up to the end of the PSRAM window.
+ *
+ * Sizes come from the board Kconfig; the sum must stay below the device size.
  */
 
-#define BK7258_PSRAM_CAPACITY       UINT32_C(0x00800000)
-#define BK7258_CP_PSRAM_HEAP_BASE   UINT32_C(0x60700000)
-#define BK7258_CP_PSRAM_HEAP_SIZE   UINT32_C(0x00020000)
-#define BK7258_AP_PSRAM_HEAP_BASE   UINT32_C(0x60720000)
-#define BK7258_AP_PSRAM_HEAP_SIZE   UINT32_C(0x000a0000)
+#define BK7258_PSRAM_CAPACITY       UINT32_C(0x01000000)   /* APS128XXO: 16 MiB */
+
+#define BK7258_PSRAM_DISPLAY_BASE   (BK7258_PSRAM_BASE)
+#define BK7258_PSRAM_DISPLAY_SIZE   (CONFIG_BK7258_PSRAM_DISPLAY_SIZE)
+#define BK7258_PSRAM_AUDIO_BASE     (BK7258_PSRAM_DISPLAY_BASE + \
+                                     BK7258_PSRAM_DISPLAY_SIZE)
+#define BK7258_PSRAM_AUDIO_SIZE     (CONFIG_BK7258_PSRAM_AUDIO_SIZE)
+#define BK7258_PSRAM_ENCODE_BASE    (BK7258_PSRAM_AUDIO_BASE + \
+                                     BK7258_PSRAM_AUDIO_SIZE)
+#define BK7258_PSRAM_ENCODE_SIZE    (CONFIG_BK7258_PSRAM_ENCODE_SIZE)
+#define BK7258_PSRAM_SECTION_BASE   (BK7258_PSRAM_ENCODE_BASE + \
+                                     BK7258_PSRAM_ENCODE_SIZE)
+#define BK7258_PSRAM_SECTION_SIZE   (CONFIG_BK7258_PSRAM_SECTION_SIZE)
+#define BK7258_CP_PSRAM_HEAP_BASE   (BK7258_PSRAM_SECTION_BASE + \
+                                     BK7258_PSRAM_SECTION_SIZE)
+#define BK7258_CP_PSRAM_HEAP_SIZE   (CONFIG_BK7258_PSRAM_CP_HEAP_SIZE)
+#define BK7258_AP_PSRAM_HEAP_BASE   (BK7258_CP_PSRAM_HEAP_BASE + \
+                                     BK7258_CP_PSRAM_HEAP_SIZE)
+#define BK7258_AP_PSRAM_HEAP_SIZE   (CONFIG_BK7258_PSRAM_AP_HEAP_SIZE)
 
 /* The AP window ends where the RPMsg carveout begins. That base is a board
  * decision living in Kconfig (CONFIG_BK7258_RPMSG_SHM_ADDR), so this header

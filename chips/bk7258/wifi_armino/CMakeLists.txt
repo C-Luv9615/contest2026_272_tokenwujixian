@@ -41,25 +41,41 @@ if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
   # lwip_intf_v2_1 is replaced by NuttX's own TCP/IP stack (user decision).
   set(excluded os_source lwip_intf_v2_1)
 
-  # Except lwip's buffer and utility units, which bk_wifi uses as its packet
-  # buffer (pbuf) and address helpers; none is protocol code, and none of
-  # their symbols is defined by NuttX. The lwip OS calls they make are
-  # compat/bk7258_lwip_sys.c. PBUF_POOL_FREE_OOSEQ=0 drops pbuf.c's only
-  # reference into lwip TCP (tcp_free_ooseq on pool exhaustion).
-  set(lwip_dir cp/components/lwip_intf_v2_1/lwip-2.1.2)
-  set(lwip_kept_units
-      ${lwip_dir}/src/core/pbuf.c
-      ${lwip_dir}/src/core/mem.c
-      ${lwip_dir}/src/core/memp.c
-      ${lwip_dir}/src/core/def.c
-      ${lwip_dir}/src/core/ipv4/ip4_addr.c
-      ${lwip_dir}/src/core/stats.c)
+  # lwip's buffer and utility units are gone too. bk_wifi uses them as its
+  # packet buffer (pbuf), buffer allocator and address helpers -- none is
+  # protocol code, and none of their symbols is defined by NuttX -- and all
+  # six now come from compat/bk7258_netbuf.c on one private SRAM arena:
+  #
+  #   src/core/pbuf.c           pbuf_alloc/free/ref/header/cat/copy/coalesce
+  #   src/core/mem.c            the arena, with mem.c's API kept
+  #   src/core/memp.c           nothing: PBUF_POOL requests are arena blocks
+  #   src/core/def.c            lwip_htons()/lwip_htonl()
+  #   src/core/ipv4/ip4_addr.c  ip4addr_aton()/ip4addr_ntoa()/_r()
+  #   src/core/stats.c          lwip_stats, a zero-initialised struct
+  #
+  # Two reasons, both measured on the board. Memory: pbuf.c, memp.c and
+  # stats.c cost ~23 KiB of .bss for a PBUF_POOL nothing allocates, plus
+  # mem.c's 50 KiB MEM_SIZE arena; the replacement is one arena sized by the
+  # frame it has to hold. Placement: pbuf memory must be SRAM (the MAC's TX
+  # DMA cannot read PSRAM), which neither lwip unit can promise.
+  #
+  # The include directories and lwip_os/lwip_compat headers stay: Armino
+  # sources and compat/*.c still include lwip/pbuf.h and lwip/mem.h. Nothing
+  # from the lwip component is compiled now, so there is no exception list.
 
   # Single units left out because NuttX owns the OS interface they provide
   # (S2.7): pthread TLS (its only callers are the excluded lwip and
   # os_source), and the bk_patch signal stubs (empty bodies, now static
   # inline in compat/bk_patch/signal.h).
   set(excluded_units
+      # The six lwip units compat/bk7258_netbuf.c replaces (see the lwip note
+      # above). Removing these lines restores the stock lwip packet buffer.
+      cp/components/lwip_intf_v2_1/lwip-2.1.2/src/core/pbuf.c
+      cp/components/lwip_intf_v2_1/lwip-2.1.2/src/core/mem.c
+      cp/components/lwip_intf_v2_1/lwip-2.1.2/src/core/memp.c
+      cp/components/lwip_intf_v2_1/lwip-2.1.2/src/core/def.c
+      cp/components/lwip_intf_v2_1/lwip-2.1.2/src/core/ipv4/ip4_addr.c
+      cp/components/lwip_intf_v2_1/lwip-2.1.2/src/core/stats.c
       cp/components/bk_rtos/freertos/posix/freertos_impl/source/pthread_local_storage.c
       cp/components/wpa_supplicant-2.10/bk_patch/signal.c
       # Replaced by compat/bk7258_armino_shell.c: shell_uart.c drove UART0,
@@ -208,8 +224,10 @@ if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
     if(comp IN_LIST spinlock_compat_components)
       list(APPEND fields -include ${CMAKE_CURRENT_SOURCE_DIR}/compat/bk7258_wifi_spinlock.h)
     endif()
-    # stats.c and pbuf.c need compat/bk7258_lwip_compat.h; the other kept
-    # lwip units neither use getopt's opterr nor define pbuf_debug_flag.
+    # The lwip component's flag set -- lwip's include closure with lwip_os
+    # first, plus compat/bk7258_lwip_compat.h -- is now what
+    # compat/bk7258_netbuf.c compiles with. The compat header undefines
+    # getopt's opterr for lwip's stats struct and declares pbuf_debug_flag.
     if(comp STREQUAL "lwip_intf_v2_1")
       list(APPEND fields -DPBUF_POOL_FREE_OOSEQ=0
            -include ${CMAKE_CURRENT_SOURCE_DIR}/compat/bk7258_lwip_compat.h)
@@ -227,8 +245,7 @@ if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
     list(GET fields 0 comp)
     list(GET fields 1 src)
     list(GET fields 3 file_define)
-    if((comp IN_LIST excluded AND NOT src IN_LIST lwip_kept_units) OR
-       src IN_LIST excluded_units)
+    if(comp IN_LIST excluded OR src IN_LIST excluded_units)
       continue()
     endif()
     set(src ${BK7258_ARMINO_BASELINE_DIR}/${src})
@@ -239,6 +256,19 @@ if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
     endif()
   endforeach()
   list(REMOVE_DUPLICATES components)
+
+  # The packet buffer (compat/bk7258_netbuf.c) and the SRAM arena behind it
+  # (compat/bk7258_netheap.c), in place of the six excluded lwip units.
+  # Libraries of their own for the same two reasons as the other compat
+  # units: they need lwip's flag set, which is per component, and they must
+  # NOT go through the allocator renaming below -- they never call a C
+  # allocator.
+  nuttx_add_kernel_library(armino_netheap
+                           ${CMAKE_CURRENT_SOURCE_DIR}/compat/bk7258_netheap.c)
+  target_compile_options(armino_netheap PRIVATE ${flags_lwip_intf_v2_1})
+  nuttx_add_kernel_library(armino_netbuf
+                           ${CMAKE_CURRENT_SOURCE_DIR}/compat/bk7258_netbuf.c)
+  target_compile_options(armino_netbuf PRIVATE ${flags_lwip_intf_v2_1})
 
 
   # The baseline links with -Wl,--wrap for the C allocator (build.ninja), so

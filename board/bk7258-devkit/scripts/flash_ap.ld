@@ -11,6 +11,15 @@ MEMORY
 {
   flash (rx)  : ORIGIN = 0x02160000, LENGTH = 0x002a0000
   sram  (rwx) : ORIGIN = CONFIG_RAM_START, LENGTH = CONFIG_RAM_SIZE
+
+  /* The .psram section slab from bk7258_memorymap.h: display + audio + encode
+   * slabs come first, so this origin repeats that arithmetic here rather than
+   * including a chip header the linker cannot parse. */
+
+  psram (rw)  : ORIGIN = 0x60000000 + CONFIG_BK7258_PSRAM_DISPLAY_SIZE \
+                       + CONFIG_BK7258_PSRAM_AUDIO_SIZE \
+                       + CONFIG_BK7258_PSRAM_ENCODE_SIZE,
+                LENGTH = CONFIG_BK7258_PSRAM_SECTION_SIZE
 }
 
 OUTPUT_ARCH(arm)
@@ -101,6 +110,22 @@ SECTIONS
     _enoinit = ABSOLUTE(.);
   } > sram
 
+  /* Bulk AP-side statics moved out of the 272 KiB SRAM window so the freed
+   * bytes can go to the CP's network buffers: the ai_agent tool tables
+   * (tool_registry.c and mcp_client.c), the LVGL UI channel state and the TLS
+   * receive buffer.  They are ordinary .bss -- zero at boot -- so NOLOAD is
+   * safe as long as bk7258_ap_initialize() clears the range once the PSRAM is
+   * powered; the startup .bss clear only covers _sbss.._ebss.
+   */
+
+  .psram_bss (NOLOAD) : ALIGN(4)
+  {
+    _spsram_bss = ABSOLUTE(.);
+    *(.bss.s_tools .bss.s_state .bss.s_tls_raw_buf)
+    . = ALIGN(8);
+    _epsram_bss = ABSOLUTE(.);
+  } > psram
+
   .bss : ALIGN(4)
   {
     _sbss = ABSOLUTE(.);
@@ -129,14 +154,15 @@ SECTIONS
   ASSERT(ORIGIN(sram) == 0x28010000 &&
          ORIGIN(sram) + LENGTH(sram) == CONFIG_BK7258_RPMSG_SHM_ADDR,
          "BK7258 AP RAM must run from 0x28010000 to RPMSG_SHM")
-  /* RPMSG_SHM must end where CP RAM begins; that base is enforced on the
-   * CP side (flash.ld) and by the CP/AP defconfigs sharing one
-   * CONFIG_BK7258_RPMSG_SHM_ADDR value.
+  /* The exact "SHM ends where CP RAM begins" equality is a CP-side invariant
+   * (flash.ld asserts it against its own ORIGIN(sram)); this image cannot name
+   * the CP window, so only the bound that matters here is checked.  The two
+   * defconfigs still have to agree on one CONFIG_BK7258_RPMSG_SHM_ADDR.
    */
-  ASSERT(CONFIG_BK7258_RPMSG_SHM_ADDR + CONFIG_BK7258_RPMSG_SHM_SIZE ==
-         0x2805ec00 || CONFIG_BK7258_RPMSG_SHM_ADDR +
-         CONFIG_BK7258_RPMSG_SHM_SIZE == 0x2806ec00,
-         "BK7258 RPMSG_SHM must end where CP RAM begins")
+  ASSERT(CONFIG_BK7258_RPMSG_SHM_ADDR >= ORIGIN(sram) + LENGTH(sram) &&
+         CONFIG_BK7258_RPMSG_SHM_ADDR + CONFIG_BK7258_RPMSG_SHM_SIZE <=
+         0x2809f700,
+         "BK7258 RPMSG_SHM must sit between the AP window and PWR_MNG")
   ASSERT(_enoinit <= _sbss,
          "BK7258 AP .noinit must remain below .bss and the idle stack")
   ASSERT(_ebss + BK7258_IDLE_STACK_RESERVATION <= ORIGIN(sram) + LENGTH(sram),

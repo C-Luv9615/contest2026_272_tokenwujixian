@@ -758,6 +758,23 @@ static void bk7258_ap_initialize(void)
 
   syslog(LOG_INFO, "BK7258: bk7258_ap_initialize called\n");
 
+#ifdef CONFIG_BK7258_PSRAM
+  /* The .psram_bss section (flash_ap.ld) is NOLOAD: startup zeroes only
+   * _sbss.._ebss.  PSRAM is powered by now -- the CP ran pm_hardware_init()
+   * before it released this core -- so clear the range here, before any of
+   * the ai_agent or UI code touches those statics.
+   */
+
+  {
+    extern uint8_t _spsram_bss[];
+    extern uint8_t _epsram_bss[];
+
+    memset(_spsram_bss, 0, (size_t)(_epsram_bss - _spsram_bss));
+    syslog(LOG_INFO, "BK7258: cleared %zu bytes of .psram bss\n",
+           (size_t)(_epsram_bss - _spsram_bss));
+  }
+#endif
+
   panic_notifier_chain_register(&g_bk7258_ap_panic_notifier);
   bk7258_ap_heartbeat_led_initialize();
   bk7258_ap_heartbeat_led_write(true);

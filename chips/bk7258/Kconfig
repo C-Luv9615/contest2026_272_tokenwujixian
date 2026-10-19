@@ -249,6 +249,30 @@ config BK7258_WIFI_ARMINO_BASELINE
 		BK7258_ARMINO_BASELINE_DIR CMake variable or environment variable
 		only when regenerating the manifest.
 
+config BK7258_NETBUF_ARENA_SIZE
+	hex "Armino Wi-Fi packet buffer arena size (bytes)"
+	default 0x10000
+	depends on BK7258_WIFI_ARMINO_BASELINE
+	help
+		Static SRAM arena behind the Armino Wi-Fi driver's packet buffers
+		(chips/bk7258/wifi_armino/compat/bk7258_netbuf.c: lwIP's struct
+		pbuf, its allocator and its helpers on one private arena).
+
+		The MAC's TX DMA cannot read PSRAM, so pbuf payloads must come from
+		SRAM. That rules out the NuttX kernel heap on the CP, which spans the
+		5 MiB PSRAM heap and whose SRAM fallback is small and consumed by
+		Armino's own os_malloc() calls; a pbuf allocated there can land in
+		PSRAM and the first TX frame fails with ac3_tx_dma_dead. A dedicated
+		arena keeps pbuf memory in SRAM and bounded.
+
+		Size is set by the frame cost, not by a pool count: one pbuf is
+		round_up(sizeof(struct pbuf) + 708 headroom, 4) + payload, i.e.
+		~724 B + frame, and rwnx_start_xmit() allocates a second pbuf and
+		copies every TX frame into it, so a full-size frame in flight costs
+		~2 x 2238 B. 64 KiB is ~23 such frames -- enough for a 64 KiB TCP
+		window. At 32 KiB the next pbuf_alloc() returned NULL under TCP
+		load and armino_transmit() logged "Transmit failed: -12".
+
 endmenu
 
 endif
