@@ -17,7 +17,7 @@ CONFIG_ARCH_CHIP_CUSTOM_DIR="../vendor/beken/chips/bk7258"
 CONFIG_ARCH_CHIP_CUSTOM_DIR_RELPATH=y
 CONFIG_ARCH_CHIP_CUSTOM_NAME="bk7258"
 CONFIG_ARCH_FPU=y
-CONFIG_ARCH_INTERRUPTSTACK=2048
+CONFIG_ARCH_INTERRUPTSTACK=4096
 CONFIG_ARCH_IRQPRIO=y
 CONFIG_ARCH_STACKDUMP=y
 CONFIG_ARCH_TRUSTZONE_SECURE=y
@@ -49,6 +49,21 @@ CONFIG_INIT_ENTRYPOINT="bk7258_cp_init_main"
 CONFIG_INIT_STACKSIZE=4096
 CONFIG_INTELHEX_BINARY=y
 CONFIG_MM_REGIONS=2
+# Static SRAM arena for the Armino Wi-Fi driver's pbufs. The MAC's TX DMA
+# cannot read PSRAM, and the NuttX kernel heap on this part spans 5 MiB of
+# PSRAM with only a small SRAM fallback that Armino's own allocations eat, so
+# pbuf memory gets its own 64 KiB of SRAM instead (arena in
+# chips/bk7258/wifi_armino/compat/bk7258_netheap.c, pbufs on it in
+# bk7258_netbuf.c).
+CONFIG_BK7258_NETBUF_ARENA_SIZE=0x16000
+# PSRAM layout, one slab per purpose (bk7258_memorymap.h derives the bases).
+# Sum must stay within the fitted device: 16 MiB on the APS128XXO.
+CONFIG_BK7258_PSRAM_DISPLAY_SIZE=0x400000
+CONFIG_BK7258_PSRAM_AUDIO_SIZE=0x80000
+CONFIG_BK7258_PSRAM_ENCODE_SIZE=0x100000
+CONFIG_BK7258_PSRAM_SECTION_SIZE=0x80000
+CONFIG_BK7258_PSRAM_CP_HEAP_SIZE=0x500000
+CONFIG_BK7258_PSRAM_AP_HEAP_SIZE=0x500000
 CONFIG_NSH_ARCHINIT=y
 CONFIG_NSH_BUILTIN_APPS=y
 CONFIG_NET=y
@@ -69,7 +84,11 @@ CONFIG_NET_ARPTAB_SIZE=48
 # into the heap (PSRAM here), the rest is raised so the static base can
 # hold a full record burst.
 CONFIG_IOB_ALLOC=y
-CONFIG_IOB_NBUFFERS=18
+# 56 rather than 72: the 64 KiB Wi-Fi packet-buffer arena above is SRAM the
+# IOB pool used to have. Each buffer is 1528 B, so the 16 removed here return
+# 23.9 KiB of the 32 KiB the arena grew by; memp.c's PBUF_POOL, no longer
+# compiled, covers the rest.
+CONFIG_IOB_NBUFFERS=40
 CONFIG_IOB_NCHAINS=4
 CONFIG_IOB_BUFSIZE=1528
 CONFIG_NET_TCP_PREALLOC_CONNS=16
@@ -86,9 +105,9 @@ CONFIG_SYSTEM_PING=y
 CONFIG_NETUTILS_IPERF=y
 CONFIG_NSH_READLINE=y
 CONFIG_PREALLOC_TIMERS=4
-CONFIG_RAM_SIZE=264960
-CONFIG_RAM_START=0x2805ec00
-CONFIG_BK7258_RPMSG_SHM_ADDR=0x28054000
+CONFIG_RAM_SIZE=314112
+CONFIG_RAM_START=0x28052c00
+CONFIG_BK7258_RPMSG_SHM_ADDR=0x28048000
 CONFIG_RAW_BINARY=y
 CONFIG_BK7258_HARD_FLOAT=y
 CONFIG_BK7258_MAILBOX=y
@@ -137,10 +156,56 @@ CONFIG_TTY_SIGINT_CHAR=0x03
 # now arrive here and inet_setup rejects them with EPROTONOSUPPORT.
 # Required for ws_server today and the MQTT channel later.
 CONFIG_NET_TCP=y
+# TCP write buffering, small first step.  Without it send() hands one segment
+# to the driver and blocks on the next; measured 0.07-0.10 Mbit/s while UDP
+# reached 8.9 Mbit/s on the same link.  The Armino baseline runs lwIP with
+# SND_BUF=21900, but the IOB pool is a static SRAM array and the CP SRAM heap
+# collapses below ~16 KiB if the pool grows (IOB_NBUFFERS=22 left 12.8 KiB and
+# the AP stalled waiting for a CP allocation).  The pool now sits at 40 only
+# because the AP moved 48 KiB of bulk statics to PSRAM; the write buffer is a
+# per-socket cap that draws from that pool, so 21900 (= lwIP's TCP_SND_BUF)
+# costs no static SRAM.  Measured at 2000 B app blocks: CP 4.29 Mbit/s with a
+# 16 KiB cap vs the Armino baseline's 7.17 with 21.9 KiB.
+CONFIG_NET_TCP_WRITE_BUFFERS=y
+# 16 rather than 8: each 2000 B write becomes 1460 + 540, so one write queues
+# two segments and 8 chain heads cap the in-flight writes at ~16 KB -- the same
+# size as the old send buffer.  Chain heads are tiny; this costs no IOB.
+CONFIG_NET_TCP_NWRBCHAINS=24
+# 64 KiB window against the measured 55 ms RTT (window/RTT is what set the
+# old ceiling: 21.9 KiB / 55 ms ~= 400 KB/s).  Affordable now that
+# bk7258_netbuf.c replaced the six lwIP units: the CP got back mem.c's 50 KiB
+# MEM_SIZE arena and memp.c's pool, which is what the 64 KiB pbuf arena is
+# paid out of.  The window is backed by the IOB pool at 56 x 1528 B; CP SRAM
+# sits at 91.5%.
+# 24 KiB, not 64: in-flight bytes are what the arena must back, and each TCP
+# frame costs two pbufs of (724 + len) bytes (rwnx_start_xmit allocates a second
+# one under CONFIG_WAPI_SUPPORT).  With 88 KiB of arena that is ~20 frames
+# ~= 29 KiB in flight; a larger send window only turns into Transmit -12.
+CONFIG_NET_SEND_BUFSIZE=24576
+# wget as the board-initiated download client: it is the only way to
+# measure the downlink direction, because the board sits behind the
+# hotspot's NAT (nothing outside can open a connection to it) and its
+# iperf is the NuttX example, not iperf2, so `iperf -s` resets an
+# iperf2 client on the first header. nshlib forces NSH_DISABLE_WGET
+# unless NETUTILS_WEBCLIENT is on (apps/nshlib/nsh.h:106-110).
+CONFIG_NETUTILS_WEBCLIENT=y
+# 512 B per recv would charge a cross-core request for every 512 B
+# on the AP, which is not the network's cost. 4096 is the TLS record
+# size the AP apps actually use and stays under one recv per read.
+CONFIG_NSH_WGET_BUFF_SIZE=4096
 # Reassembly slots for usrsock-rpmsg requests: 16 x ~2KB payload buffers
 # accommodates the AP's LLM POST bodies (was 8 x ~480B ~= 3.8KB ceiling,
 # "Request too large" on the first chat turn).
 CONFIG_NET_USRSOCK_RPMSG_SERVER_NIOVEC=16
+# netinit configures NET_DEVNAME -- "wlan0" here, because DRIVERS_IEEE80211 is
+# set -- from CONFIG_NETINIT_IPADDR/NETMASK/DRIPADDR, i.e. the 10.0.0.2/24
+# placeholder. That fights the DHCP client in compat/bk7258_armino_netdev.c:
+# whichever runs last owns the interface, and wlan0 kept reverting to 10.0.0.2
+# with a gateway that does not exist, so connect() failed with ENETUNREACH.
+# sta_ip_start() already brings wlan0 up and runs dhcpc on it, so netinit is
+# redundant as well as harmful here. NSH selects NETUTILS_NETINIT from
+# NSH_NETINIT (apps/nshlib/Kconfig:1150), so the switch belongs here.
+# CONFIG_NSH_NETINIT is not set
 CONFIG_BK7258_WIFI_ARMINO_BASELINE=y
 CONFIG_SCHED_HPWORK=y
 CONFIG_MQ_MAXMSGSIZE=64

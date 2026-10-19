@@ -215,6 +215,17 @@ static struct armino_iface_s g_uap_iface;
  */
 
 static mutex_t g_lock = NXMUTEX_INITIALIZER;
+/* The baseline sdkconfig ships CONFIG_STA_PS and CONFIG_MCU_PS, so the station
+ * sleeps between DTIM beacons.  Measured with them on: RTT 17-156 ms, the
+ * first ARP exchange 744 ms, UDP receive ceiling ~8 Mbit/s on a 20 MHz,
+ * -44 dBm link, and ARP requests to a peer station never answered.  Both are
+ * runtime toggles (wifi.h:1114, bk_private/bk_wifi.h:233), so turn them off
+ * once the link is up; they are not build-time only.
+ */
+
+int bk_wifi_sta_pm_disable(void);
+int bk_wlan_mcu_ps_mode_disable(void);
+
 static struct ipv4_config g_sta_settings;
 static struct ipv4_config g_uap_settings;
 static struct ipv4_config g_sta_addr;   /* Address in use, 0 if none */
@@ -283,7 +294,25 @@ static int armino_transmit(FAR struct netdev_lowerhalf_s *dev,
       return ret;
     }
 
-  ret = bmsg_tx_sender(p, priv->vif_idx);
+  /* ARP is a special frame to this MAC: bmsg_special_tx_sender() sets
+   * TXU_CNTRL_IS_SPECIAL_FRAME (rw_task.c:533, rwnx_tx.c:676), the flag
+   * lwip's etharp path sets for it.  Sending NuttX's ARP requests through the
+   * normal data queue left them unanswered -- only the gateway ever resolved,
+   * through net_begin_send_arp_reply()'s special path -- and a peer station on
+   * the same BSS stayed unreachable with "arp_wait failed -110".
+   */
+
+  if (((uint16_t)((FAR const uint8_t *)p->payload)[ARMINO_ETH_TYPE_OFFSET] << 8 |
+       ((FAR const uint8_t *)p->payload)[ARMINO_ETH_TYPE_OFFSET + 1]) ==
+      ARMINO_ETHTYPE_ARP)
+    {
+      ret = bmsg_special_tx_sender(p, priv->vif_idx);
+    }
+  else
+    {
+      ret = bmsg_tx_sender(p, priv->vif_idx);
+    }
+
   pbuf_free(p);
   if (ret != 0)
     {
@@ -497,7 +526,16 @@ void net_wlan_initial(void)
   extern const struct wireless_ops_s g_armino_iw_ops;
   g_netdev.lower.iw_ops = &g_armino_iw_ops;
 #endif
-  atomic_set(&g_netdev.lower.quota[NETPKT_TX], 1);
+  /* quota[NETPKT_TX] is how many packets the upper half may hand the driver
+   * per poll.  At 1 a single connection can only ever have one segment in
+   * flight: measured 3.38 Mbit/s at a ~3 ms RTT, i.e. ~1.3 KiB outstanding,
+   * while the 16 KiB write buffer and 40 IOBs could hold 11 segments.  That
+   * matches Armino/lwIP too -- it reaches 7.17 Mbit/s with only ~2 segments
+   * outstanding.  8 lets the stack fill the pipe; armino_transmit() already
+   * calls netdev_lower_txdone() per frame, so nothing else waits.
+   */
+
+  atomic_set(&g_netdev.lower.quota[NETPKT_TX], 8);
 
   /* RX quota 16: 4 was a7de5d2's value for ping traffic, but a TLS
    * handshake response is a burst of segments and the upper half only
@@ -588,17 +626,30 @@ int net_get_if_addr(struct wlan_ip_config *addr, void *intrfc_handle)
 static void armino_set_addr(const struct ipv4_config *a)
 {
   struct in_addr in;
+  int ret = 0;
 
   in.s_addr = a->address;
-  netlib_set_ipv4addr(ARMINO_IFNAME, &in);
+  ret |= netlib_set_ipv4addr(ARMINO_IFNAME, &in);
   in.s_addr = a->netmask;
-  netlib_set_ipv4netmask(ARMINO_IFNAME, &in);
+  ret |= netlib_set_ipv4netmask(ARMINO_IFNAME, &in);
   in.s_addr = a->gw;
-  netlib_set_dripv4addr(ARMINO_IFNAME, &in);
+  ret |= netlib_set_dripv4addr(ARMINO_IFNAME, &in);
   if (a->dns1 != 0)
     {
       in.s_addr = a->dns1;
-      netlib_set_ipv4dnsaddr(&in);
+      ret |= netlib_set_ipv4dnsaddr(&in);
+    }
+
+  /* The DHCP result used to be printed by armino_sta_got_ip() whether or not
+   * it reached wlan0, so a silent netlib failure looked like success.
+   * Something else owning the address (netinit's static 10.0.0.2/24) showed
+   * up only as connect() returning ENETUNREACH much later.
+   */
+
+  if (ret != 0)
+    {
+      syslog(LOG_ERR, "[ARMINO] set %s addr %s failed: %d\n", ARMINO_IFNAME,
+             inet_ntoa((struct in_addr){ .s_addr = a->address }), errno);
     }
 }
 
@@ -962,6 +1013,9 @@ void sta_ip_start(void)
 
   netdev_lower_carrier_on(&g_netdev.lower);
   netlib_ifup(ARMINO_IFNAME);
+
+  bk_wifi_sta_pm_disable();
+  bk_wlan_mcu_ps_mode_disable();
 
   if (a.addr_type == ADDR_TYPE_STATIC)
     {

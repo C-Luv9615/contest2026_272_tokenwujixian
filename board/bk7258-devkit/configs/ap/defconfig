@@ -16,7 +16,9 @@ CONFIG_ARCH_CHIP_BK7258=y
 CONFIG_BK7258_COMPONENT_AP=y
 CONFIG_ARCH_TRUSTZONE_SECURE=y
 CONFIG_ARCH_IRQPRIO=y
-CONFIG_ARCH_INTERRUPTSTACK=4096
+# The panic dump alone can consume the 4 KiB stack (it printed irq 4096/4096
+# = 100% in the PSRAM-move crash), and Wi-Fi/syslog bursts share it.
+CONFIG_ARCH_INTERRUPTSTACK=8192
 CONFIG_ARCH_STACKDUMP=y
 CONFIG_ARMV8M_SYSTICK=y
 CONFIG_ARMV8M_DCACHE=y
@@ -44,9 +46,9 @@ CONFIG_NSH_BUILTIN_APPS=y
 CONFIG_NSH_PROMPT_STRING="nsh-ap> "
 CONFIG_NSH_READLINE=y
 CONFIG_PREALLOC_TIMERS=4
-CONFIG_RAM_SIZE=278528
+CONFIG_RAM_SIZE=229376
 CONFIG_RAM_START=0x28010000
-CONFIG_BK7258_RPMSG_SHM_ADDR=0x28054000
+CONFIG_BK7258_RPMSG_SHM_ADDR=0x28048000
 CONFIG_RAW_BINARY=y
 # CONFIG_SMP is not set
 CONFIG_SMP_NCPUS=1
@@ -174,6 +176,14 @@ CONFIG_EXAMPLES_AI_AGENT_VELA_STACKSIZE=32768
 CONFIG_AI_AGENT_NET_RPMSG=y
 CONFIG_BK7258_PSRAM=y
 CONFIG_MM_REGIONS=2
+# PSRAM layout, one slab per purpose (bk7258_memorymap.h derives the bases).
+# Sum must stay within the fitted device: 16 MiB on the APS128XXO.
+CONFIG_BK7258_PSRAM_DISPLAY_SIZE=0x400000
+CONFIG_BK7258_PSRAM_AUDIO_SIZE=0x80000
+CONFIG_BK7258_PSRAM_ENCODE_SIZE=0x100000
+CONFIG_BK7258_PSRAM_SECTION_SIZE=0x80000
+CONFIG_BK7258_PSRAM_CP_HEAP_SIZE=0x500000
+CONFIG_BK7258_PSRAM_AP_HEAP_SIZE=0x500000
 CONFIG_SERIAL_NPOLLWAITERS=8
 # Agent channels/tools trimmed for this board (no media player, no wearable
 # sensors, no quickapp runtime; ws accept thread ENOMEM on post-loop heap).
@@ -301,3 +311,15 @@ CONFIG_ARM_MPU_NREGIONS=8
 # bk7258_mpu_test: dumps and checks the region table, plus two fault probes.
 CONFIG_BK7258_MPU_TEST=y
 CONFIG_DEBUG_MEMFAULT=y
+
+# wget as the board-initiated download client: it is the only way to
+# measure the downlink direction, because the board sits behind the
+# hotspot's NAT (nothing outside can open a connection to it) and its
+# iperf is the NuttX example, not iperf2, so `iperf -s` resets an
+# iperf2 client on the first header. nshlib forces NSH_DISABLE_WGET
+# unless NETUTILS_WEBCLIENT is on (apps/nshlib/nsh.h:106-110).
+CONFIG_NETUTILS_WEBCLIENT=y
+# 512 B per recv would charge a cross-core request for every 512 B
+# on the AP, which is not the network's cost. 4096 is the TLS record
+# size the AP apps actually use and stays under one recv per read.
+CONFIG_NSH_WGET_BUFF_SIZE=4096

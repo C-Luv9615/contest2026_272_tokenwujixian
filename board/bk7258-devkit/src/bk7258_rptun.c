@@ -30,15 +30,25 @@
 
 #define BK7258_RPTUN_VRINGS        2
 #define BK7258_RPTUN_VRING_ALIGN   8
-/* 4 descriptors x 2048B payload buffers (36KB of the 44KB shared window)
- * instead of the original 8 x 512B (24KB).  The usrsock-rpmsg server
- * reassembles a request from up to NIOVEC payload buffers, so the old
- * geometry capped a single request near 8 x ~480B ~= 3.8KB -- too small
- * for the ai_agent's LLM POST bodies (10KB+), which died with
- * "Request too large" on the CP.  4 x 2048B with NIOVEC=16 lifts that
- * ceiling to ~30KB at the same vring-memory class. */
-#define BK7258_RPTUN_VRING_NUM     4
-#define BK7258_RPTUN_BUFFER_SIZE   2048
+/* 8 descriptors x 2048B payload buffers, 32KB of the 44KB shared window.
+ * The usrsock-rpmsg server holds every received chunk until the whole request
+ * is assembled, so one request's ceiling is VRING_NUM x ~2032B -- not
+ * NIOVEC x that.  At 4 buffers it was ~8KB, and anything larger deadlocked
+ * instead of failing: the AP blocks in rpmsg_get_tx_payload_buffer() while the
+ * CP holds all 4 buffers waiting for the rest.  8 x 2048B lifts the ceiling to
+ * ~16KB and doubles the concurrent-buffer count.  Still bounded: a write past
+ * it hangs, so app-level sends stay under the ceiling until the client learns
+ * to fail fast (see docs/bk7258-ap-network-app-retrospective.md). */
+#define BK7258_RPTUN_VRING_NUM     8
+/* 2432 rather than 2048: the AP's usrsock client serialises one request per
+ * send(), so its throughput is (request bytes) / (RPMsg round trip).  One
+ * request carries BUFFER_SIZE - 16 (rpmsg header) - ~24 (usrsock sendto
+ * header) in a single chunk, so 2432 lifts it from 2000 to ~2390 bytes.  The
+ * ring still fits: VRING_NUM(8) * 2432 * 2 vrings + 0x1000 = 43,008 of the
+ * 43 KiB carveout, which the static_assert below enforces.
+ */
+
+#define BK7258_RPTUN_BUFFER_SIZE   2432
 
 struct bk7258_rptun_shmem_s
 {
