@@ -32,7 +32,10 @@ CONFIG_BUILTIN=y
 CONFIG_DEBUG_ASSERTIONS=y
 CONFIG_DEBUG_BUSFAULT=y
 CONFIG_DEBUG_FEATURES=y
-CONFIG_DEBUG_NET=y
+# Verbose network logging is off: every line is formatted and written to a
+# 115200-baud UART, which perturbs exactly the latency this port cares about.
+# DEBUG_NET_ERROR stays so a real send/ARP failure is still visible.
+# CONFIG_DEBUG_NET is not set
 CONFIG_DEBUG_NET_ERROR=y
 CONFIG_DEBUG_FULLOPT=y
 CONFIG_DEBUG_HARDFAULT_ALERT=y

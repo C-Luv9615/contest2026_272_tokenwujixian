@@ -7,3 +7,10 @@ if(CONFIG_LVX_USE_DEMO_CONTEST2026_272_BK7258_PLATFORM_TEST)
   target_include_directories(apps_bk7258_platform_test PRIVATE
                              ${NUTTX_BOARD_ABS_DIR}/include)
 endif()
+
+if(CONFIG_LVX_USE_DEMO_CONTEST2026_272_NETSPD)
+  nuttx_add_application(
+    NAME netspd
+    SRCS netspd.c
+    STACKSIZE 4096)
+endif()
