@@ -59,7 +59,9 @@ else()
        bk7258_sysctrl.c
        bk7258_clock.c
        bk7258_lowputc.c
-       bk7258_uart.c)
+       bk7258_uart.c
+       bk7258_wdt.c
+       bk7258_reset_reason.c)
 
   if(CONFIG_BK7258_PSRAM)
     list(APPEND SRCS bk7258_psram.c)
@@ -85,10 +87,26 @@ target_include_directories(arch PRIVATE ${BK7258_CHIP_MODULE_INCLUDES})
 # CP only: the face is under #ifndef CONFIG_BK7258_COMPONENT_AP, and on AP
 # these paths shadow mb_ipc/armino_ap/include/driver/mailbox_channel.h (both
 # declare the channel enum, with CP0_MB_CHNL_IPC vs CP1_MB_CHNL_IPC).
+# bk7258_wdt.c and bk7258_reset_reason.c provide the Armino WDT and
+# reset-reason faces; their signatures come from the baseline's own headers
+# (driver/wdt.h, driver/aon_wdt.h, wdt_hal.h, aon_wdt_hal.h, reset_reason.h),
+# so those header directories must be visible from `arch`.
 if(CONFIG_BK7258_COMPONENT_CP)
   target_include_directories(arch PRIVATE
                              ${NUTTX_CHIP_ABS_DIR}/armino_baseline/cp/include
                              ${NUTTX_CHIP_ABS_DIR}/armino_baseline/cp/middleware/soc
+                             ${NUTTX_CHIP_ABS_DIR}/armino_baseline/cp/middleware/soc/common/hal/include
+                             ${NUTTX_CHIP_ABS_DIR}/armino_baseline/cp/middleware/soc/common/soc/include
+                             ${NUTTX_CHIP_ABS_DIR}/armino_baseline/cp/middleware/soc/bk7258/hal
+                             ${NUTTX_CHIP_ABS_DIR}/armino_baseline/cp/middleware/soc/bk7258/soc
+                             ${NUTTX_CHIP_ABS_DIR}/armino_baseline/cp/middleware/driver/include/bk_private
+                             ${NUTTX_CHIP_ABS_DIR}/armino_baseline/cp/middleware/driver/pmu
+                             ${NUTTX_CHIP_ABS_DIR}/armino_baseline/cp/middleware/driver/wdt
+                             ${NUTTX_CHIP_ABS_DIR}/armino_baseline/cp/middleware/driver/aon_wdt
+                             ${NUTTX_CHIP_ABS_DIR}/armino_baseline/cp/middleware/driver/reset_reason
+                             ${NUTTX_CHIP_ABS_DIR}/armino_baseline/cp/middleware/arch/cm33/include
+                             ${NUTTX_CHIP_ABS_DIR}/armino_baseline/cp/components/bk_common/include
+                             ${NUTTX_CHIP_ABS_DIR}/pm/nuttx_port/include
                              ${NUTTX_CHIP_ABS_DIR}/armino_baseline/build/bk7258/iperf/bk7258/config)
 endif()
 

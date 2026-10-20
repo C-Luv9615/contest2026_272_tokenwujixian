@@ -123,7 +123,22 @@ if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
       cp/middleware/soc/common/hal/timer_hal.c
       cp/middleware/soc/bk7258/hal/timer_ll.c
       cp/middleware/soc/bk7258/hal/timer_hal.c
-      cp/middleware/soc/bk7258/hal/timer_hal_debug.c)
+      cp/middleware/soc/bk7258/hal/timer_hal_debug.c
+      # WDT and reset-reason belong to the chip layer: chips/bk7258/
+      # bk7258_wdt.c provides the same 30 symbols (wdt_driver 17,
+      # aon_wdt_driver 5, wdt_hal 5, aon_wdt_hal 3) and
+      # chips/bk7258/bk7258_reset_reason.c the remaining 13 (reset_reason
+      # 11, reboot 2). The signatures still come from these units' own
+      # headers and the register layer from wdt_ll.h / aon_wdt_ll.h, so
+      # the port keeps the authority's #if gates, key sequences and wall
+      # clock time base. cli_wdt.c / cli_misc.c stay: they are callers,
+      # not providers.
+      cp/middleware/driver/wdt/wdt_driver.c
+      cp/middleware/soc/common/hal/wdt_hal.c
+      cp/middleware/driver/aon_wdt/aon_wdt_driver.c
+      cp/middleware/soc/common/hal/aon_wdt_hal.c
+      cp/middleware/driver/reset_reason/reset_reason.c
+      cp/components/bk_system/reboot.c)
 
   # NuttX's config.h defines CONFIG_SPI=1 and reaches Armino units through
   # the libc headers; the baseline sdkconfig leaves it undefined, so
