@@ -4,3 +4,11 @@ config LVX_USE_DEMO_CONTEST2026_272_BK7258_PLATFORM_TEST
   ---help---
     Enable the manually-invoked BK7258 platform clock, power, IRQ and
     TXEN/RXEN mux readback test.
+
+config LVX_USE_DEMO_CONTEST2026_272_NETSPD
+  bool "BK7258 RPMsg frame-path probe (netspd)"
+  default n
+  ---help---
+    Measure the CP/AP RPMsg frame path with netspd echo / netspd send.
+    Endpoints use explicit addresses and an empty name, so no NS
+    announcement is involved and either side may start first.
