@@ -126,6 +126,12 @@ if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
       # same 10 symbols on the authority's uart_ll.h inlines.  uart_driver.c
       # stays for now -- it is the 57-symbol driver face and is the next step.
       cp/middleware/soc/common/hal/uart_hal.c
+      # The driver face above it: chips/bk7258/bk7258_uart_driver.c provides
+      # the same 57 symbols with the same #if gates.  Only seven of them are
+      # live in this image (boot init, two gpio queries, the two PM stubs, the
+      # pm-id mapping and uart_wait_tx_over) -- the rest lost their callers
+      # when the Armino CLI lost its input device and logging moved to syslog.
+      cp/middleware/driver/uart/uart_driver.c
       # The log transport: chips/bk7258/bk7258_printf.c provides the same 26
       # symbols (printf 20 + printf_base 6) with the provider's format and
       # filters, but hands every line to syslog instead of the UART driver.

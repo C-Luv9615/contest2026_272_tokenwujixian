@@ -224,7 +224,7 @@ C 不允许两个不同的匿名结构体共用同一个 typedef 名，所以"�
 | 单元 | 符号数 | 行数 | 状态 |
 | --- | --- | --- | --- |
 | `middleware/soc/common/hal/uart_hal.c` | 10 | 156 | ✅ 已替换 |
-| `middleware/driver/uart/uart_driver.c` | 57 | 1754 | 待做（契约表已建，见下） |
+| `middleware/driver/uart/uart_driver.c` | 57 | 1754 | ✅ 已替换（见下） |
 
 ### 分层
 
@@ -415,3 +415,32 @@ DMA 路径不编译；`CONFIG_UART_PM_CB_SUPPORT` 未定义 ⇒ `pm_backup/resto
 8. `bk_uart_deinit()` 逆序：`uart_id_deinit_common`（停 HAL、复位配置、关中断/时钟、释放 kfifo 与信号量）。
 
 **实现顺序**：1→2→3→4→5→6，每片写完单独编译（不接线），57 个齐了再一次性 exclude `uart_driver.c`。
+
+### uart_driver 的实现记录
+
+落在 `chips/bk7258/bk7258_uart_driver.c`（1942 行，含全部 `#if` 分支）。**57/57 导出符号，与权威逐条相同**；
+`uart_driver.c.o` 在 map 里计数 0。
+
+所有配置分支照抄：`CONFIG_UART_RX_DMA` / `CONFIG_UART_TX_DMA` 的 DMA 全套、`CONFIG_UART_PM_CB_SUPPORT` 的真实
+backup/restore、`CONFIG_UART0_FLOW_CTRL` 的 CTS/RTS 复用、`CFG_CLI_DEBUG`、`CONFIG_SPE` 的
+`UART_CHECK_SECURE()`。当前配置下 DMA/PM 分支不参与编译，但代码在。
+
+**镜像里仍然是同样的 7 个活符号**（与替换前一致）：
+
+```
+bk_uart_driver_init  bk_uart_get_ate_detect_gpio  bk_uart_get_rx_gpio
+bk_uart_pm_backup    bk_uart_pm_restore           uart_id_to_pm_uart_id
+uart_wait_tx_over
+```
+
+**13 个符号从镜像里消失，原因是日志批的连带效应，不是丢失**：`bk_uart_init/deinit` 在基线里唯一的调用者是
+`printf_base.c` 的 `bk_printf_init()`（它会 `bk_uart_init(print_port, &cfg)` 重新配置 UART0）。
+日志改走 syslog 后我们特意不再从日志层初始化 UART，这条链就断了，于是
+`uart_enter_deep_sleep`（它调 `bk_uart_set_enable_rx/tx`、`bk_uart_disable_tx_interrupt`）、
+`uart_isr_register_functions`（它引用 `uart0/1/2_isr`）、以及 `uart_write_byte/string`、
+`uart_read_byte_ex`、`uart_clock_enable/disable` 一起失去引用。**导出集合完整**，这些路径当前不可达。
+
+顺带确认 `uart_wait_tx_over` 不依赖被 gc 的初始化：`uart_hal_wait_tx_over()` 是
+`uart_ll_wait_tx_over()` 的宏，内部直接读 UART0/1/2 的寄存器，不用 `s_uart[]` 的状态。
+
+验收：`nm -u` 0；静态 SRAM 287,136 B（未变）；WDT 批 43 符号零差异。
