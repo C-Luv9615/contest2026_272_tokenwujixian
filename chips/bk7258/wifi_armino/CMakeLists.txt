@@ -114,6 +114,14 @@ if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
       # gpio_ll.c follow in the next step: their only callers were these two.
       cp/middleware/driver/gpio/gpio_driver_base.c
       cp/middleware/driver/bk7258/gpio_driver.c
+      # gpio_hal.c is the other direction of the same block: the Armino hal
+      # API that remaining baseline units call (pm.c's
+      # gpio_hal_switch_to_low_power_status on sleep entry).  Its 27 symbols
+      # now come from chips/bk7258/bk7258_gpio_hal.c, same bodies, same
+      # gpio_ll inlines, same GPIO_DEV_MAP / usr_gpio_cfg tables.  gpio_ll.c
+      # follows: it only ever provided inlines to these two.
+      cp/middleware/soc/common/hal/gpio_hal.c
+      cp/middleware/soc/bk7258/hal/gpio_ll.c
       # Timer belongs to the chip layer for the same reason: chips/bk7258/
       # bk7258_timer.c owns TIMER_ID0..5 (SOC_TIMER0_REG_BASE ==
       # BK7258_TIMER0_BASE == 0x44810000) and now supplies bk_timer_* too.

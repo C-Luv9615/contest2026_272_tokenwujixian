@@ -136,3 +136,40 @@ wdttest: raw_temp=557 (ret=0) stored_temp=27.0 (ret=0) stored_volt=1.0 (ret=0) i
 - **定量对照（温度）**：历史日志里 `temp in otp is:569` 出现 97 次（闭源 `libbk_phy.a` 打印的 OTP 出厂校准温度，常数，不是实时读数）。今天实时 `raw_temp=560`，差 9 LSB；`ADC_TMEP_LSB_PER_10DEGREE=46` ⇒ 1 LSB ≈ 0.217 ℃ ⇒ **差约 2.0 ℃**（板子自热的量级）。两者是同一量纲、同一插值表的输入，所以这是一个定量吻合，不是“量级看起来合理”。
 - **电压没有历史参照**：OTP SDMADC 为空（`uncali sdmadc value:[0 0]`，历史日志出现 90 次，与今天的行一致），所以历史上不存在电压读数可比。`raw_volt=796` 只能做区间检查（0~2048 的中段）；`_volt_detect_calculate_voltage()` 只是对 10 个样本剔掉 0/2048 后取平均，物理单位换算在闭源 `libbk_phy.a` 里，本仓无法独立换算。**这一项是未定量证明的。**
 - 上板复核（测试镜像 `b0d18bad…`）：`raw_temp=557`、`stored_temp=27.0`、`stored_volt=1.0`、`ret=0`、`init=1` —— 值存储由闭源 `libbk_phy.a` 写入，与我们的采样路径一致。
+
+## 批次 3：GPIO HAL
+
+替换 `middleware/soc/common/hal/gpio_hal.c`（+ 只给它提供 inline 的 `gpio_ll.c`），共 **27** 个符号，
+落在 `chips/bk7258/bk7258_gpio_hal.c`。
+
+### 分层
+
+`chips/bk7258/bk7258_gpio.c` 是 **AON GPIO 块的 owner**（我们自己的驱动 + `bk_gpio_*` 面），
+这一批补的是同一块的**另一个方向**：其余基线单元调用的 Armino hal API。两者都走 `gpio_ll`，
+所以寄存器实现只有一份。今天唯一活着的调用点是 `pm.c` 的 `gpio_hal_switch_to_low_power_status()`
+（进睡眠前把所有 GPIO 置输入态）。
+
+### 函数体要点
+
+- 全部 27 个函数体照抄权威实现，仍建在权威的 `gpio_ll_*` inline 上；
+- 引脚存在性检查用权威的 `GPIO_DEV_MAP` 表，错误码逐一对齐：`BK_ERR_GPIO_CHAN_ID`、
+  `BK_ERR_GPIO_INVALID_ID`、`BK_ERR_GPIO_INTERNAL_USED`、`BK_ERR_GPIO_NOT_OUTPUT_MODE`、
+  `BK_ERR_GPIO_NOT_INPUT_MODE`、`BK_ERR_GPIOS_MAP_NONE`、`BK_ERR_GPIO_BITS_NUM`、`BK_ERR_NULL_PARAM`；
+- `gpio_hal_get_output()` 在非输出模式下返回 `BK_ERR_GPIO_NOT_INPUT_MODE`（权威就是这么说反的，
+  照抄，不改“更合理”的版本）；
+- `gpio_hal_func_unmap()` 发现引脚被占用时**只警告并继续**，不拒绝；
+- `gpio_hal_set_output_value()` / `enable_interrupt()` 都先检查方向，方向不对直接返回错误。
+
+### 编译期坑
+
+`GPIO_DEFAULT_DEV_CONFIG` 在 `CONFIG_GPIO_DEFAULT_SET_SUPPORT=1` 且 `CONFIG_USR_GPIO_CFG_EN=1` 时
+来自 **`projects/wifi/iperf/cp/config/bk7258/usr_gpio_cfg.h`**，不是 `gpio_map.h`（后者被
+`#if !CONFIG_USR_GPIO_CFG_EN` 关掉了）。所以 CP 的头文件路径里要多一条项目配置目录。
+
+### 验收状态
+
+- 27/27 导出符号（旧集合 ⊆ 新集合，无差异）；`gpio_hal.c.o` / `gpio_ll.c.o` 在 map 里计数为 **0**；
+- `nm -u` = 0；静态 SRAM 287,224 B（与本批前一致）；
+- **镜像里 `gpio_hal_*` 符号数为 0 —— 基线镜像里同样是 0**（没有任何单元真正引用它们，
+  唯一调用点 `pm.c:1870` 在关闭的配置分支里），所以这与基线一致，不是回归。
+
