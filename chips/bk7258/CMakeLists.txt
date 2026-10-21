@@ -62,8 +62,7 @@ else()
        bk7258_uart.c
        bk7258_wdt.c
        bk7258_reset_reason.c
-       bk7258_gpio_hal.c
-       bk7258_api_abi.c)
+       bk7258_gpio_hal.c)
 
   if(CONFIG_BK7258_PSRAM)
     list(APPEND SRCS bk7258_psram.c)
@@ -76,7 +75,8 @@ target_sources(arch PRIVATE ${SRCS})
 # created below it.  Kept as a variable so the aux libraries compile against
 # the same headers arch does.
 set(BK7258_CHIP_MODULE_INCLUDES
-    ${NUTTX_CHIP_ABS_DIR}/include)
+    ${NUTTX_CHIP_ABS_DIR}/include
+    ${NUTTX_CHIP_ABS_DIR}/include/overrides)
 
 target_include_directories(arch PRIVATE ${BK7258_CHIP_MODULE_INCLUDES})
 
