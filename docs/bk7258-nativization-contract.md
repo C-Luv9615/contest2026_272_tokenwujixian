@@ -194,9 +194,13 @@ wdttest: raw_temp=557 (ret=0) stored_temp=27.0 (ret=0) stored_volt=1.0 (ret=0) i
 | 单元 | 我们的头 | ABI 检查 |
 | --- | --- | --- |
 | 看门狗 / AON 看门狗 | `chips/bk7258/include/driver/{wdt,aon_wdt}.h`，芯片 include 根已排到基线之前 | ✅ 预处理逐条相同（25 + 16 条声明） |
-| 复位原因 / 重启 | `chips/bk7258/include/bk7258_reset_reason_api.h` | ✅ 与 `reset_reason.h`、`<components/system.h>` 同 TU 编译通过 |
+| 复位原因 / 重启 | `chips/bk7258/include/reset_reason.h`，已排到基线之前 | ✅ 预处理逐条相同（11 条声明 + 20 条宏） |
 | 温度 / 电压 | 仍用 `temp_detect.h`、`volt_detect.h` | — |
-| GPIO HAL | 仍用 `gpio_hal.h` | — |
+| GPIO HAL | 仍用 `gpio_hal.h`（公开 API 暴露权威定义的 ABI 结构体，见下） | — |
+
+**为什么 `gpio_hal.h` 这类头暂时不接管**：它的 API 表面带结构体（`gpio_hal_t`、`gpio_map_t`）。
+C 不允许两个不同的匿名结构体共用同一个 typedef 名，所以"我们的头与权威头逐条比对"这个判据对它们不成立；
+接管只能靠"复制结构体 + 在两边 TU 里钉死 sizeof/offsetof"，保证弱一档。等这些结构体有独立类型头时再做。
 
 切换前后 43 个符号在镜像里的"在/不在"与基线**零差异**，`nm -u` 为 0，静态 SRAM 未变。
 
