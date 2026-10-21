@@ -242,6 +242,25 @@ C 不允许两个不同的匿名结构体共用同一个 typedef 名，所以"�
 - `uart_hal_get_system_interrput_en_status()`（权威就拼错了 interrupt）按 UART_ID_0/1/2 读
   `sys_ll_get_cpu0_int_0_31_en_*`，其它 id 返回 0。
 
+### 控制台驱动改用同一层（第 1 步，已完成）
+
+`chips/bk7258/bk7258_uart.c` 原本自己 `putreg32/getreg32/modifyreg32` 操作 UART0 寄存器，
+现在 **12 处走 `uart_ll_*`**：
+
+| 原操作 | 现在 |
+| --- | --- |
+| `modifyreg32(UART_CONFIG, … RX_EN)` | `uart_ll_enable_rx()` |
+| `putreg32(0, UART_INT_ENABLE)` ×2 | `uart_ll_set_int_enable_status(…, 0)` |
+| `putreg32(priv->ie, UART_INT_ENABLE)` ×3 | `uart_ll_set_int_enable_status(…, priv->ie)` |
+| `getreg32(UART_FIFO_PORT) >> 8` | `uart_ll_read_byte()` |
+| `FIFO_STATUS & RD_READY` / `WR_READY` / `bit17` | `uart_ll_is_fifo_read_ready()` / `is_fifo_write_ready()` / `is_tx_fifo_empty()` |
+| `getreg32/putreg32(UART_INT_STATUS)` | `uart_ll_get_interrupt_status()` / `uart_ll_clear_interrupt_status()` |
+
+剩下 2 处是 **SoC 中断路由**（`BK7258_SYS_CPU0_INT_EN`），属于另一个块、`uart_ll` 没有对应接口，保持原样。
+
+替换前逐一核对过偏移与位定义与 `middleware/soc/bk7258/soc/uart_struct.h` 一致；
+反汇编确认 `bk7258_uart_receive` 仍是 `ldr r0, [r3, #28]`（0x1c = FIFO port），与替换前同一寄存器。
+
 ### 验收（uart_hal）
 
 - 10/10 导出符号，旧集合 ⊆ 新集合，无差异；
