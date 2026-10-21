@@ -363,3 +363,48 @@ BK_LOGx → bk_printf_ext（我们的）→ 组同样的前缀 → syslog()
   GCC 把唯一调用优化掉后符号被收集；基线里它活着只是因为那次调用跨 TU、编译器无法判定。
   不为一个 map 条目添加假的副作用。
 - 待上板：日志仍按要求格式出现、控制台正常。
+
+### uart_driver 移植工作表（源码已通读，实现未开始）
+
+**本构建实际编译的部分**（配置决定）：`CONFIG_UART_RX_DMA` / `TX_DMA` 未定义 ⇒ 所有 DMA 路径不编译；
+`CONFIG_UART_PM_CB_SUPPORT` 未定义 ⇒ `pm_backup/restore` 是两个 `return BK_OK`；
+`CONFIG_UART0_FLOW_CTRL` 未定义 ⇒ `uart_init_gpio` 的流控分支不编译；`CFG_CLI_DEBUG` 未定义；
+`CONFIG_SPE=1` ⇒ `UART_CHECK_SECURE()`（`DEV_IS_SECURE()` 断言）保留。
+
+**镜像里真正是活的只有 7 个符号**（`nuttx.map` 实测）：`bk_uart_driver_init`、`uart_id_to_pm_uart_id`、
+`bk_uart_pm_backup/restore`（空壳）、`bk_uart_get_rx_gpio`、`bk_uart_get_ate_detect_gpio`、`uart_wait_tx_over`。
+其余 50 个当前没有引用者（Armino CLI 已被我们的 compat shell 切掉输入，日志已改走 syslog）。
+验收基线因此是：**替换后镜像里仍是同样的 7 个符号**。
+
+**状态结构**（照抄）：
+- `uart_driver_t { uart_hal_t hal; uint8_t id_init_bits; uint8_t id_sw_fifo_enable_bits;
+  uint32_t pm_backup[UART_PM_BACKUP_REG_NUM]; uint8_t pm_bakeup_is_valid;
+  bool rx_dma_enable; dma_id_t rx_dma_id; bool tx_dma_enable; dma_id_t tx_dma_id; }`
+- `s_uart[SOC_UART_ID_NUM_PER_UNIT]`（`hal.hw` 分别指向 `SOC_UART0/1/2_REG_BASE`）
+- `s_uart_rx_isr[] / s_uart_tx_isr[]`（`{callback, param}`）、`s_uart_rx_kfifo[]`、`s_uart_sema[]`（`{rx_blocked, rx_int_sema}`）
+- `s_last_uart_rx_isr`（`take/recover` 用）
+
+**分片与依赖**：
+
+| 片 | 内容 | 依赖 |
+| --- | --- | --- |
+| 1 | `uart_clock_enable/disable`、`uart_interrupt_enable/disable`、`uart_init_gpio`、`uart_deinit_{tx,rx}_gpio` | `sys_drv_dev_clk_pwr_up`、`sys_drv_int_enable/disable`、`gpio_dev_map/unmap`、`bk_gpio_pull_up` |
+| 2 | `uart_id_init_kfifo`、`uart_id_{init,deinit}_common`、`bk_uart_init/deinit`、`driver_init/deinit` | `kfifo_alloc/free`、`uart_statis_*`、`rtos_init/deinit_semaphore`、`bk_pm_sleep_register_cb` |
+| 3 | 配置组：baud/data_bits/stop_bits/parity/enable_rx/tx/threshold/rx_timeout/flow_ctrl | `uart_hal_set_*`、`clk_get_uart_clk` |
+| 4 | 读写组：`uart_write_byte/string/ready`、`bk_uart_write/read_bytes`、`read_byte(_ex)`、`get_length_in_buffer`、`wait_tx_over`、`is_tx_over` | `uart_hal_*`、`kfifo_*`、`rtos_get/set_semaphore` |
+| 5 | 中断组：`register/take/recover_{rx,tx}_isr`、`uart_isr_common`、`uart0/1/2_isr`、`uart_get/clear_interrupt_status`、`isr_register_functions` | `bk_int_isr_register(INT_SRC_UARTn)`、`UART_STATIS_*` |
+| 6 | 旁路：`enable/disable_sw_fifo`、`get_ate_detect_gpio`、`get_rx_gpio`、`write_byte_for_ate/for_fr`、`print_hex_dump`、`is_in_used`、`is_rx_dma_enabled`、`pm_backup/restore` 空壳、`uart_id_to_pm_uart_id` | 无 |
+
+**必须照抄的行为**（容易漏）：
+1. `uart_write_byte()` 先等 `fifo_write_ready` 再写；
+2. `uart_write_string()` 在 `\n` 前补 `\r`（除非前一个已经是 `\r`）；
+3. `uart_read_fifo_frame()` 在 kfifo 满时**仍然继续读空硬件 FIFO**（否则死循环），只是不 put；
+4. `bk_uart_read_bytes()` 两条路：软件 FIFO 打开 → kfifo + 信号量等待（`rx_blocked` 门控、超时返回
+   `BK_ERR_UART_RX_TIMEOUT`）；未打开 → 直接轮询 `uart_read_byte_ex()`；
+5. `bk_uart_take_rx_isr()` 会先关软 FIFO、再换回调；`recover` 时若 `id == bk_get_printf_port()` 则不重新打开软 FIFO；
+6. `bk_uart_wait_tx_over()` 用 `tx_fifo_count + 1` 与 `UART_CLOCK/(clk_div+1)` 估算等待微秒，再 `bk_delay_us()`；
+7. `bk_uart_init()` 的顺序：关 TX 中断 → 清状态 → 注册 ISR → `uart_hal_init` → 中断使能 → 时钟/GPIO/kfifo/sema →
+   选时钟源 → `uart_hal_init_uart` → `uart_hal_start_common`；并且**已初始化就直接返回 OK**；
+8. `bk_uart_deinit()` 逆序：`uart_id_deinit_common`（停 HAL、复位配置、关中断/时钟、释放 kfifo 与信号量）。
+
+**实现顺序**：1→2→3→4→5→6，每片写完单独编译（不接线），57 个齐了再一次性 exclude `uart_driver.c`。
