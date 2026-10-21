@@ -62,7 +62,8 @@ else()
        bk7258_uart.c
        bk7258_wdt.c
        bk7258_reset_reason.c
-       bk7258_gpio_hal.c)
+       bk7258_gpio_hal.c
+       bk7258_api_abi.c)
 
   if(CONFIG_BK7258_PSRAM)
     list(APPEND SRCS bk7258_psram.c)
