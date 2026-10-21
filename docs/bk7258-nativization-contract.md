@@ -214,3 +214,37 @@ C 不允许两个不同的匿名结构体共用同一个 typedef 名，所以"�
 `build_version[] = __DATE__ " " __TIME__;`，所以**任何一次真正重编都会改变镜像哈希**。
 判断"改头没改行为"要看：43/26/27 个符号在镜像里的"在/不在"是否与基线一致、`nm -u` 是否为空、
 `static SRAM` 是否未变 —— 本次三项全部不变（287,224 B）。
+
+---
+
+## 批次 4：UART（进行中）
+
+两个单元，共 **67** 个符号：
+
+| 单元 | 符号数 | 行数 | 状态 |
+| --- | --- | --- | --- |
+| `middleware/soc/common/hal/uart_hal.c` | 10 | 156 | ✅ 已替换 |
+| `middleware/driver/uart/uart_driver.c` | 57 | 1754 | 待做 |
+
+### 分层
+
+`chips/bk7258/bk7258_uart.c` 是**我们自己控制台驱动**（NuttX 的 UART0）。这一批补的是 Armino 侧的
+`bk_uart_*` 面：`printf_base.c`、`bk_cli`、`at_server`、`ate` 这些仍在镜像里的单元调用它。
+先做 HAL（寄存器层），driver 面（57 个符号）随后。
+
+### uart_hal 的函数体要点
+
+- 初始化顺序照抄：关中断 → 模式 → 数据位/停止位 → 校验 → 波特率 → FIFO 阈值 → 停止检测时间 →
+  流控 → 唤醒配置；
+- **波特率分支按权威保留**：`CONFIG_SYSTEM_CTRL` 打开时用 `UART_SCLK_APLL` 走 120 MHz 分支，
+  而 `#else` 分支比较的是 `UART_SCLK_DCO` —— 看着别扭，但这是硬件一直在跑的那条；
+- 流控极性固定写 1/1、低水位固定 1；
+- `uart_hal_get_system_interrput_en_status()`（权威就拼错了 interrupt）按 UART_ID_0/1/2 读
+  `sys_ll_get_cpu0_int_0_31_en_*`，其它 id 返回 0。
+
+### 验收（uart_hal）
+
+- 10/10 导出符号，旧集合 ⊆ 新集合，无差异；
+- `uart_hal.c.o` 在 `nuttx.map` 里计数 **0**；
+- 镜像里 `uart_hal_*` 符号 **7 个，与基线完全相同**（其余 3 个在基线里也被 gc）；
+- `nm -u` 为 0；静态 SRAM 287,224 B（未变）；43 个 WDT/reset 符号面零差异。

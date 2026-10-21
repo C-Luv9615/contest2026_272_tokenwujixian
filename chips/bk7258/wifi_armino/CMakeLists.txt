@@ -122,6 +122,10 @@ if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
       # follows: it only ever provided inlines to these two.
       cp/middleware/soc/common/hal/gpio_hal.c
       cp/middleware/soc/bk7258/hal/gpio_ll.c
+      # The UART register layer: chips/bk7258/bk7258_uart_hal.c provides the
+      # same 10 symbols on the authority's uart_ll.h inlines.  uart_driver.c
+      # stays for now -- it is the 57-symbol driver face and is the next step.
+      cp/middleware/soc/common/hal/uart_hal.c
       # Timer belongs to the chip layer for the same reason: chips/bk7258/
       # bk7258_timer.c owns TIMER_ID0..5 (SOC_TIMER0_REG_BASE ==
       # BK7258_TIMER0_BASE == 0x44810000) and now supplies bk_timer_* too.
