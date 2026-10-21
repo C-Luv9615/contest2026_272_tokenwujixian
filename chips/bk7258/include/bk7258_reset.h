@@ -87,6 +87,10 @@ int bk7258_wdt_test_setreason(uint32_t reason);
 
 void bk7258_wdt_test_force_reset(void);
 
+/* Read the sensor store and sample the ADC once.  0 on success. */
+
+int bk7258_wdt_test_sensor(void);
+
 #endif /* CONFIG_BK7258_WDT_TEST */
 
 #ifdef __cplusplus

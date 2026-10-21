@@ -138,7 +138,14 @@ if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
       cp/middleware/driver/aon_wdt/aon_wdt_driver.c
       cp/middleware/soc/common/hal/aon_wdt_hal.c
       cp/middleware/driver/reset_reason/reset_reason.c
-      cp/components/bk_system/reboot.c)
+      cp/components/bk_system/reboot.c
+      # Temperature and voltage detection belongs to the chip layer:
+      # chips/bk7258/temp_detect/bk7258_temp_detect.c provides the same 26
+      # symbols (temp_detect 10, bk_sensor 7, volt_detect 9) with the
+      # authority's bodies.  cli_temp_detect.c stays: it is a caller.
+      cp/components/temp_detect/temp_detect.c
+      cp/components/temp_detect/bk_sensor.c
+      cp/components/temp_detect/volt_detect.c)
 
   # NuttX's config.h defines CONFIG_SPI=1 and reaches Armino units through
   # the libc headers; the baseline sdkconfig leaves it undefined, so
