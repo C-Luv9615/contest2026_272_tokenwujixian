@@ -188,7 +188,7 @@ wdttest: raw_temp=557 (ret=0) stored_temp=27.0 (ret=0) stored_volt=1.0 (ret=0) i
 | 单元 | 我们的头 | ABI 检查 |
 | --- | --- | --- |
 | 看门狗 / AON 看门狗 | `chips/bk7258/include/bk7258_wdt_api.h` | ✅ 与 `<driver/wdt.h>`、`<driver/aon_wdt.h>`、`bk_wdt.h` 同 TU 编译通过 |
-| 复位原因 / 重启 | 仍用 `reset_reason.h` | — |
+| 复位原因 / 重启 | `chips/bk7258/include/bk7258_reset_reason_api.h` | ✅ 与 `reset_reason.h`、`<components/system.h>` 同 TU 编译通过 |
 | 温度 / 电压 | 仍用 `temp_detect.h`、`volt_detect.h` | — |
 | GPIO HAL | 仍用 `gpio_hal.h` | — |
 

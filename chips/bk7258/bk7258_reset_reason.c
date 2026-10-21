@@ -77,7 +77,7 @@
 #include "arch_interrupt.h"
 #include "bk_misc.h"
 #include "bk7258_reset.h"
-#include "reset_reason.h"
+#include "bk7258_reset_reason_api.h"
 #include "wdt_driver.h"
 #include "bk_wdt.h"
 #include <math.h>

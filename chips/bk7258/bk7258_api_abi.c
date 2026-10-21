@@ -50,6 +50,12 @@
 #include "bk_wdt.h"
 #include "bk7258_wdt_api.h"
 
+/* Reset reason and reboot faces. */
+
+#include <components/system.h>
+#include "reset_reason.h"
+#include "bk7258_reset_reason_api.h"
+
 /* A translation unit of pure declarations is legal but some toolchains warn
  * about it; the typedef gives it a body without exporting a symbol.
  */
