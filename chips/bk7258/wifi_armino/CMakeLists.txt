@@ -262,12 +262,13 @@ if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
       list(APPEND fields -DPBUF_POOL_FREE_OOSEQ=0
            -include ${CMAKE_CURRENT_SOURCE_DIR}/compat/bk7258_lwip_compat.h)
     endif()
-    # Header overrides come first: a nativized header sits at the same
-    # relative path as the baseline one (chips/bk7258/include/overrides/) and
-    # is only moved there after the preprocessing comparison shows the two
-    # declare the same contract.  Insert into the list, never into a joined
-    # string -- the fields below are still processed as a list elsewhere.
-    list(INSERT fields 0 "-I${NUTTX_CHIP_ABS_DIR}/include/overrides")
+    # The chip include root mirrors the baseline layout (driver/wdt.h,
+    # driver/aon_wdt.h, ...), so putting it first makes those paths resolve to
+    # the nativized headers.  A header only lands there after the
+    # preprocessing comparison shows it declares the same contract as the
+    # baseline copy.  Insert into the list, never into a joined string -- the
+    # fields are processed as a list below.
+    list(INSERT fields 0 "-I${NUTTX_CHIP_ABS_DIR}/include")
     set(flags_${comp} "${fields}")
   endforeach()
 

@@ -22,8 +22,9 @@
    - 头文件只产生声明、不产生代码，所以"两边是否一致"用**预处理结果**证明，不需要新增 `.c`：
      用同一套编译参数分别预处理「只 include 权威头」和「只 include 我们的头」两个极小 TU，
      抽出涉及目标符号的声明行逐条比对（工具：`my_docs/bk7258-wifi/tools/header_equiv.py`，仓库外）；
-   - 比对为**逐条相同**后，把我们的头放到与权威头相同的相对路径下
-     （`chips/bk7258/include/overrides/`），并在 CMake 里把该目录排在基线 `-I` 之前 ——
+   - 比对为**逐条相同**后，把我们的头放到与权威头**相同的相对路径**下，
+     也就是芯片的 include 根本身（`chips/bk7258/include/driver/wdt.h` …），
+     并在 CMake 里把该根目录排在基线 `-I` 之前 ——
      这才是"替换"，不是转发层：声明在我们文件里，权威头只是不再被先搜索到；
    - 头必须**按路径一对一替换**：`driver/wdt.h` 只放 `driver/wdt.h` 的内容、`driver/aon_wdt.h`
      只放它的内容。把两个面合并进一个头会让所有 include 点的可见声明集合变大，属于契约变更；
@@ -192,7 +193,7 @@ wdttest: raw_temp=557 (ret=0) stored_temp=27.0 (ret=0) stored_volt=1.0 (ret=0) i
 
 | 单元 | 我们的头 | ABI 检查 |
 | --- | --- | --- |
-| 看门狗 / AON 看门狗 | `chips/bk7258/include/overrides/driver/{wdt,aon_wdt}.h`，已排到基线 `-I` 之前 | ✅ 预处理逐条相同（25 + 16 条声明） |
+| 看门狗 / AON 看门狗 | `chips/bk7258/include/driver/{wdt,aon_wdt}.h`，芯片 include 根已排到基线之前 | ✅ 预处理逐条相同（25 + 16 条声明） |
 | 复位原因 / 重启 | `chips/bk7258/include/bk7258_reset_reason_api.h` | ✅ 与 `reset_reason.h`、`<components/system.h>` 同 TU 编译通过 |
 | 温度 / 电压 | 仍用 `temp_detect.h`、`volt_detect.h` | — |
 | GPIO HAL | 仍用 `gpio_hal.h` | — |
@@ -204,3 +205,8 @@ wdttest: raw_temp=557 (ret=0) stored_temp=27.0 (ret=0) stored_volt=1.0 (ret=0) i
 `build_version[] = __DATE__ " " __TIME__;`，所以**任何一次真正重编都会改变镜像哈希**。
 判断"改头没改行为"要看：43/26/27 个符号在镜像里的"在/不在"是否与基线一致、`nm -u` 是否为空、
 `static SRAM` 是否未变 —— 本次三项全部不变（287,224 B）。
+
+**命名原则（补记）：头与源文件的路径就是它替代的那个东西的路径。**
+不引入 `overrides/`、`_api` 这类只描述"迁移动作"的名字：`chips/bk7258/include/driver/wdt.h`
+就是 `driver/wdt.h`，`chips/bk7258/bk7258_wdt.c` 就是看门狗单元的实现。判据很简单 ——
+名字要能回答"它是什么"，而不是"它是怎么来的"。

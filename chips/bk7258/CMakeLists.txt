@@ -75,8 +75,7 @@ target_sources(arch PRIVATE ${SRCS})
 # created below it.  Kept as a variable so the aux libraries compile against
 # the same headers arch does.
 set(BK7258_CHIP_MODULE_INCLUDES
-    ${NUTTX_CHIP_ABS_DIR}/include
-    ${NUTTX_CHIP_ABS_DIR}/include/overrides)
+    ${NUTTX_CHIP_ABS_DIR}/include)
 
 target_include_directories(arch PRIVATE ${BK7258_CHIP_MODULE_INCLUDES})
 
