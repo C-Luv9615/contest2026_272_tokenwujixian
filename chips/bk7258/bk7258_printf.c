@@ -276,8 +276,13 @@ static void bk7258_prefix(char *prefix_str, int level, const char *tag)
       prefix_str[data_len] = 0;
     }
 
+  /* CONFIG_USEC_PER_TICK is 1000, i.e. one tick is one millisecond, which is
+   * the unit the authority's rtos_get_time() reports.  Dividing here would turn
+   * the field into seconds and break every historical log comparison.
+   */
+
   snprintf(&prefix_str[data_len], BK7258_MAX_INFO_LEN + 1,
-           g_level_format[level], clock_systime_ticks() / 1000);
+           g_level_format[level], (int)clock_systime_ticks());
 }
 
 static void bk7258_printf_ext_internal(int level, char *tag, const char *fmt,

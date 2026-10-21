@@ -283,7 +283,11 @@ int temp_detect_init(uint32_t init_val)
 
   /* The sensor value store must exist before the worker publishes into it. */
 
-  ret = (int)bk_sensor_init();
+  /* bk_sensor_init() is NOT called here: components_init.c:271 owns it in the
+   * baseline, and calling it again would re-read OTP and print the "uncali
+   * sdmadc value" line twice per boot.
+   */
+
   volt_daemon_init();
 
   flags = spin_lock_irqsave(&g_tempd.lock);
@@ -322,7 +326,6 @@ int temp_detect_deinit(void)
     }
 
   volt_daemon_deinit();
-  (void)bk_sensor_deinit();
 
   return BK_OK;
 }
