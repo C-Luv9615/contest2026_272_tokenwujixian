@@ -123,5 +123,9 @@ if(CONFIG_AUDIO_BK7258)
   add_subdirectory(audio)
 endif()
 
+if(CONFIG_BK7258_COMPONENT_CP)
+  add_subdirectory(temp_detect)
+endif()
+
 add_subdirectory(wifi_armino)
 add_subdirectory(wlan_ctrl)

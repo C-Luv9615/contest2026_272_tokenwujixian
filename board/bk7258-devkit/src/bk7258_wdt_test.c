@@ -51,7 +51,7 @@
 
 static void bk7258_wdttest_help(void)
 {
-  printf("usage: bk7258_wdttest peek|stop|feed|reset\n"
+  printf("usage: bk7258_wdttest peek|stop|feed|sensor|reset\n"
          "       bk7258_wdttest start <ms>\n"
          "       bk7258_wdttest reason <n>\n");
 }
@@ -104,6 +104,10 @@ int main(int argc, char *argv[])
              bk7258_wdt_test_setreason(
                (unsigned int)strtoul(argv[2], NULL, 0)));
       bk7258_wdt_test_peek();
+    }
+  else if (strcmp(argv[1], "sensor") == 0)
+    {
+      printf("bk7258_wdttest: sensor -> %d\n", bk7258_wdt_test_sensor());
     }
   else if (strcmp(argv[1], "reset") == 0)
     {

@@ -80,6 +80,13 @@
 #include "reset_reason.h"
 #include "wdt_driver.h"
 #include "bk_wdt.h"
+#include <math.h>
+#include <stdio.h>
+
+extern int temp_detect_get_temperature(uint32_t *temperature);
+extern bool temp_detect_is_init(void);
+bk_err_t bk_sensor_get_current_temperature(float *temperature);
+bk_err_t bk_sensor_get_current_voltage(float *voltage);
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -498,6 +505,28 @@ int bk7258_wdt_test_setreason(uint32_t reason)
 void bk7258_wdt_test_force_reset(void)
 {
   bk_wdt_force_reboot();
+}
+
+int bk7258_wdt_test_sensor(void)
+{
+  uint32_t temperature = 0;
+  float stored_t = 0.0f;
+  float stored_v = 0.0f;
+  int t_ret;
+  int v_ret;
+  int r_ret;
+
+  r_ret = temp_detect_get_temperature(&temperature);
+  t_ret = (int)bk_sensor_get_current_temperature(&stored_t);
+  v_ret = (int)bk_sensor_get_current_voltage(&stored_v);
+
+  printf("wdttest: raw_temp=%lu (ret=%d) stored_temp=%d.%01d (ret=%d) "
+         "stored_volt=%d.%01d (ret=%d) init=%d\n",
+         (unsigned long)temperature, r_ret,
+         (int)stored_t, (int)((stored_t - (int)stored_t) * 10.0f), t_ret,
+         (int)stored_v, (int)((stored_v - (int)stored_v) * 10.0f), v_ret,
+         (int)temp_detect_is_init());
+  return r_ret;
 }
 
 #endif /* CONFIG_BK7258_WDT_TEST */
