@@ -1,5 +1,5 @@
 /****************************************************************************
- * chips/bk7258/include/overrides/driver/wdt.h
+ * chips/bk7258/include/driver/wdt.h
  *
  * This file replaces cp/include/driver/wdt.h on the include path once the
  * preprocessing comparison (my_docs/bk7258-wifi/tools/header_equiv.py) shows
@@ -23,8 +23,8 @@
  *
  ****************************************************************************/
 
-#ifndef __CHIPS_BK7258_INCLUDE_OVERRIDES_DRIVER_WDT_H
-#define __CHIPS_BK7258_INCLUDE_OVERRIDES_DRIVER_WDT_H
+#ifndef __CHIPS_BK7258_INCLUDE_DRIVER_AON_WDT_H
+#define __CHIPS_BK7258_INCLUDE_DRIVER_AON_WDT_H
 
 /****************************************************************************
  * Included Files
@@ -40,7 +40,7 @@
  */
 
 #include <common/bk_include.h>
-#include <driver/wdt_types.h>
+#include <driver/aon_wdt_types.h>
 
 #ifdef __cplusplus
 extern "C"
@@ -50,24 +50,18 @@ extern "C"
 /****************************************************************************
  * Public Function Prototypes
  *
- * Same eight declarations as cp/include/driver/wdt.h:47-124, checked by
- * my_docs/bk7258-wifi/tools/header_equiv.py before this file took that path.
+ * Same six declarations as cp/include/driver/aon_wdt.h:42-91.
  ****************************************************************************/
 
-bk_err_t bk_wdt_driver_init(void);
-bk_err_t bk_wdt_driver_deinit(void);
-bk_err_t bk_wdt_start(uint32_t timeout_ms);
-
-/* The authority puts .itcm_sec_code on this declaration; keep it here. */
-
-__attribute__((section(".itcm_sec_code"))) bk_err_t bk_wdt_stop(void);
-bk_err_t bk_wdt_feed(void);
-uint32_t bk_wdt_get_feed_time(void);
-void bk_wdt_set_feed_time(uint32_t dw_set_time);
-bool bk_wdt_is_driver_inited(void);
+uint32_t bk_aon_wdt_get_period(void);
+bk_err_t bk_aon_wdt_set_period(uint32_t timeout_ms);
+bk_err_t bk_aon_wdt_stop(void);
+bk_err_t bk_aon_wdt_feed(void);
+uint32_t bk_aon_wdt_get_feed_time(void);
+bk_err_t bk_aon_wdt_set_feed_time(uint32_t feed_time);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* __CHIPS_BK7258_INCLUDE_OVERRIDES_DRIVER_WDT_H */
+#endif /* __CHIPS_BK7258_INCLUDE_DRIVER_AON_WDT_H */
