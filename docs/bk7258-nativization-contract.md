@@ -224,7 +224,7 @@ C 不允许两个不同的匿名结构体共用同一个 typedef 名，所以"�
 | 单元 | 符号数 | 行数 | 状态 |
 | --- | --- | --- | --- |
 | `middleware/soc/common/hal/uart_hal.c` | 10 | 156 | ✅ 已替换 |
-| `middleware/driver/uart/uart_driver.c` | 57 | 1754 | 待做 |
+| `middleware/driver/uart/uart_driver.c` | 57 | 1754 | 待做（契约表已建，见下） |
 
 ### 分层
 
@@ -267,3 +267,46 @@ C 不允许两个不同的匿名结构体共用同一个 typedef 名，所以"�
 - `uart_hal.c.o` 在 `nuttx.map` 里计数 **0**；
 - 镜像里 `uart_hal_*` 符号 **7 个，与基线完全相同**（其余 3 个在基线里也被 gc）；
 - `nm -u` 为 0；静态 SRAM 287,224 B（未变）；43 个 WDT/reset 符号面零差异。
+
+### uart_driver 的 57 个符号：契约表
+
+**它不是死代码。** `bk_uart_driver_init()` 在 `middleware/driver/common/driver.c` 里被调用，而且
+Armino 的日志通路就是它：
+
+```
+bk_printf / BK_LOGx  →  components/bk_system/printf.c + printf_base.c
+        →  bk_uart_write_byte / uart_write_string   ← uart_driver.c
+        →  uart_ll  →  寄存器
+```
+
+板上那些 `wifi:I(...)`、`wifi9d:I(...)`、`cal:W(...)` 行就是这么出来的，所以我们自己控制台的
+`/dev/console` 与它共用同一个 UART0 硬件。**移植错了会先丢日志，再丢控制台。**
+
+按调用者是否真在镜像里分组（`.o` 出现在 `nuttx.map` 才算）：
+
+| 组 | 符号（节选） | 镜像内调用者 |
+| --- | --- | --- |
+| **主路径**（初始化/配置/读写） | `bk_uart_driver_init/deinit`、`bk_uart_init/deinit`、`bk_uart_set_baud_rate/data_bits/parity/stop_bits`、`bk_uart_set_enable_rx/tx`、`bk_uart_read_bytes`、`bk_uart_write_bytes`、`bk_uart_wait_tx_over`、`bk_uart_is_tx_over`、`uart_write_byte`、`uart_write_string` | `driver.c`、`printf_base.c`、`printf.c`、`command_line.c` |
+| **中断面** | `bk_uart_register_rx_isr/tx_isr`、`bk_uart_take_rx_isr`、`bk_uart_recover_rx_isr`、`bk_uart_enable_rx/tx_interrupt`、`bk_uart_disable_rx/tx_interrupt`、`uart0/1/2_isr`、`uart_get_interrupt_status`、`uart_get_int_enable_status`、`uart_clear_interrupt_status` | `cli_main.c`、`shell_task.c` |
+| **FIFO / 软 FIFO** | `bk_uart_enable_sw_fifo`、`bk_uart_disable_sw_fifo`、`uart_get_length_in_buffer`、`bk_uart_set_rx_full_threshold`、`bk_uart_set_tx_empty_threshold`、`bk_uart_set_rx_timeout` | `cli_main.c`、`cli_uart.c`（后者不在镜像里） |
+| **PM 钩子** | `bk_uart_pm_backup`、`bk_uart_pm_restore`、`uart_id_to_pm_uart_id` | `shell_task.c`、`at_task.c`；前两者在本构建里是 `return BK_OK` 空壳（`CONFIG_UART_PM_CB_SUPPORT` 未定义，反汇编已证） |
+| **ATE / FR 旁路** | `uart_write_byte_for_ate`、`uart_write_byte_for_fr`、`bk_uart_get_ate_detect_gpio`、`bk_uart_get_rx_gpio` | `ate.c`、`at_task.c` |
+| **DMA** | `bk_uart_is_rx_dma_enabled` | 无外部调用者 |
+| **杂项** | `bk_uart_disable_rx/tx`、`bk_uart_disable_hw_flow_ctrl`、`bk_uart_set_hw_flow_ctrl`、`bk_uart_is_in_used`、`uart_read_byte`、`uart_read_byte_ex`、`uart_read_ready`、`uart_write_ready`、`uart_clock_enable/disable`、`uart_wait_tx_over`、`print_hex_dump` | `print_hex_dump` 被 wpa 的 `ctrl_iface.c` 用；其余无外部调用者 |
+
+必须保留的语义要点（实现时逐条对）：
+
+1. **`bk_uart_driver_init()` 幂等**，首次调用时初始化 ISR 表、统计并从 `bk_printf_init()` 起日志通路；
+2. `bk_uart_init()` 通过 `uart_hal_init_uart()` 下发配置，`bk_uart_deinit()` 走 `uart_hal_stop_common()`；
+3. **TX 阻塞语义**：`bk_uart_write_bytes()` 与 `bk_uart_wait_tx_over()`/`bk_uart_is_tx_over()` 的"等 FIFO 空"判据要一致（日志行不能截断）；
+4. **ISR 注册表**：`bk_uart_register_rx_isr(id, fn, arg)` 的回调签名与调用上下文（中断里、不清中断状态由驱动做）；
+5. **软 FIFO**：`enable_sw_fifo` 之后 `uart_get_length_in_buffer()` 的读数语义；
+6. **ATE 旁路**：`uart_write_byte_for_ate/for_fr` 用的不是同一个写路径（历史遗留），别合并；
+7. `print_hex_dump` 是 wpa 的调试输出，输出格式（每行字节数、前缀）必须一致。
+
+### uart_driver 的实施顺序（每段独立可回滚）
+
+1. 主路径 + 中断面（日志与控制台必需）；
+2. FIFO/软 FIFO + 杂项；
+3. DMA / ATE / FR / PM 空壳；
+4. 全 57 个到位后，`uart_driver.c` 从 `excluded_units` 出局。
