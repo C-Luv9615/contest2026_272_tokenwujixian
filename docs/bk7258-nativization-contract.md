@@ -19,11 +19,16 @@
    - `.c`：NuttX 风格（2 空格、`/* */`、花括号独占行、`#include <nuttx/config.h>` 在最前）；
    - `.h`：我们替换掉的单元，其**对外契约头也归我们**，放在 `chips/bk7258/include/`，
      用 NutxX 的 include guard 和排版；
-   - 头文件只产生声明、不产生代码，所以"两边是否一致"可以在**编译期**证明，不需要工具、不需要运行：
-     `chips/bk7258/bk7258_api_abi.c` 同时包含权威头与我们的头，**声明只要有一处不同就编不过**
-     （返回类型、参数类型、结构体、枚举值都一样适用）；
-   - 内部 HAL 类型（`wdt_hal_t`、`gpio_hw_t`…）不在覆盖范围：它们是该单元的实现细节，
-     从未进入基线调用者与闭源库看到的接口面。
+   - 头文件只产生声明、不产生代码，所以"两边是否一致"用**预处理结果**证明，不需要新增 `.c`：
+     用同一套编译参数分别预处理「只 include 权威头」和「只 include 我们的头」两个极小 TU，
+     抽出涉及目标符号的声明行逐条比对（工具：`my_docs/bk7258-wifi/tools/header_equiv.py`，仓库外）；
+   - 比对为**逐条相同**后，把我们的头放到与权威头相同的相对路径下
+     （`chips/bk7258/include/overrides/`），并在 CMake 里把该目录排在基线 `-I` 之前 ——
+     这才是"替换"，不是转发层：声明在我们文件里，权威头只是不再被先搜索到；
+   - 头必须**按路径一对一替换**：`driver/wdt.h` 只放 `driver/wdt.h` 的内容、`driver/aon_wdt.h`
+     只放它的内容。把两个面合并进一个头会让所有 include 点的可见声明集合变大，属于契约变更；
+   - 内部 HAL 类型（`wdt_hal_t`、`gpio_hw_t`…）与私有头（`bk_wdt.h`、`wdt_driver.h`）暂不接管：
+     它们是实现细节，且私有头没有"公共路径"可替换。
 
 ## 机械验收命令
 
@@ -187,9 +192,15 @@ wdttest: raw_temp=557 (ret=0) stored_temp=27.0 (ret=0) stored_volt=1.0 (ret=0) i
 
 | 单元 | 我们的头 | ABI 检查 |
 | --- | --- | --- |
-| 看门狗 / AON 看门狗 | `chips/bk7258/include/bk7258_wdt_api.h` | ✅ 与 `<driver/wdt.h>`、`<driver/aon_wdt.h>`、`bk_wdt.h` 同 TU 编译通过 |
+| 看门狗 / AON 看门狗 | `chips/bk7258/include/overrides/driver/{wdt,aon_wdt}.h`，已排到基线 `-I` 之前 | ✅ 预处理逐条相同（25 + 16 条声明） |
 | 复位原因 / 重启 | `chips/bk7258/include/bk7258_reset_reason_api.h` | ✅ 与 `reset_reason.h`、`<components/system.h>` 同 TU 编译通过 |
 | 温度 / 电压 | 仍用 `temp_detect.h`、`volt_detect.h` | — |
 | GPIO HAL | 仍用 `gpio_hal.h` | — |
 
 切换前后 43 个符号在镜像里的"在/不在"与基线**零差异**，`nm -u` 为 0，静态 SRAM 未变。
+
+**一条方法学补充：镜像哈希不能当作"行为未变"的证明。**
+`chips/bk7258/wifi_armino/bk7258_armino_start.c:56` 里
+`build_version[] = __DATE__ " " __TIME__;`，所以**任何一次真正重编都会改变镜像哈希**。
+判断"改头没改行为"要看：43/26/27 个符号在镜像里的"在/不在"是否与基线一致、`nm -u` 是否为空、
+`static SRAM` 是否未变 —— 本次三项全部不变（287,224 B）。

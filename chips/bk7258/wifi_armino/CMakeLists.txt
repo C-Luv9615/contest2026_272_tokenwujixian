@@ -262,6 +262,12 @@ if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
       list(APPEND fields -DPBUF_POOL_FREE_OOSEQ=0
            -include ${CMAKE_CURRENT_SOURCE_DIR}/compat/bk7258_lwip_compat.h)
     endif()
+    # Header overrides come first: a nativized header sits at the same
+    # relative path as the baseline one (chips/bk7258/include/overrides/) and
+    # is only moved there after the preprocessing comparison shows the two
+    # declare the same contract.  Insert into the list, never into a joined
+    # string -- the fields below are still processed as a list elsewhere.
+    list(INSERT fields 0 "-I${NUTTX_CHIP_ABS_DIR}/include/overrides")
     set(flags_${comp} "${fields}")
   endforeach()
 

@@ -86,8 +86,10 @@
 #include "wdt_hal.h"
 #include "aon_wdt_hal.h"
 #include "wdt_driver.h"
+#include "bk_wdt.h"
 #include "aon_wdt_driver.h"
-#include "bk7258_wdt_api.h"
+#include <driver/wdt.h>
+#include <driver/aon_wdt.h>
 #include "reset_reason.h"
 #include "aon_pmu_driver.h"
 #include "sys_driver.h"
