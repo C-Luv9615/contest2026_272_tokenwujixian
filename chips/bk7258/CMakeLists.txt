@@ -63,7 +63,8 @@ else()
        bk7258_wdt.c
        bk7258_reset_reason.c
        bk7258_gpio_hal.c
-       bk7258_uart_hal.c)
+       bk7258_uart_hal.c
+       bk7258_printf.c)
 
   if(CONFIG_BK7258_PSRAM)
     list(APPEND SRCS bk7258_psram.c)
@@ -108,6 +109,7 @@ if(CONFIG_BK7258_COMPONENT_CP)
                              ${NUTTX_CHIP_ABS_DIR}/armino_baseline/cp/middleware/driver/reset_reason
                              ${NUTTX_CHIP_ABS_DIR}/armino_baseline/cp/middleware/arch/cm33/include
                              ${NUTTX_CHIP_ABS_DIR}/armino_baseline/cp/components/bk_common/include
+                             ${NUTTX_CHIP_ABS_DIR}/armino_baseline/cp/components/bk_system
                              ${NUTTX_CHIP_ABS_DIR}/pm/nuttx_port/include
                              ${NUTTX_CHIP_ABS_DIR}/armino_baseline/projects/wifi/iperf/cp/config/bk7258
                              ${NUTTX_CHIP_ABS_DIR}/armino_baseline/build/bk7258/iperf/bk7258/config)

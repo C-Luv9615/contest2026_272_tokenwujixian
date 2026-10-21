@@ -310,3 +310,53 @@ bk_printf / BK_LOGx  →  components/bk_system/printf.c + printf_base.c
 2. FIFO/软 FIFO + 杂项；
 3. DMA / ATE / FR / PM 空壳；
 4. 全 57 个到位后，`uart_driver.c` 从 `excluded_units` 出局。
+
+---
+
+## 批次 5：日志传输（`printf.c` + `printf_base.c`）
+
+26 个符号（`printf.c` 20 + `printf_base.c` 6），落在 `chips/bk7258/bk7258_printf.c`。
+
+### 为什么从这一层动手
+
+`BK_LOGx` 展开成 `bk_printf_ext(level, tag, fmt, ...)`，而**两个闭源库也直接调它**
+（`libwifi.a` 引用 `bk_printf_ext`/`bk_printf_raw`；`libbk_phy.a` 另加 `bk_get/set_printf_sync`）。
+所以这一层是**所有厂商日志的唯一入口**，包括闭源库内部的日志。
+
+原链路（`CONFIG_SHELL_ASYNCLOG=1`）：
+
+```
+BK_LOGx → bk_printf_ext → printf.c 组前缀 → shell_log_out_port（bk_cli 环形缓冲）
+        → shell_log_flush → bk_uart_write_bytes → uart_driver → uart_ll
+```
+
+新链路：
+
+```
+BK_LOGx → bk_printf_ext（我们的）→ 组同样的前缀 → syslog()
+```
+
+于是：日志通道收敛到 NuttX；`printf.c`/`printf_base.c` 出局；**`uart_driver` 不再是日志的必经之路**。
+
+### 保住了什么
+
+- 线上格式不变：`[cpu0:][tag:]E|W|I|D|V(ms):`（历史日志可比）；
+- 级别过滤、按模块禁用与白名单（`bk_disable_mod_printf`/`bk_enable_white_list`/`bk_white_list_state`）、
+  `bk_set_printf_enable`、`bk_set/get_printf_sync`、`CONFIG_PRINTF_BUF_SIZE`（256）截断；
+- `printf_is_init` 门控、`bk_printf_deinit` 里 `printf_lock_deinit()` 的调用顺序。
+
+### 有意改变的一处
+
+`bk_printf_init()` **不再调用 `bk_uart_init()`**。UART0 归 NuttX 控制台驱动（`bk7258_uart.c`），
+日志层再去初始化一次会把控制台的端口重新编程。`bk_get/set_printf_port()` 仍记录端口号（API 语义），
+但不再触碰硬件。
+
+### 验收
+
+- 26/26 导出符号（旧集合 ⊆ 新集合）；`printf.c.o`/`printf_base.c.o` 在 map 里计数 **0**；
+- `nm -u` 为 0；静态 SRAM 287,136 B（比替换前少 88 B）；
+- 43 个 WDT/reset 符号面零差异；
+- **一处镜像差异**：`printf_lock_deinit` 不在镜像里（导出仍在 `.o` 里）。原因是它函数体无副作用，
+  GCC 把唯一调用优化掉后符号被收集；基线里它活着只是因为那次调用跨 TU、编译器无法判定。
+  不为一个 map 条目添加假的副作用。
+- 待上板：日志仍按要求格式出现、控制台正常。
