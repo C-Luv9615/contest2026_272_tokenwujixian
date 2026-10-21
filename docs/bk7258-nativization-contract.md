@@ -142,7 +142,7 @@ wdttest: raw_temp=557 (ret=0) stored_temp=27.0 (ret=0) stored_volt=1.0 (ret=0) i
 ### 与基线不同的两处（已确认、已记录）
 
 1. **daemon 形态**：基线是“Beken 定时器 + 消息队列 + daemon 任务”，本移植是**自调度的 LPWORK worker**。因此 `temp_detect_send_msg()` 在 post 点就地执行，返回值语义保持（0 = 接受，`BK_FAIL` = 未建立）。
-2. **3 个符号被 gc**：`temp_detect_send_msg`、`volt_daemon_restart`、`volt_daemon_stop` 在基线镜像里活着，只因为它们被 daemon 的消息分发引用；我们没有消息队列，所以它们没有引用者。**符号仍然全量提供**（26/26），只是镜像里被丢弃；另有 `bk_sensor_deinit`、`temp_detect_start` 反过来因我们的 init/deinit 路径进入了镜像。
+2. **3 个符号被 gc**：`temp_detect_send_msg`、`volt_daemon_restart`、`volt_daemon_stop` 在基线镜像里活着，只因为它们被 daemon 的消息分发引用；我们没有消息队列，所以它们没有引用者。**符号仍然全量提供**（26/26），只是镜像里被丢弃；反过来 `temp_detect_start` 因我们的 `volt_daemon_init()` 调用进入了镜像（基线里它没有引用者）。
 
 ### 编译期坑：两个 ADC 头文件家族不能进同一个 TU
 
@@ -356,6 +356,9 @@ BK_LOGx → bk_printf_ext（我们的）→ 组同样的前缀 → syslog()
 - 26/26 导出符号（旧集合 ⊆ 新集合）；`printf.c.o`/`printf_base.c.o` 在 map 里计数 **0**；
 - `nm -u` 为 0；静态 SRAM 287,136 B（比替换前少 88 B）；
 - 43 个 WDT/reset 符号面零差异；
+- 上板后发现并修掉两处：前缀时间戳单位（`CONFIG_USEC_PER_TICK=1000`，tick 即毫秒，初版误除成秒）与
+  `bk_sensor_init()` 重复调用（`components_init.c:271` 已拥有，我们在 `temp_detect_init` 里又调了一次，
+  导致 `uncali sdmadc value` 每次启动打印两遍）；
 - **一处镜像差异**：`printf_lock_deinit` 不在镜像里（导出仍在 `.o` 里）。原因是它函数体无副作用，
   GCC 把唯一调用优化掉后符号被收集；基线里它活着只是因为那次调用跨 TU、编译器无法判定。
   不为一个 map 条目添加假的副作用。
