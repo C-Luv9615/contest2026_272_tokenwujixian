@@ -59,6 +59,17 @@ extern "C"
 
 void bk7258_chip_reset(bool enter_bootloader);
 
+/* Reset-reason symbols the authority never declared anywhere: the cp-domain
+ * setter and the persist-memory trio were plain globals in reset_reason.c.
+ * Their behaviour is unchanged; only the missing prototype is added here,
+ * because they are part of the export set we took over.
+ */
+
+void bk_misc_set_cp_reset_reason(uint32_t type);
+void persist_memory_init(void);
+uint32_t persist_memory_get(void);
+bool persist_memory_is_lost(void);
+
 /****************************************************************************
  * Test hooks (CONFIG_BK7258_WDT_TEST)
  *

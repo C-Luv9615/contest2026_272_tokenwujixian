@@ -1,5 +1,5 @@
 /****************************************************************************
- * chips/bk7258/include/bk7258_reset_reason_api.h
+ * chips/bk7258/include/reset_reason.h
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -18,8 +18,8 @@
  *
  ****************************************************************************/
 
-#ifndef __CHIPS_BK7258_INCLUDE_BK7258_RESET_REASON_API_H
-#define __CHIPS_BK7258_INCLUDE_BK7258_RESET_REASON_API_H
+#ifndef __CHIPS_BK7258_INCLUDE_RESET_REASON_H
+#define __CHIPS_BK7258_INCLUDE_RESET_REASON_H
 
 /****************************************************************************
  * Included Files
@@ -27,7 +27,6 @@
 
 #include <nuttx/config.h>
 
-#include <stdbool.h>
 #include <stdint.h>
 
 #include "sdkconfig.h"
@@ -39,15 +38,11 @@ extern "C"
 {
 #endif
 
-/****************************************************************************
- * Pre-processor Definitions
- *
- * Provenance: cp/middleware/driver/reset_reason/reset_reason.h:25-67.
- * The values are load-bearing across a chip reset -- the AON PMU survives it,
- * so the reason written here is what the ROM/BL2 reads to classify the next
- * boot.  chips/bk7258/bk7258_api_abi.c includes this header and the
- * authority's together, so any drift is a build error.
- ****************************************************************************/
+/* Addresses that are load-bearing across a chip reset: the AON PMU survives
+ * it, so what is written here is what the ROM/BL2 reads to classify the next
+ * boot.  Same values as
+ * cp/middleware/driver/reset_reason/reset_reason.h:25-67.
+ */
 
 #if (CONFIG_SOC_BK7236XX) || (CONFIG_SOC_BK7239XX)
 #  define START_TYPE_ADDR      (SOC_AON_PMU_REG_BASE + (3 << 2))
@@ -82,11 +77,6 @@ extern "C"
  * Public Function Prototypes
  ****************************************************************************/
 
-/* The reset reason, latched once by reset_reason_init() and read back
- * through bk_misc_get_reset_reason() in the reset-reason face (that one is
- * declared in bk7258_reset_reason.h because it is a separate symbol).
- */
-
 void show_reset_reason(void);
 uint32_t reset_reason_init(void);
 
@@ -96,34 +86,8 @@ void set_reboot_tag(uint32_t tag);
 uint32_t get_reboot_tag(void);
 void set_nmi_vector(void);
 
-/* Reset reason, as the rest of the system reads and writes it.  The authority
- * declares these in cp/include/components/system.h:165-170 (and never
- * declared the cp-domain setter or the persist-memory trio at all); the enum
- * RESET_SOURCE_* stays in that header, we do not own it.
- */
-
-uint32_t bk_misc_get_reset_reason(void);
-void bk_misc_set_reset_reason(uint32_t type);
-uint32_t bk_misc_get_cp_reset_reason(void);
-uint32_t bk_misc_get_ap_reset_reason(void);
-void bk_misc_set_cp_reset_reason(uint32_t type);
-void bk_misc_set_ap_reset_reason(uint32_t type);
-
-/* Persist memory: a fixed address that survives a watchdog reset and is the
- * baseline's "did we lose the last crash" marker.
- */
-
-void persist_memory_init(void);
-uint32_t persist_memory_get(void);
-bool persist_memory_is_lost(void);
-
-/* Reboot, which records a reason and then resets through the AON WDT. */
-
-void bk_reboot(void);
-void bk_reboot_ex(uint32_t reset_reason);
-
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* __CHIPS_BK7258_INCLUDE_BK7258_RESET_REASON_API_H */
+#endif /* __CHIPS_BK7258_INCLUDE_RESET_REASON_H */
