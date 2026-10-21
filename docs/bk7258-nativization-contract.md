@@ -366,10 +366,17 @@ BK_LOGx → bk_printf_ext（我们的）→ 组同样的前缀 → syslog()
 
 ### uart_driver 移植工作表（源码已通读，实现未开始）
 
-**本构建实际编译的部分**（配置决定）：`CONFIG_UART_RX_DMA` / `TX_DMA` 未定义 ⇒ 所有 DMA 路径不编译；
-`CONFIG_UART_PM_CB_SUPPORT` 未定义 ⇒ `pm_backup/restore` 是两个 `return BK_OK`；
+**本构建实际编译的部分**（用于估算工作量，**不是裁剪依据**）：`CONFIG_UART_RX_DMA` / `TX_DMA` 未定义 ⇒
+DMA 路径不编译；`CONFIG_UART_PM_CB_SUPPORT` 未定义 ⇒ `pm_backup/restore` 是两个 `return BK_OK`；
 `CONFIG_UART0_FLOW_CTRL` 未定义 ⇒ `uart_init_gpio` 的流控分支不编译；`CFG_CLI_DEBUG` 未定义；
 `CONFIG_SPE=1` ⇒ `UART_CHECK_SECURE()`（`DEV_IS_SECURE()` 断言）保留。
+
+**但实现必须 follow 配置，不按当前配置裁剪。** 权威里的 `#if CONFIG_UART_RX_DMA` / `CONFIG_UART_TX_DMA` /
+`CONFIG_UART_PM_CB_SUPPORT` / `CONFIG_UART0_FLOW_CTRL` / `CFG_CLI_DEBUG` 分支要**原样保留**（连同 DMA 辅助函数、
+`uart_id_to_dma_dev`、`uart_rx_dma_read_fifo_frame` 等），当前不编译只是当前配置的结果。
+理由与 `bk7258_wdt.c` 保留 `CONFIG_INT_AON_WDT` 段、`bk7258_printf.c` 保留
+`CONFIG_SYS_PRINT_DEV_MAILBOX` 分支一致：打开某个配置组合时不能撞到"缺实现"。
+按当前配置裁剪等于把契约面从 57 个符号扩成"57 个符号 + 若干配置组合"，属于隐藏的契约退让。
 
 **镜像里真正是活的只有 7 个符号**（`nuttx.map` 实测）：`bk_uart_driver_init`、`uart_id_to_pm_uart_id`、
 `bk_uart_pm_backup/restore`（空壳）、`bk_uart_get_rx_gpio`、`bk_uart_get_ate_detect_gpio`、`uart_wait_tx_over`。
