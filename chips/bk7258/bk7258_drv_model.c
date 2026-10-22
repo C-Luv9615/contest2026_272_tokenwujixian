@@ -348,4 +348,96 @@ UINT32 ddev_unregister_dev(DD_HANDLE handle)
   return DRV_SUCCESS;
 }
 
+/****************************************************************************
+ * Probe hook (see bk7258_probe.h)
+ ****************************************************************************/
+
+#include <stdio.h>
+
+#include "bk7258_probe.h"
+
+/* Walk the table the way a driver would: build handles, check them, register a
+ * device, dispatch through it, unregister.  The return codes are the contract
+ * (DRV_SUCCESS / DRV_FAILURE / DD_ID_UNVALID), so printing them says whether the
+ * table logic is doing what the code says, which a clean boot cannot show.
+ */
+
+static DD_OPERATIONS s_probe_ops;
+static int s_probe_open_calls;
+static int s_probe_control_calls;
+static uint32_t s_probe_last_cmd;
+
+static UINT32 probe_open(UINT32 op_flag)
+{
+  (void)op_flag;
+  s_probe_open_calls++;
+  return DRV_SUCCESS;
+}
+
+static UINT32 probe_control(UINT32 cmd, void *param)
+{
+  (void)param;
+  s_probe_control_calls++;
+  s_probe_last_cmd = cmd;
+  return DRV_SUCCESS;
+}
+
+void bk7258_drv_model_probe(void)
+{
+  /* ddev_make_handle() takes the table index, so the device type has to go
+   * through ddev_get_id_from_handle() first -- handing it the enum value
+   * (0xA5A50000 + idx) is out of range and comes back DD_HANDLE_UNVALID.
+   */
+
+  UINT32 uart1_id = ddev_get_id_from_handle(DD_DEV_TYPE_UART1);
+  DD_HANDLE good = ddev_make_handle(uart1_id);
+  DD_HANDLE bad = ddev_make_handle(DD_MAX_DEV);
+  DD_HANDLE raw = DD_DEV_TYPE_UART1;  /* the type's own magic is already right */
+  UINT32 status = 0;
+  UINT32 opened;
+  UINT32 closed;
+  UINT32 registered;
+  UINT32 unregistered;
+
+  drv_model_init();
+
+  printf("model: id_of(UART1)=%lu make(id)=0x%lx make(DD_MAX_DEV)=0x%lx "
+         "(DD_MAX_DEV=%lu DD_HANDLE_UNVALID=0x%lx)\n",
+         (unsigned long)uart1_id, (unsigned long)good, (unsigned long)bad,
+         (unsigned long)DD_MAX_DEV, (unsigned long)DD_HANDLE_UNVALID);
+  printf("model: check(good)=%lu check(bad)=%lu check(raw)=%lu\n",
+         (unsigned long)ddev_check_handle(good),
+         (unsigned long)ddev_check_handle(bad),
+         (unsigned long)ddev_check_handle(raw));
+  printf("model: id(good)=%lu id(raw)=%lu (DD_ID_UNVALID=%lu)\n",
+         (unsigned long)ddev_get_id_from_handle(good),
+         (unsigned long)ddev_get_id_from_handle(raw),
+         (unsigned long)DD_ID_UNVALID);
+
+  /* Dispatching to an unregistered slot must fail, not crash. */
+
+  printf("model: control(before register)=%lu\n",
+         (unsigned long)ddev_control(good, 0x1234, NULL));
+
+  s_probe_ops.open = probe_open;
+  s_probe_ops.control = probe_control;
+
+  registered = ddev_register_dev(good, &s_probe_ops);
+  opened = ddev_open(DD_DEV_TYPE_UART1, &status, 0);
+  (void)ddev_control(good, 0x5678, NULL);
+  closed = ddev_close(good);
+  unregistered = ddev_unregister_dev(good);
+
+  printf("model: register=%lu open_status=%lu open_handle=0x%lx "
+         "open_calls=%d control_calls=%d last_cmd=0x%lx\n",
+         (unsigned long)registered, (unsigned long)status,
+         (unsigned long)opened, s_probe_open_calls, s_probe_control_calls,
+         (unsigned long)s_probe_last_cmd);
+  printf("model: close=%lu unregister=%lu dispatch(after)=%lu\n",
+         (unsigned long)closed, (unsigned long)unregistered,
+         (unsigned long)ddev_control(good, 0x9999, NULL));
+
+  drv_model_init();  /* leave the table as boot left it */
+}
+
 #endif /* !CONFIG_BK7258_COMPONENT_AP */

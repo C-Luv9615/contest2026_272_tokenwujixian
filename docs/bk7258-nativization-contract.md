@@ -717,3 +717,66 @@ arch 目标原先不含 CMSIS。
 批次 9–11 合并上板（镜像 `383fb680…`）：启动序列与批次 7/8 逐行一致（`psram init ok`、`EasyFlash success`、
 `wifi inited(1) ret(0)`、AP `scheduler-running`），`wapi` 关联 → DHCP `192.168.110.166`，
 `ping www.baidu.com` **10/10，21–38 ms**。CLI 批之后 `BK STA got ip4` 那一行不再出现，与此前记录一致。
+
+---
+
+## 批次 12：`trap_base`（异常与 dump 核心，22 个符号，864 行）
+
+`middleware/arch/cm33/trap_base.c` → `chips/bk7258/bk7258_trap_base.c`。
+
+这个单元只在其它东西都失效时才运行，所以它的结构由"此刻还能信什么"决定：不用锁、不用分配器、不用
+日志队列；输出走 `emergency_uart_putc()` 直写 FIFO 寄存器，用有界自旋等"FIFO 满"位。CP 与 AP 不能
+同时 dump——所有权是共享 SRAM 固定区（`FIXED_ADDR_*`，`ram_regions.h` → `CONFIG_PWR_MNG_ADDR+32..52`）
+里的 Peterson 锁加首尾魔数：先到者封区、拿锁、dump、直接重启且不释放；后到者在 `wfe()` 里永久等待。
+区域损坏则 `shared_repair()` 重封；连重封都失败才走兜底（写 `EXCEPTION_DUMPER`，读不回来自己 id 的
+那个永久等待）。六个 `s_cpuN_int_*_en_value` 快照先读各核中断使能寄存器再清零，让 dump 看到故障时刻
+的状态。
+
+关闭的分支全部保留：`CONFIG_MEMDUMP_ALL`（外设与 SRAM 全 dump）、`CONFIG_DEBUG_VERSION` /
+`CONFIG_DUMP_ENABLE`（整个 `rtos_dump_system` 体）、`CONFIG_AP_PSRAM_HEAP_*`、
+`CONFIG_AON_PMU_REG0_REFACTOR_DEV`，以及只在 `CONFIG_SOC_BK7236XX` 下编译的寄存器窗口。
+
+### 两个编译期陷阱
+
+1. **`-fsigned-char`**。权威整棵 Armino 树带这个开关。缺了它，`emergency_uart_write_string()` 里
+   `*string` 从 `ldrsb.w`（带符号加载）变成 `ldrb`——字节 ≥0x80 时进 FIFO 的值不同。
+   `set_source_files_properties()` **不生效**：`arch` 目标是在 `arch/arm/src` 创建的，源文件属性受
+   目录作用域限制。正解是 `set_property(SOURCE … TARGET_DIRECTORY arch PROPERTY COMPILE_OPTIONS
+   "-fsigned-char")`。**规则：移植涉及 `char` 值的 Armino 单元必须带上基线的 `-fsigned-char`。**
+2. **`cm_backtrace.h`** 会拉进 `cmb_def.h` → `FreeRTOS.h`（不该进 chip 层 TU），本文件只用了一个原型，
+   改成按 `cm_backtrace.h:43` 的签名本地声明。
+
+### 验收
+
+| 项 | 结果 |
+| --- | --- |
+| 导出符号 | **22 / 22** |
+| 指令 + 重定位 | **21 / 22 逐条相同** |
+| 唯一差异 | `bk_null_trap_handler` 里 `BK_ASSERT(0)` 的 `__LINE__`（860→912），行号固有 |
+| `trap_base.c.o` 在 map | **0** |
+| 13 个活符号 | 全在；`g_wdt_handler_lr` 与 6 个快照在 `.bss` |
+| `nm -u` | 0 |
+| `.text` | 1,003,348 → 1,003,356 B |
+
+### 上板（探针，镜像 `aa0c6332…`）
+
+探针 `bk7258_drvtest trap` 走完整环路：封区 → 抢 Peterson 锁（内部 `__disable_irq()`）→ 读回所有权
+→ 重新封区 → 恢复中断 → 直写 UART。连跑两次结果相同，证明可重复、不留残留：
+
+```
+trap: lock -> enter=1 ap=0; after repair -> enter=0trap: data_addr_is_valid(sram+0x100,+0x200)=1 data_addr_is_valid(0,32)=0
+trap: int_en snapshots cpu0=00000000/00000000 cpu1=…/… cpu2=…/…
+trap: emergency uart path ok
+trap: done (interrupts restored, shared area re-sealed)
+```
+
+### 探针本身的 bug（已修，值得记）
+
+第一版探针用 `up_irq_save()/up_irq_restore()` 包住 `arch_set_enter_exception()`，结果**整块板子带着
+`PRIMASK=1` 继续跑**，随后 HardFault。原因：**这个 port 的 `up_irq_save/restore` 走 BASEPRI
+（`mrs/mrs BASEPRI`，掩码 0x80），而 `__disable_irq()` 走 PRIMASK**，两套掩码互不相干，restore 归还不了
+PRIMASK。改成 `getprimask()/setprimask()` 后正常。
+
+真实调用者不受影响：`user_except_handler()` 以 `bk_reboot_ex()` 结束、从不返回，所以权威那个
+`__disable_irq()` 不需要归还——**只有"跑完还要继续用板子"的探针才会把它暴露成故障**。教训：
+在这个 port 里混用 `up_irq_save` 与 `__disable_irq` 会漏掉一个掩码。

@@ -152,6 +152,13 @@ if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
       # #if gates.  Both bodies are byte-identical to this unit's, including
       # the local PSRAM bring-up the baseline already carried here.
       cp/middleware/driver/common/driver.c
+      # The exception and dump core: chips/bk7258/bk7258_trap_base.c provides
+      # the same 22 symbols -- the Peterson lock in the shared SRAM area, the
+      # per-core interrupt-enable snapshots, the emergency UART writer and the
+      # assert/crash dump paths.  Every body is carried with its #if gates;
+      # it is compiled with the baseline's -fsigned-char so the char handling
+      # matches too.
+      cp/middleware/arch/cm33/trap_base.c
       # The CM33 core face: chips/bk7258/bk7258_arm.c provides the same 9
       # symbols (arch_init/smem_reset_lastblock are empty in the authority and
       # stay empty; the rest is the WFI, NVIC-pending and LDREX/STREX set).

@@ -36,6 +36,20 @@ extern "C"
 
 void bk7258_uart_probe(void);
 
+/* Exercise the exception bookkeeping (lock, ownership read, repair, the direct
+ * UART writer) without faulting, and print what each step returned.  Evidence
+ * for the trap_base replacement, not a feature.
+ */
+
+void bk7258_trap_probe(void);
+
+/* Walk the device-model table: handle encoding, the magic-word check, a
+ * register/dispatch/close/unregister round trip, and the failure code an
+ * unregistered slot returns.
+ */
+
+void bk7258_drv_model_probe(void);
+
 #ifdef __cplusplus
 }
 #endif

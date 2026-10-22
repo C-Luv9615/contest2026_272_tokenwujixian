@@ -71,12 +71,26 @@ else()
        bk7258_driver.c
        bk7258_drv_model.c
        bk7258_arm.c
+       bk7258_trap_base.c
        bk7258_sys_audio_driver.c
        bk7258_printf.c)
 
   if(CONFIG_BK7258_PSRAM)
     list(APPEND SRCS bk7258_psram.c)
   endif()
+endif()
+
+# The Armino baseline is compiled with -fsigned-char (its manifest sets it for
+# every unit), so a port that handles char values must be too or it is not the
+# same code: bk7258_trap_base.c's emergency_uart_write_string() turns
+# ldrsb.w into ldrb without it, which changes what the UART FIFO write gets for
+# bytes >= 0x80.  NuttX-side files are deliberately not touched.
+if(CONFIG_BK7258_COMPONENT_CP)
+  # TARGET_DIRECTORY: `arch` is created in arch/arm/src, and a source-file
+  # property set here only reaches a target created in this directory
+  # otherwise.
+  set_property(SOURCE bk7258_trap_base.c TARGET_DIRECTORY arch
+               PROPERTY COMPILE_OPTIONS "-fsigned-char")
 endif()
 
 target_sources(arch PRIVATE ${SRCS})
@@ -132,6 +146,11 @@ if(CONFIG_BK7258_COMPONENT_CP)
                              # authority signatures from dd_pub.h and
                              # drv_model.h in this directory.
                              ${NUTTX_CHIP_ABS_DIR}/armino_baseline/cp/middleware/driver/common
+                             # bk7258_trap_base.c is the exception/dump core:
+                             # cm_backtrace_fault() and the rtos_dump_*
+                             # helpers it calls come from these two components.
+                             ${NUTTX_CHIP_ABS_DIR}/armino_baseline/cp/components/coredump/cm_backtrace
+                             ${NUTTX_CHIP_ABS_DIR}/armino_baseline/cp/components/bk_rtos/include
                              # bk7258_arm.c is the Armino CM33 core face and
                              # keeps the authority's bodies: SCB, the CMSIS
                              # atomics (__LDAEX/__STREXW/__STL) and
