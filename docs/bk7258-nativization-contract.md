@@ -566,3 +566,45 @@ uart_wait_tx_over
 | `nm -u` | 0 |
 | 静态 SRAM | 266,624 B（**未变**） |
 | `.text` | 1,003,324 → 1,003,332 B（+8，对齐） |
+
+---
+
+## 批次 8：`driver`（启动编排，2 个符号）
+
+`middleware/driver/common/driver.c` → `chips/bk7258/bk7258_driver.c`。
+
+`driver_early_init()`（中断控制器 / AON PMU / TRNG / eFuse）与 `driver_init()`（全部驱动初始化）都在
+启动路径上，**两个都是活符号**。这个单元没有逻辑，只有顺序，所以移植的唯一要求就是顺序与门控完全
+一致：GPIO 先于 ATE（ATE 借用 UART TX 脚做检测）与 UART；UART 起来之前不许打日志；mailbox 的
+`ipc_init` → `mb_ipc_init` → `bk_ipc_init` 三步；PSRAM 在最后（这条是本仓库对基线做过的唯一本地改动，
+注释一并保留）。
+
+配置门控的实际取值：`CONFIG_POWER_CLOCK_RF` **未定义** ⇒ 150 行的 `power_clk_rf_init()` 整段不编译
+（函数保留在同一个 `#if` 里，连同一个非 `static` 链接属性）；`CONFIG_CHIP_SUPPORT`、`CONFIG_SPI`、
+`CONFIG_I2C`、`CONFIG_QSPI`、`CONFIG_SDIO_HOST`、`CONFIG_CALENDAR`、`CONFIG_TOUCH_PM_SUPPORT`、
+`CONFIG_HW_ROTATE_PFC`、`CONFIG_LIN`、`CONFIG_TRUSTENGINE` 均未定义。
+
+两处构建层面的注意：
+
+- **`CONFIG_SPI` 同名冲突由本文件自己处理**。NuttX 的 `<nuttx/config.h>` 定义 `CONFIG_SPI` 指它自己的
+  SPI 层，而 Armino 这个名字的意思是"Armino SPI 驱动被编译进来了"，它没有。基线单元靠
+  `compat/bk7258_armino_nuttx_config.h` 解决，chip 层 TU 只能自己 `#undef`。这也让
+  `nuttx_config_compat_components` 里的 `driver` 条目失去了意义，一并清空（列表本身保留，注释说明原因）。
+- **`bk_ipc_init()` 用本地 extern 声明，不引入 `bk_api_ipc.h`**。那个目录（`middleware/driver/mailbox`）
+  的兄弟头文件会与 `mb_ipc/armino/middleware/driver/mailbox/mailbox_driver_base.h` 重复定义
+  `MAILBOX0..3` 与整个 `mailbox_*_t` 家族——凡是这两个头文件家族进同一个 TU 就报 redeclaration。
+  签名取自 `bk_api_ipc.h:135`。
+
+新增 include 目录三个：`middleware/driver/common`（dd_pub.h / drv_model.h）、`components/easy_flash`
+与 `components/easy_flash/easy_flash_V4.X/inc`（`bk_ef.h` → `easyflash.h`）。
+
+### 验收
+
+| 项 | 结果 |
+| --- | --- |
+| 导出符号 | **2 / 2**（`driver_early_init`、`driver_init`） |
+| 机器码 | **两个函数逐字节相同**（22 B / 128 B） |
+| `driver.c.o` 在 map | **0** |
+| 镜像内 | 两个符号仍由 `arch/libarch.a(bk7258_driver.c.o)` 提供 |
+| `nm -u` | 0 |
+| `.text` / `.data` / `.bss` | 1,003,332 / 10,080 / 266,624 B —— **与批次 7 后完全相同** |

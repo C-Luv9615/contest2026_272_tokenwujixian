@@ -143,6 +143,11 @@ if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
       # stack_mem_dump, arch_parse_stack_backtrace).  None of them is
       # referenced today; the writing half stays in trap_base.c.
       cp/middleware/arch/cm33/stack_base.c
+      # The driver bring-up itself: chips/bk7258/bk7258_driver.c provides
+      # driver_early_init/driver_init with the authority's call list, order and
+      # #if gates.  Both bodies are byte-identical to this unit's, including
+      # the local PSRAM bring-up the baseline already carried here.
+      cp/middleware/driver/common/driver.c
       # The device-driver init table: chips/bk7258/bk7258_dd.c provides
       # g_dd_init/g_dd_exit.  Its table is empty in this configuration
       # (CONFIG_SOC_BK7236XX selects the small table, and its only entry needs
@@ -193,11 +198,11 @@ if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
       cp/components/temp_detect/bk_sensor.c
       cp/components/temp_detect/volt_detect.c)
 
-  # NuttX's config.h defines CONFIG_SPI=1 and reaches Armino units through
-  # the libc headers; the baseline sdkconfig leaves it undefined, so
-  # driver.c:356 would call bk_spi_driver_init(), which the baseline never
-  # does. None of the NuttX headers in driver.c's include closure tests it.
-  set(nuttx_config_compat_components driver)
+  # driver.c is excluded (chips/bk7258/bk7258_driver.c is its port), so the
+  # CONFIG_SPI collision it needed this list for is handled inside that file
+  # instead: NuttX's config.h defines CONFIG_SPI for its own SPI layer, while
+  # the Armino name means "the Armino SPI driver is built", which it is not.
+  set(nuttx_config_compat_components "")
 
   # bk_patch holds wpa's own headers plus a bare-metal signal.h that shadows
   # NuttX's <signal.h>. Replace its -I with: generated forwarders for the
