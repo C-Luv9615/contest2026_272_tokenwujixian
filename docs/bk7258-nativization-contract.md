@@ -444,3 +444,50 @@ uart_wait_tx_over
 `uart_ll_wait_tx_over()` 的宏，内部直接读 UART0/1/2 的寄存器，不用 `s_uart[]` 的状态。
 
 验收：`nm -u` 0；静态 SRAM 287,136 B（未变）；WDT 批 43 符号零差异。
+
+---
+
+## 批次 6：移除 Armino CLI 与触摸驱动（不是替换，是删除）
+
+### 为什么删
+
+`components/bk_cli` 从 shell_uart 被替换后就**没有输入设备**了：它照样在启动时被
+`bk_init.c:210/214` 初始化、注册一整张命令表、拉进二十来个 `cli_*.c`，但没有人能敲命令进去。
+日志改走 syslog 之后，它连"异步日志出口"这个唯一实际作用也没了。
+
+### 排除它需要补的 7 个符号
+
+删 `bk_cli` 后链接器一次列全了缺口（`shell_assert_out` 114 次、`shell_log_flush` 107 次、
+`shell_cmd_ind_out` 10 次、`shell_set_log_cpu` 6 次、`shell_set_uart_port`/`shell_set_log_level`/
+`bk_cli_init` 各 1 次），由 `compat/bk7258_armino_shell_api.c` 提供：
+
+| 符号 | 我们的实现 |
+| --- | --- |
+| `shell_log_flush()` | 空操作 —— 日志已同步写 syslog，没有环形缓冲要 flush |
+| `shell_assert_out()` | **不是空操作**：走 `up_putc()` 直写控制台（等价于权威的 `emergency_uart_write_buf`），`bContinue == false` 时保持"停在这里" |
+| `shell_cmd_ind_out()` / `shell_set_log_cpu()` | 空操作（没有 CLI 提示符、没有日志归属核） |
+| `shell_set_uart_port()` | 转发 `bk_set_printf_port()`，与权威一致 |
+| `shell_set_log_level()` | 存值；现在没有代码按它过滤 |
+| `bk_cli_init()` | 返回 0（kNoErr） |
+
+`at_server` **必须保留**：`bk_init.c:275/333` 在启动时调 `at_server_init()`/`atsvr_app_init()`，
+它的命令设备是 `shell_uart`（由 `compat/bk7258_armino_shell.c` 提供）。曾经尝试连 `at_server` 一起排除，
+链接器立刻要 `at_server_init`、`atsvr_app_init`、`at_svr_env` 等 8 个符号，所以它不是叶子。
+
+### 连带收益：触摸驱动可以整体删除
+
+`touch_driver_v1_1` 唯一的引用者是 `cli_pwr.c` 的 `bk_touch_register_touch_isr`。`bk_cli` 一走，
+这个引用消失，整个触摸控制器驱动（438 行、25 符号）随之可以排除——**不需要移植**，因为这块板子
+从不驱动触摸面板。
+
+### 实测影响
+
+| 指标 | 清理前 | 清理后 | 变化 |
+| --- | --- | --- | --- |
+| 镜像符号数 | 8,210 | 7,756 | **−454** |
+| 静态 SRAM | 287,112 B | 276,704 B | **−10,408 B** |
+| `.text` | ~1,060 KB | 1,003,324 B | **−~57 KB** |
+| `libarmino_bk_cli` 成员 | 10 | 0 | 全出局 |
+| `touch_driver_v1_1` 成员 | 1 | 0 | 出局 |
+| `nm -u` | 0 | 0 | — |
+| 43 个 WDT/reset 符号面 | — | — | 零差异 |

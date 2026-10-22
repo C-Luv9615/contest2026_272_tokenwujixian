@@ -39,7 +39,7 @@ if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
   # Components left out of phase one, with the evidence required by S2.7:
   # os_source is the FreeRTOS kernel (one scheduler only, NuttX's);
   # lwip_intf_v2_1 is replaced by NuttX's own TCP/IP stack (user decision).
-  set(excluded os_source lwip_intf_v2_1)
+  set(excluded os_source lwip_intf_v2_1 bk_cli)
 
   # lwip's buffer and utility units are gone too. bk_wifi uses them as its
   # packet buffer (pbuf), buffer allocator and address helpers -- none is
@@ -78,8 +78,11 @@ if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
       cp/components/lwip_intf_v2_1/lwip-2.1.2/src/core/stats.c
       cp/components/bk_rtos/freertos/posix/freertos_impl/source/pthread_local_storage.c
       cp/components/wpa_supplicant-2.10/bk_patch/signal.c
-      # Replaced by compat/bk7258_armino_shell.c: shell_uart.c drove UART0,
-      # which NuttX owns; cli_rpc.c's only used export is cli_debug_cmd_table.
+      # shell_uart.c drove UART0, which NuttX owns.  The shell device driver
+      # that used to stand in for it is gone too: components/bk_cli no longer
+      # builds (it had no input device left), and compat/bk7258_armino_shell_api.c
+      # provides the log/assert entry points the remaining archives call.
+      # cli_rpc.c's only used export was cli_debug_cmd_table.
       cp/components/bk_cli/shell_uart.c
       cp/components/bk_cli/cli_rpc.c
       # Reset belongs to NuttX: the Armino reset entry, and SystemInit which
@@ -135,6 +138,11 @@ if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
       # SYS touch face: chips/bk7258/bk7258_sys_touch_driver.c provides the
       # same 22 register wrappers.  None of them is referenced today.
       cp/middleware/driver/sys_ctrl/sys_touch_driver.c
+      # The touch controller driver was only kept in the image by cli_pwr.c's
+      # bk_touch_register_touch_isr() call.  With components/bk_cli gone that
+      # reference is gone too, so the whole unit drops out without a port:
+      # this board never drives the panel path.
+      cp/middleware/driver/touch/touch_driver_v1_1.c
       # The log transport: chips/bk7258/bk7258_printf.c provides the same 26
       # symbols (printf 20 + printf_base 6) with the provider's format and
       # filters, but hands every line to syslog instead of the UART driver.
@@ -385,6 +393,7 @@ if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
 
   target_sources(arch PRIVATE bk7258_armino_start.c
                  compat/bk7258_armino_shell.c compat/bk7258_armino_irq.c
+                 compat/bk7258_armino_shell_api.c
                  compat/bk7258_freertos_nuttx.c compat/bk7258_lwip_sys.c
                  compat/bk7258_armino_netdev.c
                  compat/bk7258_armino_wops.c)
