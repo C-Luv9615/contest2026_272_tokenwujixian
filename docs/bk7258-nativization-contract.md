@@ -608,3 +608,14 @@ uart_wait_tx_over
 | 镜像内 | 两个符号仍由 `arch/libarch.a(bk7258_driver.c.o)` 提供 |
 | `nm -u` | 0 |
 | `.text` / `.data` / `.bss` | 1,003,332 / 10,080 / 266,624 B —— **与批次 7 后完全相同** |
+
+批次 7 + 8 合并上板（镜像 `50ce970f…`）：
+
+| 检查项 | 结果 |
+| --- | --- |
+| `driver_init` 的 PSRAM 段 | `cpu0:I(138):driver_init: psram init ok` |
+| EasyFlash（`driver_init` 调用） | `cpu0:ef:I(98):EasyFlash V4.1.0 is initialize success.` |
+| Wi-Fi bring-up | `cpu0:wifi:I(431):wifi inited(1) ret(0)` |
+| AP 侧 | `[AP] stage=scheduler-running`、console attach、`nsh-ap>` 就绪 |
+| 日志格式 | `[ts] cpu0:tag:LEVEL(ms):` 不变 |
+| 堆起点 | `H28096CE8:00008A18`（0x8A18 = 35,352 B，较 CLI 批前 +10,424 B） |
