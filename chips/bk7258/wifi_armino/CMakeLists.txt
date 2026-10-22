@@ -132,6 +132,9 @@ if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
       # pm-id mapping and uart_wait_tx_over) -- the rest lost their callers
       # when the Armino CLI lost its input device and logging moved to syslog.
       cp/middleware/driver/uart/uart_driver.c
+      # SYS touch face: chips/bk7258/bk7258_sys_touch_driver.c provides the
+      # same 22 register wrappers.  None of them is referenced today.
+      cp/middleware/driver/sys_ctrl/sys_touch_driver.c
       # The log transport: chips/bk7258/bk7258_printf.c provides the same 26
       # symbols (printf 20 + printf_base 6) with the provider's format and
       # filters, but hands every line to syslog instead of the UART driver.
