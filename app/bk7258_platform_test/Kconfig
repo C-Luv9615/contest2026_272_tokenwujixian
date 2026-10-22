@@ -12,3 +12,12 @@ config LVX_USE_DEMO_CONTEST2026_272_NETSPD
     Measure the CP/AP RPMsg frame path with netspd echo / netspd send.
     Endpoints use explicit addresses and an empty name, so no NS
     announcement is involved and either side may start first.
+
+config LVX_USE_DEMO_CONTEST2026_272_DRVTEST
+  bool "BK7258 native driver probe (bk7258_drvtest)"
+  default n
+  ---help---
+    Shell front end for the nativized driver faces: "bk7258_drvtest uart7"
+    exercises the seven UART driver symbols still referenced in the image,
+    and "bk7258_drvtest wdt ..." covers the watchdog and reset-reason probe
+    that used to live in board/bk7258-devkit/src/bk7258_wdt_test.c.

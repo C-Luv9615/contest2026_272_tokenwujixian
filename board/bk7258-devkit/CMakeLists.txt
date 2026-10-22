@@ -28,16 +28,6 @@ if(CONFIG_BK7258_MPU_TEST)
     STACKSIZE 4096)
 endif()
 
-# Test-only front end for the ported Armino watchdog/reset-reason face.
-# CP only: those symbols are compiled into the CP image.  Off by default;
-# see the "use-after-test" note in board/bk7258-devkit/Kconfig.
-if(CONFIG_BK7258_WDT_TEST AND NOT CONFIG_BK7258_COMPONENT_AP)
-  nuttx_add_application(
-    NAME bk7258_wdttest
-    SRCS ${NUTTX_BOARD_ABS_DIR}/src/bk7258_wdt_test.c
-    INCLUDE_DIRECTORIES ${NUTTX_BOARD_ABS_DIR}/../../chips/bk7258/include
-    STACKSIZE 2048)
-endif()
 
 if(CONFIG_BK7258_COMPONENT_AP)
   set(BK7258_LINKER_SCRIPT "flash_ap.ld")

@@ -71,14 +71,12 @@ uint32_t persist_memory_get(void);
 bool persist_memory_is_lost(void);
 
 /****************************************************************************
- * Test hooks (CONFIG_BK7258_WDT_TEST)
+ * Probe hooks
  *
- * The NSH command lives in the board (bk7258_wdt_test.c) but cannot include
- * the baseline headers, so the register/HAL work stays here and the app only
- * calls these thin entry points.  Compiled out of a normal image.
+ * The command front end lives in app/bk7258_platform_test (the platform probe
+ * app), which cannot include the baseline headers, so the register/HAL work
+ * stays here and the app only calls these thin entry points.
  ****************************************************************************/
-
-#ifdef CONFIG_BK7258_WDT_TEST
 
 /* Print AON PMU R0, R7A and the cached reset reason. */
 
@@ -101,8 +99,6 @@ void bk7258_wdt_test_force_reset(void);
 /* Read the sensor store and sample the ADC once.  0 on success. */
 
 int bk7258_wdt_test_sensor(void);
-
-#endif /* CONFIG_BK7258_WDT_TEST */
 
 #ifdef __cplusplus
 }

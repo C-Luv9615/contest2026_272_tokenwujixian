@@ -52,19 +52,6 @@ config BK7258_PANIC_TEST
 	---help---
 		Development aid to exercise the panic dump path on either core.
 
-config BK7258_WDT_TEST
-	bool "bk7258_wdttest NSH command (watchdog / reset-reason test)"
-	depends on NSH_BUILTIN_APPS
-	default n
-	---help---
-		Test-only front end for the ported Armino watchdog and reset-reason
-		face: peek AON PMU R0/R7A, stop/start/feed the interrupt watchdog,
-		record a reset reason, and take the force-reboot path.  Lives in the
-		board but does its register work in chips/bk7258/
-		bk7258_reset_reason.c.  Leave off in a delivered image: "stop"
-		really disarms the 8 s watchdog and "start" without feeding resets
-		the chip.
-
 config BK7258_CONSOLE_AUTO_AP_TIMEOUT
 	int "Seconds to wait for the AP before staying on the CP NSH"
 	depends on BK7258_CONSOLE_AUTO_AP

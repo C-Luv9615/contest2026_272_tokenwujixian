@@ -1945,4 +1945,48 @@ void uart2_isr(void)
   uart_isr_common(UART_ID_2);
 }
 
+/****************************************************************************
+ * Probe hook (see bk7258_probe.h)
+ ****************************************************************************/
+
+#include <nuttx/clock.h>
+#include <stdio.h>
+
+#include "bk7258_probe.h"
+
+void bk7258_uart_probe(void)
+{
+  uint32_t wait_us;
+  clock_t  t0;
+  clock_t  t1;
+  int      first;
+  int      second;
+
+  first  = (int)bk_uart_driver_init();
+  second = (int)bk_uart_driver_init();
+
+  printf("uart7: driver_init=%d, again=%d (idempotent)\n", first, second);
+
+  for (uart_id_t id = UART_ID_0; id < SOC_UART_ID_NUM_PER_UNIT; id++)
+    {
+      printf("uart7: pm_id(%d)=%lu\n", (int)id,
+             (unsigned long)uart_id_to_pm_uart_id(id));
+    }
+
+  printf("uart7: pm_backup(1)=%d pm_restore(1)=%d\n",
+         bk_uart_pm_backup(UART_ID_1), bk_uart_pm_restore(UART_ID_1));
+
+  printf("uart7: rx_gpio(0)=%d ate_gpio=%lu\n",
+         (int)bk_uart_get_rx_gpio(UART_ID_0),
+         (unsigned long)bk_uart_get_ate_detect_gpio());
+
+  t0      = clock_systime_ticks();
+  wait_us = uart_wait_tx_over();
+  t1      = clock_systime_ticks();
+
+  printf("uart7: wait_tx_over=%lu us (elapsed %lu ms)\n",
+         (unsigned long)wait_us, (unsigned long)(t1 - t0));
+}
+
 #endif /* !CONFIG_BK7258_COMPONENT_AP */
+

@@ -456,10 +456,12 @@ void bk7258_chip_reset(bool enter_bootloader)
 }
 
 /****************************************************************************
- * Test hooks (CONFIG_BK7258_WDT_TEST)
+ * Probe hooks
+ *
+ * Called by the platform probe app (app/bk7258_platform_test).  They are not
+ * gated here: an unused hook is collected by --gc-sections, and gating them on
+ * an app-level config would make the chip layer depend on how it is tested.
  ****************************************************************************/
-
-#ifdef CONFIG_BK7258_WDT_TEST
 
 #include <stdio.h>
 
@@ -529,4 +531,4 @@ int bk7258_wdt_test_sensor(void)
   return r_ret;
 }
 
-#endif /* CONFIG_BK7258_WDT_TEST */
+/* end of probe hooks */
