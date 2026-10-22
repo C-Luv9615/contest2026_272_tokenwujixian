@@ -686,3 +686,30 @@ arch 目标原先不含 CMSIS。
 | 镜像内 | `arch_init`(0x…a4) 与 `smem_reset_lastblock`(0x…a6) 相邻且各 2 字节 —— 与权威一致 |
 | `nm -u` | 0 |
 | `.text` | 1,003,332 → 1,003,340 B（+8，对齐） |
+
+---
+
+## 批次 11：`sys_audio_driver`（音频系统控制面，42 个符号）
+
+`middleware/driver/sys_ctrl/sys_audio_driver.c` → `chips/bk7258/bk7258_sys_audio_driver.c`。
+
+42 个函数，没有一个 `#if`，全是同一个三步形态：取 sysctrl 临界区 → 调一个 `sys_hal_*` 寄存器助手
+→ 释放 → `SYS_DRV_SUCCESS`。其中两个（`sys_drv_aud_select_clock`、`sys_drv_aud_clock_en`）在写寄存器
+前后用 `sys_amp_res_acquire()`/`release()` 包住，因为改音频时钟或 PLL 分频要占着模拟资源。
+
+活符号 3 个：`sys_drv_apll_en`、`sys_drv_aud_audbias_en`、`sys_drv_aud_aud_en`（音频设备注册路径）。
+`sys_hal_*` 助手本身未动。
+
+这一批的 42 个函数体是**机械重排**生成的（去掉制表符、改成 2 空格缩进、注释换成 NuttX 风格），而不是
+手抄——手抄 42 个四行函数只会引入笔误，而机器码比对会把任何笔误解释成"不同"。
+
+### 验收
+
+| 项 | 结果 |
+| --- | --- |
+| 导出符号 | **42 / 42**，集合差异为空 |
+| 机器码 | **42 个函数逐字节相同** |
+| `sys_audio_driver.c.o` 在 map | **0** |
+| 三个活符号 | 由 `arch/libarch.a(bk7258_sys_audio_driver.c.o)` 提供 |
+| `nm -u` | 0 |
+| `.text` | 1,003,340 → 1,003,348 B |

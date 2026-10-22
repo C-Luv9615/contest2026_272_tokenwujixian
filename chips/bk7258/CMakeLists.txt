@@ -71,6 +71,7 @@ else()
        bk7258_driver.c
        bk7258_drv_model.c
        bk7258_arm.c
+       bk7258_sys_audio_driver.c
        bk7258_printf.c)
 
   if(CONFIG_BK7258_PSRAM)

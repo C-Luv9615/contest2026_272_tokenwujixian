@@ -138,6 +138,10 @@ if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
       # SYS touch face: chips/bk7258/bk7258_sys_touch_driver.c provides the
       # same 22 register wrappers.  None of them is referenced today.
       cp/middleware/driver/sys_ctrl/sys_touch_driver.c
+      # The audio half of the same sysctrl face: chips/bk7258/
+      # bk7258_sys_audio_driver.c provides the same 42 wrappers, byte for
+      # byte, including the two that hold the analog resource around the write.
+      cp/middleware/driver/sys_ctrl/sys_audio_driver.c
       # The stack-reading half of the exception dump: chips/bk7258/
       # bk7258_stack_base.c provides the same 3 symbols (code_addr_is_valid,
       # stack_mem_dump, arch_parse_stack_backtrace).  None of them is
