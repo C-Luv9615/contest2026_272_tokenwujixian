@@ -148,6 +148,10 @@ if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
       # #if gates.  Both bodies are byte-identical to this unit's, including
       # the local PSRAM bring-up the baseline already carried here.
       cp/middleware/driver/common/driver.c
+      # The CM33 core face: chips/bk7258/bk7258_arm.c provides the same 9
+      # symbols (arch_init/smem_reset_lastblock are empty in the authority and
+      # stay empty; the rest is the WFI, NVIC-pending and LDREX/STREX set).
+      cp/middleware/arch/cm33/arm.c
       # The device model table and its dispatch: chips/bk7258/
       # bk7258_drv_model.c provides the same 12 symbols.  All twelve bodies
       # and the DD_MAX_DEV-slot table are byte-identical to this unit's.

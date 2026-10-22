@@ -657,3 +657,32 @@ uart_wait_tx_over
 | `drv_model.c.o` 在 map | **0** |
 | `nm -u` | 0 |
 | `.text` / `.data` / `.bss` | 与批次 8 后完全相同 |
+
+---
+
+## 批次 10：`arm`（CM33 核面，9 个符号，94 行）
+
+`middleware/arch/cm33/arm.c` → `chips/bk7258/bk7258_arm.c`。
+
+`arch_init()` 与 `smem_reset_lastblock()` 在权威里就是**空函数**（2 字节 `bx lr`），照抄；`arch_init`
+之所以是活符号，是 `trap_base.c` 引用它。其余是核级原语：`arch_sleep`/`arch_deep_sleep`（WFI 加/清
+SLEEPDEEP，分别放在 `.iram` 与 `.itcm_sec_code` 段）、`check_IRQ_pending`（64 位挂起掩码）、
+`arch_atomic_{set,set_return,clear}` 与 `arch_fence`（LDREX/STREX、DSB/ISB）。
+
+**段属性照抄**，即使本 port 的 `flash.ld` 没有 ITCM 区：权威也是这么编的，去掉属性等于改变链接器
+放置这段代码的自由度。
+
+新增两个 CMSIS include 目录（`CMSIS_5/CMSIS/Core/Include`、
+`CMSIS_5/Device/Beken/armstar`）：`SCB`、`__LDAEX/__STREXW/__STL`、`NVIC_GetAllPendingIRQ` 都在那里，
+arch 目标原先不含 CMSIS。
+
+### 验收
+
+| 项 | 结果 |
+| --- | --- |
+| 导出符号 | **9 / 9** |
+| 机器码 | **9 个函数逐字节相同**（2–28 B） |
+| `arm.c.o` 在 map | **0** |
+| 镜像内 | `arch_init`(0x…a4) 与 `smem_reset_lastblock`(0x…a6) 相邻且各 2 字节 —— 与权威一致 |
+| `nm -u` | 0 |
+| `.text` | 1,003,332 → 1,003,340 B（+8，对齐） |

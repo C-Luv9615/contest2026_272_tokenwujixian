@@ -70,6 +70,7 @@ else()
        bk7258_dd.c
        bk7258_driver.c
        bk7258_drv_model.c
+       bk7258_arm.c
        bk7258_printf.c)
 
   if(CONFIG_BK7258_PSRAM)
@@ -130,6 +131,12 @@ if(CONFIG_BK7258_COMPONENT_CP)
                              # authority signatures from dd_pub.h and
                              # drv_model.h in this directory.
                              ${NUTTX_CHIP_ABS_DIR}/armino_baseline/cp/middleware/driver/common
+                             # bk7258_arm.c is the Armino CM33 core face and
+                             # keeps the authority's bodies: SCB, the CMSIS
+                             # atomics (__LDAEX/__STREXW/__STL) and
+                             # NVIC_GetAllPendingIRQ all come from CMSIS.
+                             ${NUTTX_CHIP_ABS_DIR}/armino_baseline/cp/components/cmsis/CMSIS_5/CMSIS/Core/Include
+                             ${NUTTX_CHIP_ABS_DIR}/armino_baseline/cp/components/cmsis/CMSIS_5/Device/Beken/armstar
                              # easyflash_init()'s declaration (bk_ef.h ->
                              # easyflash.h); the EasyFlash units themselves
                              # stay in the baseline.
