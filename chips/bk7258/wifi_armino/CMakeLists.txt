@@ -39,7 +39,7 @@ if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
   # Components left out of phase one, with the evidence required by S2.7:
   # os_source is the FreeRTOS kernel (one scheduler only, NuttX's);
   # lwip_intf_v2_1 is replaced by NuttX's own TCP/IP stack (user decision).
-  set(excluded os_source lwip_intf_v2_1 bk_cli)
+  set(excluded os_source lwip_intf_v2_1 bk_cli at_server)
 
   # lwip's buffer and utility units are gone too. bk_wifi uses them as its
   # packet buffer (pbuf), buffer allocator and address helpers -- none is

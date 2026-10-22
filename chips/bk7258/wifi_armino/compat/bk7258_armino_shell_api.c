@@ -45,6 +45,13 @@
  *                            printf does not consult the shell.
  *   bk_cli_init()            registers command tables; returns kNoErr.
  *
+ * components/at_server is out of the build for the same reason, and the AT
+ * front end needs the same treatment: its command and event device is the
+ * shell_uart above, which has no input path, so no AT command ever arrives and
+ * nothing it produced could ever leave.  wifi_at.c and bk_system_at.c stay
+ * compiled -- they are its clients -- and the entry points they call are the
+ * no-ops further down, next to the AT environment storage they read.
+ *
  * CP only.
  ****************************************************************************/
 
@@ -58,6 +65,8 @@
 #ifndef CONFIG_BK7258_COMPONENT_AP
 
 #include "sdkconfig.h"
+
+#include "at_server.h"
 
 #include <common/bk_err.h>
 #include <common/bk_typedef.h>
@@ -144,6 +153,70 @@ void shell_set_log_level(int level)
 int shell_get_log_level(void)
 {
   return s_shell_log_level;
+}
+
+/****************************************************************************
+ * The AT front end's entry points (components/at_server is excluded)
+ *
+ * Same situation as the CLI: at_server_init() and atsvr_app_init() are called
+ * from bk_init.c:275/334, the command device is the input-less shell_uart, and
+ * wifi_at.c / bk_system_at.c register tables and report through these calls.
+ * With no transport there is nothing to register into and nowhere to send a
+ * response, so registration reports success and the senders do nothing.
+ *
+ * _at_svr_env is real storage rather than a symbol stub because wifi_at.c
+ * takes its address and reads fields from it; an all-zero environment is what
+ * an at_server that never initialised would have left behind.
+ ****************************************************************************/
+
+_at_svr_ctrl_env_t _at_svr_env = {0};
+
+void at_server_init(void)
+{
+}
+
+int atsvr_app_init(void)
+{
+  return ATSVR_OK;
+}
+
+int atsvr_register_commands(const struct _atsvr_command *commands,
+                            int num_commands, char *tag,
+                            atsvr_event_cb evecb)
+{
+  (void)commands;
+  (void)num_commands;
+  (void)tag;
+  (void)evecb;
+
+  /* Nothing will ever match a command, so refusing the table would only make
+   * the callers log a failure they cannot act on.
+   */
+
+  return ATSVR_OK;
+}
+
+void atsvr_cmd_rsp_ok(void)
+{
+}
+
+void atsvr_cmd_rsp_error(void)
+{
+}
+
+void atsvr_output_msg(char *msg)
+{
+  (void)msg;
+}
+
+void atsvr_event_sender(char *event, int sub_evt_id, int msg_len, void *msg,
+                        bool free_msg)
+{
+  (void)event;
+  (void)sub_evt_id;
+  (void)msg_len;
+  (void)msg;
+  (void)free_msg;
 }
 
 #endif /* !CONFIG_BK7258_COMPONENT_AP */

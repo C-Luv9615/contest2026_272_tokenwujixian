@@ -780,3 +780,46 @@ PRIMASK。改成 `getprimask()/setprimask()` 后正常。
 真实调用者不受影响：`user_except_handler()` 以 `bk_reboot_ex()` 结束、从不返回，所以权威那个
 `__disable_irq()` 不需要归还——**只有"跑完还要继续用板子"的探针才会把它暴露成故障**。教训：
 在这个 port 里混用 `up_irq_save` 与 `__disable_irq` 会漏掉一个掩码。
+
+---
+
+## 批次 13：排除 `at_server`（不是替换，是删除；T17 收尾）
+
+`components/at_server` 整块出局：6 个成员（`_at_server.c` / `at_server.c` / `atsvr_core.c` /
+`atsvr_port.c` / `_atsvr_func.c` / `at_task.c`）、1,697 行、52 个导出符号、39 个镜像内符号。
+
+### 为什么是删而不是移植
+
+和批次 6 的 CLI 同一个理由，而且这次有原文可引：我们的 `compat/bk7258_armino_shell.c` 顶部写着
+"output through up_putc(), **no input** (NuttX's NSH owns the console input)"。`at_server` 的命令设备与
+事件设备就是这个 `shell_uart`，所以**没有 AT 命令会进来，也没有东西能出去**。它的 7.5 KB 代码
+仍在开机时被初始化（`bk_init.c:275/334`），只是空转。
+
+### 需要补的 8 个符号
+
+`compat/bk7258_armino_shell_api.c`（与 CLI 那批同一个文件）：
+
+| 符号 | 我们的实现 |
+| --- | --- |
+| `at_server_init()` / `atsvr_app_init()` | 空 / 返回 `ATSVR_OK` |
+| `atsvr_register_commands(...)` | 返回 `ATSVR_OK`。没有传输层，拒绝注册只会让调用方记录一个它无法处理的失败 |
+| `atsvr_cmd_rsp_ok/error()`、`atsvr_output_msg()`、`atsvr_event_sender()` | 空——没有地方可发 |
+| `_at_svr_env` | **真存储**（全零）。`wifi_at.c` 取它的地址并读字段，全零正是"从未初始化的 at_server"会留下的状态 |
+
+`wifi_at.c` 与 `bk_system_at.c` **保留**：它们是调用方，不是服务端。
+
+### 实测影响
+
+| 指标 | 清理前 | 清理后 | 变化 |
+| --- | --- | --- | --- |
+| `.text` | 1,003,356 B | **997,472 B** | **−5,884 B** |
+| `.data` | 10,080 B | 10,068 B | −12 |
+| `.bss` | 266,624 B | 266,456 B | −168 |
+| `libarmino_at_server` 成员 | 6 | 0 | 全出局 |
+| `nm -u` | 0 | 0 | — |
+
+### T17 状态
+
+`uart_driver`（批次 4）、`stack_base` / `dd` / `driver` / `drv_model` / `arm` / `trap_base`（批次 7–12）、
+`sys_audio_driver`（批次 11）、`sys_touch_driver`（批次 7 前）、`touch_driver_v1_1` 与 `at_server`
+（排除）——**T17 的单元全部收敛完毕**，其中 10 个以"逐字节相同"收尾，2 个以"无传输层、整体删除"收尾。

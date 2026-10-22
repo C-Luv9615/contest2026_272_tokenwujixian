@@ -146,6 +146,13 @@ if(CONFIG_BK7258_COMPONENT_CP)
                              # authority signatures from dd_pub.h and
                              # drv_model.h in this directory.
                              ${NUTTX_CHIP_ABS_DIR}/armino_baseline/cp/middleware/driver/common
+                             # compat/bk7258_armino_shell_api.c carries the AT
+                             # front end's entry points now that
+                             # components/at_server is excluded, so it needs the
+                             # at_server headers for the types they use.
+                             ${NUTTX_CHIP_ABS_DIR}/armino_baseline/cp/components/at_server
+                             ${NUTTX_CHIP_ABS_DIR}/armino_baseline/cp/components/at_server/_at_server
+                             ${NUTTX_CHIP_ABS_DIR}/armino_baseline/cp/components/at_server/_at_server_port
                              # bk7258_trap_base.c is the exception/dump core:
                              # cm_backtrace_fault() and the rtos_dump_*
                              # helpers it calls come from these two components.
