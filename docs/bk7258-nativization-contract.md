@@ -713,3 +713,7 @@ arch 目标原先不含 CMSIS。
 | 三个活符号 | 由 `arch/libarch.a(bk7258_sys_audio_driver.c.o)` 提供 |
 | `nm -u` | 0 |
 | `.text` | 1,003,340 → 1,003,348 B |
+
+批次 9–11 合并上板（镜像 `383fb680…`）：启动序列与批次 7/8 逐行一致（`psram init ok`、`EasyFlash success`、
+`wifi inited(1) ret(0)`、AP `scheduler-running`），`wapi` 关联 → DHCP `192.168.110.166`，
+`ping www.baidu.com` **10/10，21–38 ms**。CLI 批之后 `BK STA got ip4` 那一行不再出现，与此前记录一致。
