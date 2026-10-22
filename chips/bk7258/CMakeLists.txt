@@ -69,6 +69,7 @@ else()
        bk7258_stack_base.c
        bk7258_dd.c
        bk7258_driver.c
+       bk7258_drv_model.c
        bk7258_printf.c)
 
   if(CONFIG_BK7258_PSRAM)
@@ -108,6 +109,13 @@ if(CONFIG_BK7258_COMPONENT_CP)
                              ${NUTTX_CHIP_ABS_DIR}/armino_baseline/cp/middleware/soc/bk7258/hal
                              ${NUTTX_CHIP_ABS_DIR}/armino_baseline/cp/middleware/soc/bk7258/soc
                              ${NUTTX_CHIP_ABS_DIR}/armino_baseline/cp/middleware/driver/include/bk_private
+                             # The legacy directory has to come before
+                             # wifi/hal_port/include: both carry a
+                             # drv_model_pub.h, hal_port's is a trimmed copy
+                             # without DD_DEV_TYPE_END / the handle masks, and
+                             # drv_model.h (our port's signature source) needs
+                             # the full one.
+                             ${NUTTX_CHIP_ABS_DIR}/armino_baseline/cp/middleware/driver/include/bk_private/legacy
                              ${NUTTX_CHIP_ABS_DIR}/armino_baseline/cp/middleware/driver/pmu
                              ${NUTTX_CHIP_ABS_DIR}/armino_baseline/cp/middleware/driver/wdt
                              ${NUTTX_CHIP_ABS_DIR}/armino_baseline/cp/middleware/driver/aon_wdt

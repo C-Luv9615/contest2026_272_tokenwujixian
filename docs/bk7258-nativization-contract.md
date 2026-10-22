@@ -619,3 +619,41 @@ uart_wait_tx_over
 | AP 侧 | `[AP] stage=scheduler-running`、console attach、`nsh-ap>` 就绪 |
 | 日志格式 | `[ts] cpu0:tag:LEVEL(ms):` 不变 |
 | 堆起点 | `H28096CE8:00008A18`（0x8A18 = 35,352 B，较 CLI 批前 +10,424 B） |
+
+---
+
+## 批次 9：`drv_model`（设备模型，12 个符号）
+
+`middleware/driver/common/drv_model.c` → `chips/bk7258/bk7258_drv_model.c`。
+
+`DD_MAX_DEV` 个槽位的设备表（状态、引用计数、`DD_OPERATIONS *`）加上 open/close/read/write/control
+分发。句柄是"槽位号 + 高半字魔数 `0xA5A50000`"，所以每个入口都先验魔数与下标。临界区用权威的
+`GLOBAL_INT_DISABLE/RESTORE`（即 `rtos_disable_int()` / `rtos_enable_int()` 的保存-恢复对）——状态和
+引用计数的更新在同一次关中断里完成，ISR 与任务之间不会丢更新。
+
+`ddev_control()` 比其它入口多一道 `idx >= DD_MAX_DEV` 检查：它与 `ddev_get_id_from_handle()` 的
+`DD_DEV_TYPE_END` 上界重复，但类型值落在 `DD_DEV_TYPE_END` 与 `DD_MAX_DEV` 之间的设备会越界读表，
+所以照抄保留。
+
+活符号：`drv_model_init`、`ddev_get_id_from_handle`、`ddev_control`。
+
+### 编译期坑：第二个 `drv_model_pub.h`
+
+`wifi/hal_port/include/` 里有一份**精简副本**，没有 `DD_DEV_TYPE_END` 和 `DD_HANDLE_MAGIC_MASK` /
+`ID_MASK`；而 `drv_model.h` 的 `DD_MAX_DEV` 正是 `(DD_DEV_TYPE_END & 0xFFFF)`。arch 目标的 include 列表
+原本不含 `bk_private/legacy`，于是 `"drv_model_pub.h"` 解析到 hal_port 那份，编译报
+`DD_DEV_TYPE_END undeclared`。修法：把 `middleware/driver/include/bk_private/legacy` 加到 CP 块里，
+位置在 hal_port 之前。legacy 目录只有 5 个条目，与 hal_port 唯一同名的就是这一个头文件。
+
+（这是与 `temp_detect.h` 同一类的影子头问题：**先看第二份副本是谁，再改 include 顺序**。）
+
+### 验收
+
+| 项 | 结果 |
+| --- | --- |
+| 导出符号 | **12 / 12** |
+| 机器码 | **12 个函数逐字节相同**（4–144 B） |
+| 目标文件 | 权威 694 / 0 /364；我们 694 / 0 /364 —— 三段全同 |
+| `drv_model.c.o` 在 map | **0** |
+| `nm -u` | 0 |
+| `.text` / `.data` / `.bss` | 与批次 8 后完全相同 |

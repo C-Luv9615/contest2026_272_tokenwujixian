@@ -148,6 +148,10 @@ if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
       # #if gates.  Both bodies are byte-identical to this unit's, including
       # the local PSRAM bring-up the baseline already carried here.
       cp/middleware/driver/common/driver.c
+      # The device model table and its dispatch: chips/bk7258/
+      # bk7258_drv_model.c provides the same 12 symbols.  All twelve bodies
+      # and the DD_MAX_DEV-slot table are byte-identical to this unit's.
+      cp/middleware/driver/common/drv_model.c
       # The device-driver init table: chips/bk7258/bk7258_dd.c provides
       # g_dd_init/g_dd_exit.  Its table is empty in this configuration
       # (CONFIG_SOC_BK7236XX selects the small table, and its only entry needs
