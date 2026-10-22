@@ -138,6 +138,17 @@ if(CONFIG_BK7258_WIFI_ARMINO_BASELINE)
       # SYS touch face: chips/bk7258/bk7258_sys_touch_driver.c provides the
       # same 22 register wrappers.  None of them is referenced today.
       cp/middleware/driver/sys_ctrl/sys_touch_driver.c
+      # The stack-reading half of the exception dump: chips/bk7258/
+      # bk7258_stack_base.c provides the same 3 symbols (code_addr_is_valid,
+      # stack_mem_dump, arch_parse_stack_backtrace).  None of them is
+      # referenced today; the writing half stays in trap_base.c.
+      cp/middleware/arch/cm33/stack_base.c
+      # The device-driver init table: chips/bk7258/bk7258_dd.c provides
+      # g_dd_init/g_dd_exit.  Its table is empty in this configuration
+      # (CONFIG_SOC_BK7236XX selects the small table, and its only entry needs
+      # CONFIG_FLASH_ORIGIN_API), so both bodies are the authority's empty
+      # walk -- byte for byte.
+      cp/middleware/driver/common/dd.c
       # The touch controller driver was only kept in the image by cli_pwr.c's
       # bk_touch_register_touch_isr() call.  With components/bk_cli gone that
       # reference is gone too, so the whole unit drops out without a port:

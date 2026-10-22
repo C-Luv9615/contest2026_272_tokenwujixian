@@ -66,6 +66,8 @@ else()
        bk7258_uart_hal.c
        bk7258_uart_driver.c
        bk7258_sys_touch_driver.c
+       bk7258_stack_base.c
+       bk7258_dd.c
        bk7258_printf.c)
 
   if(CONFIG_BK7258_PSRAM)
@@ -118,7 +120,13 @@ if(CONFIG_BK7258_COMPONENT_CP)
                              ${NUTTX_CHIP_ABS_DIR}/armino_baseline/cp/middleware/driver/sys_ctrl
                              ${NUTTX_CHIP_ABS_DIR}/pm/nuttx_port/include
                              ${NUTTX_CHIP_ABS_DIR}/armino_baseline/projects/wifi/iperf/cp/config/bk7258
-                             ${NUTTX_CHIP_ABS_DIR}/armino_baseline/build/bk7258/iperf/bk7258/config)
+                             ${NUTTX_CHIP_ABS_DIR}/armino_baseline/build/bk7258/iperf/bk7258/config
+                             # bk7258_stack_base.c asks whether an address is in
+                             # the application partition, so it needs the same
+                             # generated CONFIG_APPLICATION_PARTITION_OFFSET
+                             # <driver/flash_partition.h> reaches in the baseline.
+                             ${NUTTX_CHIP_ABS_DIR}/armino_baseline/cp/middleware/boards/bk7258/partitions
+                             ${NUTTX_CHIP_ABS_DIR}/armino_baseline/build/bk7258/iperf/partitions)
 endif()
 
 if(CONFIG_BK7258_MB_IPC_RPMSG)

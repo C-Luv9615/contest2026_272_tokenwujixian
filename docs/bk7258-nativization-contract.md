@@ -523,3 +523,46 @@ uart_wait_tx_over
 3. **残留引用逐条核**：`shell_log_out_port` 的唯一引用在 `platform_stub.c.o`（该段被 gc）；
    `create_log_handle_task` 只在被排除的归档内部；`shell_log_flush` 真正的活调用者是
    `at_server`，已给 no-op。**符号总数不能当判据**，它随 gc 两个方向都动。
+
+---
+
+## 批次 7：`stack_base` + `dd`（5 个符号，零活符号）
+
+两个都是"读导出集合就知道规模"的小单元，一起做是因为彼此无关、风险都接近零。
+
+### `stack_base.c` → `chips/bk7258/bk7258_stack_base.c`（3 符号）
+
+`code_addr_is_valid` / `stack_mem_dump` / `arch_parse_stack_backtrace`，**镜像里 0 个活的**。
+它们是异常 dump 的**读半边**；写半边（`arch_is_enter_exception`、`bk_system_dump`、dump hook）
+仍在 `trap_base.c` 里，那是后续批次。
+
+保留的分支：`stack_mem_dump` 里的 `#if CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE`（打印过程中
+喂 WDT：`bk_task_wdt_feed()` / 异常态下 `bk_wdt_force_feed()`）。当前两个宏都未定义，该分支不参与
+编译，但代码在。`code_addr_is_valid` 的判定是"奇数地址 + 在 flash text / ITCM / IRAM 内"，权威里
+还有一版更严格的（要求前一条指令是 bl/blx）已被注释掉，照原样保留。
+
+构建期需要一处新 include：`<driver/flash_partition.h>` → `partitions.h` → 生成的
+`CONFIG_APPLICATION_PARTITION_OFFSET`，所以 chip 目标的 include 列表加了
+`middleware/boards/bk7258/partitions` 与 `build/bk7258/iperf/partitions` 两个目录。
+
+### `dd.c` → `chips/bk7258/bk7258_dd.c`（2 符号）
+
+`g_dd_init` / `g_dd_exit`，**这张表在当前配置下是空的**，而且这是忠实而不是遗漏：
+`CONFIG_SOC_BK7236XX` 已定义 ⇒ 选小表；小表唯一的条目又要 `CONFIG_FLASH_ORIGIN_API`，它未定义。
+于是 `sizeof(dd_init_tbl) == 0`，循环计数 0，两个函数立刻返回。镜像里只有 `g_dd_init` 是活的
+（`driver.c:312` 调用）。
+
+大表的九个分支（sctrl / flash-origin / DSP / mailbox / BT / FFT / IrDA / MAC-PHY-bypass / SD 卡）
+全部保留，每个分支连同它需要的头文件一起走同一个 `#if`，配置一翻就落到完整表而不是空表。
+
+### 验收
+
+| 项 | 结果 |
+| --- | --- |
+| 导出符号 | **5 / 5**，与权威逐条相同 |
+| 机器码 | **5 个函数逐字节相同**（14 / 29 / 38 / 16 / 15 条指令） |
+| `stack_base.c.o` / `dd.c.o` 在 map | 均 **0** |
+| 镜像内活符号 | `g_dd_init` 仍在（与替换前的 1 个一致），其余 4 个仍被 gc |
+| `nm -u` | 0 |
+| 静态 SRAM | 266,624 B（**未变**） |
+| `.text` | 1,003,324 → 1,003,332 B（+8，对齐） |
