@@ -491,3 +491,35 @@ uart_wait_tx_over
 | `touch_driver_v1_1` 成员 | 1 | 0 | 出局 |
 | `nm -u` | 0 | 0 | — |
 | 43 个 WDT/reset 符号面 | — | — | 零差异 |
+
+### 验收状态（已上板）
+
+镜像 `232d99a0…`（`all-app.bin`，源码 mtime 早于打包时间），CP `nsh>` 实测：
+
+| 检查项 | 结果 |
+| --- | --- |
+| 启动日志格式 | `cpu0:tag:LEVEL(ms):` 保持，毫秒时间戳正确 |
+| 关联流程 | `wapi psk` / `wapi essid` → scan → assoc → 4-way → DHCP 全通 |
+| 地址 | `[ARMINO] wlan0 ip 192.168.110.166` |
+| 外网 | `ping www.baidu.com` 4/4，26–48 ms |
+| `nm -u` | 0 |
+| `libarmino_bk_cli.a` 成员 | 0 |
+| 静态 SRAM | 266,624 B |
+
+**唯一有意改变的一行日志**：`cpu0:cli:I(...):BK STA got ip4` 不再出现。它由被删的
+`cli_netif.c` 打印，是 CLI 的回调，不是协议栈的输出；DHCP 本身由
+`[ARMINO] wlan0 ip …` 与 `[KW:]me dhcp done vif:0` 证明。
+
+### 为什么"符号少了 454 个"不等于风险
+
+判断顺序必须是结构性的，不是计数：
+
+1. **穷举**：静态链接 + `--gc-sections` 下，任何被保留的代码引用被删符号都会在链接期报
+   `undefined reference`。链接通过且 `nm -u` 为 0 ⇒ 没有幸存代码依赖它们。
+2. **反向**：被删的东西在运行时原本做什么。`bk_cli_init()` 承担三件事 —— 注册命令表
+   （无输入设备）、创建 `shell_task` 线程（消费 shell UART 输入 + 异步日志环）、
+   `create_log_handle_task()` 创建 `log_hanlder` 线程（排空同一个环）。日志改 syslog 后
+   环没有生产者，后两件事的消费者已无对象。
+3. **残留引用逐条核**：`shell_log_out_port` 的唯一引用在 `platform_stub.c.o`（该段被 gc）；
+   `create_log_handle_task` 只在被排除的归档内部；`shell_log_flush` 真正的活调用者是
+   `at_server`，已给 no-op。**符号总数不能当判据**，它随 gc 两个方向都动。
